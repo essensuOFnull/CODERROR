@@ -1,7 +1,7 @@
 import numpy as np
 import pygame
 from pygame import*
-from pygame.display import set_mode,update,set_caption
+from pygame.display import set_mode,update,set_caption,set_icon
 from pygame.surfarray import make_surface
 from random import randint,choice
 from PIL import Image
@@ -11,10 +11,10 @@ lib.fonts_initialization()
 global pixels,W,H
 W,H=(640,480)
 pixels=np.zeros((W,H,3),dtype=np.uint8)
-def set_pixel(array,x,y,red,green,blue):lib.set_pixel(array.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),array.shape[0],array.shape[1],x,y,red,green,blue)
-def write_symbol_frame(array,x,y,symbol,direction=0,red=0,green=0,blue=0):lib.write_symbol_frame(array.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),array.shape[0],array.shape[1],x,y,symbol.ctypes.data_as(ctypes.POINTER(ctypes.c_bool)),len(symbol[0]),len(symbol),direction,red,green,blue)
-def write_symbol(array,x,y,symbol,direction=0,red=255,green=255,blue=255):lib.write_symbol(array.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),array.shape[0],array.shape[1],x,y,symbol.ctypes.data_as(ctypes.POINTER(ctypes.c_bool)),len(symbol[0]),len(symbol),direction,red,green,blue)
-def visual_effect1(array):lib.visual_effect1(array.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),array.shape[0],array.shape[1])
+def set_pixel(array,x,y,red,green,blue,alpha=255):lib.set_pixel(array.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),array.shape[0],array.shape[1],array.shape[2],x,y,red,green,blue,alpha)
+def write_symbol_frame(array,x,y,symbol,direction=0,red=0,green=0,blue=0,alpha=0):lib.write_symbol_frame(array.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),array.shape[0],array.shape[1],array.shape[2],x,y,symbol.ctypes.data_as(ctypes.POINTER(ctypes.c_bool)),len(symbol[0]),len(symbol),direction,red,green,blue,alpha)
+def write_symbol(array,x,y,symbol,direction=0,red=255,green=255,blue=255,alpha=255):lib.write_symbol(array.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),array.shape[0],array.shape[1],array.shape[2],x,y,symbol.ctypes.data_as(ctypes.POINTER(ctypes.c_bool)),len(symbol[0]),len(symbol),direction,red,green,blue,alpha)
+def visual_effect1(array):lib.visual_effect1(array.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),array.shape[0],array.shape[1],array.shape[2])
 def blit_image(array,image_path,x,y):
     image=Image.fromarray(array)
     overlay_image=Image.open(image_path).transpose(Image.FLIP_LEFT_RIGHT).transpose(Image.ROTATE_90)
@@ -54,6 +54,14 @@ clock=pygame.time.Clock()
 while 1:
     for event in pygame.event.get():
         if event.type==QUIT:exit()
+    #создание иконки
+    icon=np.zeros((16,16,3),dtype=np.uint8)
+    write_symbol(icon,3,3,choice(list(fonts[0].values())),0,randint(0,255),randint(0,255),randint(0,255))
+    icon=make_surface(icon).convert_alpha()
+    pixel_array=PixelArray(icon)
+    pixel_array.replace((0,0,0,255),(0,0,0,0))
+    set_icon(icon)
+    #
     pixels=np.zeros((W,H,3),dtype=np.uint8)
     #pixels=blit_image(pixels,"image.png",0,0)
     '''for y in range(H//10):
