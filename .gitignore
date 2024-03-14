@@ -1,4 +1,5 @@
 __pycache__
-fonts.c
-CODERROR.so
 .vscode/
+CODERROR.so
+fonts.c
+fonts_dicts.c

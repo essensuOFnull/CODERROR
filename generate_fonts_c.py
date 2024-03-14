@@ -5,7 +5,7 @@ with open('fonts.c','w')as file:
     file.write("struct Symbol**fonts=NULL;\n")
     file.write('int count_of_fonts={};\n'.format(count_of_fonts))
     file.write('int count_of_symbols[]={'+','.join(str(len(font))for font in fonts)+'};\n')
-    file.write('void fonts_initialization(){\n')
+    file.write('void initialize_fonts(){\n')
     file.write('\tfonts=malloc(sizeof(struct Symbol*)*{});\n'.format(count_of_fonts))
     for i,font in enumerate(fonts):
         file.write('\tfonts[{}]=malloc(sizeof(struct Symbol)*{});\n'.format(i,len(font)))

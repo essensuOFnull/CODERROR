@@ -7,14 +7,19 @@ from random import randint,choice
 from PIL import Image
 import ctypes
 lib=ctypes.CDLL('./CODERROR.so')
-lib.fonts_initialization()
+lib.initialize_fonts()
+lib.initialize_fonts_dicts()
+char32_t=ctypes.c_uint32
 global pixels,W,H
-W,H=(640,480)
+W,H=640,480
 pixels=np.zeros((W,H,3),dtype=np.uint8)
 def set_pixel(array,x,y,red,green,blue,alpha=255):lib.set_pixel(array.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),array.shape[0],array.shape[1],array.shape[2],x,y,red,green,blue,alpha)
 def write_symbol_frame(array,x,y,symbol,direction=0,red=0,green=0,blue=0,alpha=0):lib.write_symbol_frame(array.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),array.shape[0],array.shape[1],array.shape[2],x,y,symbol.ctypes.data_as(ctypes.POINTER(ctypes.c_bool)),len(symbol[0]),len(symbol),direction,red,green,blue,alpha)
 def write_symbol(array,x,y,symbol,direction=0,red=255,green=255,blue=255,alpha=255):lib.write_symbol(array.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),array.shape[0],array.shape[1],array.shape[2],x,y,symbol.ctypes.data_as(ctypes.POINTER(ctypes.c_bool)),len(symbol[0]),len(symbol),direction,red,green,blue,alpha)
 def visual_effect1(array):lib.visual_effect1(array.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),array.shape[0],array.shape[1],array.shape[2])
+def get_symbol_code(key,font_number=0):
+    char_array=(char32_t*len(key))(*[ord(c)for c in key])
+    return lib.get_symbol_code(char_array,font_number)
 def blit_image(array,image_path,x,y):
     image=Image.fromarray(array)
     overlay_image=Image.open(image_path).transpose(Image.FLIP_LEFT_RIGHT).transpose(Image.ROTATE_90)
@@ -71,4 +76,4 @@ while 1:
     visual_effect1(pixels)
     #set_pixel(pixels,639,479,255,0,0)
     screen.blit(make_surface(pixels),(0,0));update();clock.tick(500);set_caption(f'FPS: {clock.get_fps():.0f}')
-    print(clock.get_fps())
+    print(get_symbol_code("▛"))

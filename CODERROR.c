@@ -2,7 +2,21 @@
 #include<stdbool.h>
 #include<stdlib.h>
 #include<string.h>
+#include<uchar.h>
 #include"fonts.c"
+#include"fonts_dicts.c"
+bool compare_char32_strings(const char32_t*str1,const char32_t*str2){
+    while(*str1!=U'\0'||*str2!=U'\0'){
+        if(*str1!=*str2){
+            return 0;}
+        str1++;
+        str2++;}
+    return 1;}
+int get_symbol_code(char32_t*key,int font_number){
+    for(int i=0;i<len_of_fonts_dicts[font_number];i++){
+        if(compare_char32_strings(fonts_dicts[font_number][i].key,key)){
+            return fonts_dicts[font_number][i].number;}}
+    return-1;}
 void set_pixel(uint8_t*pixels,int width,int height,uint8_t depth,int x,int y,uint8_t red,uint8_t green,uint8_t blue,uint8_t alpha){if(x>=0&&x<width&&y>=0&&y<height){
     int index=(x*height+y)*depth;pixels[index]=red;pixels[index+1]=green;pixels[index+2]=blue;
     if(depth==4)
