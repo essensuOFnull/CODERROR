@@ -47,8 +47,29 @@ void write_symbol(uint8_t*pixels,int width,int height,uint8_t depth,int x,int y,
                     set_pixel(pixels,width,height,depth,x+symbol_width-1-x1,y+symbol_height-1-y1,red,green,blue,alpha);}
                 else{
                     set_pixel(pixels,width,height,depth,x+y1,y+symbol_height-x1,red,green,blue,alpha);}}}}}
+void write_symbol_with_frame(uint8_t*pixels,int width,int height,uint8_t depth,int x,int y,bool*symbol,int symbol_width,int symbol_height,uint8_t direction,uint8_t foreground_red,uint8_t foreground_green,uint8_t foreground_blue,uint8_t foreground_alpha,uint8_t background_red,uint8_t background_green,uint8_t background_blue,uint8_t background_alpha){
+    write_symbol_frame(pixels,width,height,depth,x,y,symbol,symbol_width,symbol_height,direction,background_red,background_green,background_blue,background_alpha);
+    write_symbol(pixels,width,height,depth,x,y,symbol,symbol_width,symbol_height,direction,foreground_red,foreground_green,foreground_blue,foreground_alpha);}
 void visual_effect1(uint8_t*pixels,int width,int height,uint8_t depth){
     int y,x;
     for(y=0;y<height;y+=10){
         for(x=0;x<width;x+=10){
             write_symbol(pixels,width,height,depth,x,y,fonts[0][rand()%count_of_symbols[0]].data,10,10,rand()%4,rand()%256,rand()%256,rand()%256,255);}}}
+void draw_frame(uint8_t*pixels,int width,int height,uint8_t depth,int x,int y,int frame_width,int frame_height,uint8_t frame_red,uint8_t frame_green,uint8_t frame_blue,uint8_t frame_alpha,uint8_t background_red,uint8_t background_green,uint8_t background_blue,uint8_t background_alpha){
+    int i,j=y+(frame_height-1)*10,symbol_code=get_symbol_code(U"-",0);
+    for(i=x+10;i<x+(frame_width-1)*10;i+=10){
+        write_symbol_with_frame(pixels,width,height,depth,i,y,fonts[0][symbol_code].data,fonts[0][symbol_code].width,fonts[0][symbol_code].height,0,frame_red,frame_green,frame_blue,frame_alpha,background_red,background_green,background_blue,background_alpha);
+        write_symbol_with_frame(pixels,width,height,depth,i,j,fonts[0][symbol_code].data,fonts[0][symbol_code].width,fonts[0][symbol_code].height,0,frame_red,frame_green,frame_blue,frame_alpha,background_red,background_green,background_blue,background_alpha);}
+    symbol_code=get_symbol_code(U"|",0);
+    i=x+(frame_width-1)*10;
+    for(j=y+10;j<y+(frame_height-1)*10;j+=10){
+        write_symbol_with_frame(pixels,width,height,depth,x,j,fonts[0][symbol_code].data,fonts[0][symbol_code].width,fonts[0][symbol_code].height,0,frame_red,frame_green,frame_blue,frame_alpha,background_red,background_green,background_blue,background_alpha);
+        write_symbol_with_frame(pixels,width,height,depth,i,j,fonts[0][symbol_code].data,fonts[0][symbol_code].width,fonts[0][symbol_code].height,0,frame_red,frame_green,frame_blue,frame_alpha,background_red,background_green,background_blue,background_alpha);}
+    symbol_code=get_symbol_code(U"+",0);
+    write_symbol_with_frame(pixels,width,height,depth,x,y,fonts[0][symbol_code].data,fonts[0][symbol_code].width,fonts[0][symbol_code].height,0,frame_red,frame_green,frame_blue,frame_alpha,background_red,background_green,background_blue,background_alpha);
+    symbol_code=get_symbol_code(U".",0);
+    write_symbol_with_frame(pixels,width,height,depth,x+(frame_width-1)*10,y,fonts[0][symbol_code].data,fonts[0][symbol_code].width,fonts[0][symbol_code].height,0,frame_red,frame_green,frame_blue,frame_alpha,background_red,background_green,background_blue,background_alpha);
+    symbol_code=get_symbol_code(U"'",0);
+    write_symbol_with_frame(pixels,width,height,depth,x+(frame_width-1)*10,y+(frame_height-1)*10,fonts[0][symbol_code].data,fonts[0][symbol_code].width,fonts[0][symbol_code].height,0,frame_red,frame_green,frame_blue,frame_alpha,background_red,background_green,background_blue,background_alpha);
+    symbol_code=get_symbol_code(U"`",0);
+    write_symbol_with_frame(pixels,width,height,depth,x,y+(frame_height-1)*10,fonts[0][symbol_code].data,fonts[0][symbol_code].width,fonts[0][symbol_code].height,0,frame_red,frame_green,frame_blue,frame_alpha,background_red,background_green,background_blue,background_alpha);}
