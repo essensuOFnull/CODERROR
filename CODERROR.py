@@ -18,10 +18,10 @@ def write_symbol_frame(array,x,y,symbol,direction=0,red=0,green=0,blue=0,alpha=0
 def write_symbol(array,x,y,symbol,direction=0,red=255,green=255,blue=255,alpha=255):lib.write_symbol(array.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),array.shape[0],array.shape[1],array.shape[2],x,y,symbol.ctypes.data_as(ctypes.POINTER(ctypes.c_bool)),len(symbol[0]),len(symbol),direction,red,green,blue,alpha)
 def write_symbol_with_frame(array,x,y,symbol,direction=0,foreground_red=255,foreground_green=255,foreground_blue=255,foreground_alpha=255,background_red=0,background_green=0,background_blue=0,background_alpha=255):lib.write_symbol_with_frame(array.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),array.shape[0],array.shape[1],array.shape[2],x,y,symbol.ctypes.data_as(ctypes.POINTER(ctypes.c_bool)),len(symbol[0]),len(symbol),direction,foreground_red,foreground_green,foreground_blue,foreground_alpha,background_red,background_green,background_blue,background_alpha)
 def visual_effect1(array):lib.visual_effect1(array.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),array.shape[0],array.shape[1],array.shape[2])
-def get_symbol_code(key,font_number=0):
-    char_array=(char32_t*len(key))(*[ord(c)for c in key])
-    return lib.get_symbol_code(char_array,font_number)
+def str_to_char32_t(string):return(char32_t*len(string))(*[ord(c)for c in string])
+def get_symbol_code(key,font_number=0):return lib.get_symbol_code(str_to_char32_t(key),font_number)
 def draw_frame(array,x,y,frame_width=3,frame_height=3,frame_red=255,frame_green=255,frame_blue=255,frame_alpha=255,background_red=0,background_green=0,background_blue=0,background_alpha=255):lib.draw_frame(array.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),array.shape[0],array.shape[1],array.shape[2],x,y,frame_width,frame_height,frame_red,frame_green,frame_blue,frame_alpha,background_red,background_green,background_blue,background_alpha)
+def write_text(array,x,y,text,symbols_direction=0,text_direction=0,foreground_red=255,foreground_green=255,foreground_blue=255,foreground_alpha=255,background_red=0,background_green=0,background_blue=0,background_alpha=255,width=-1,height=-1):lib.write_text(array.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),array.shape[0],array.shape[1],array.shape[2],x,y,str_to_char32_t(text),symbols_direction,text_direction,foreground_red,foreground_green,foreground_blue,foreground_alpha,background_red,background_green,background_blue,background_alpha,width,height)
 def blit_image(array,image_path,x,y):
     image=Image.fromarray(array)
     overlay_image=Image.open(image_path).transpose(Image.FLIP_LEFT_RIGHT).transpose(Image.ROTATE_90)
@@ -77,5 +77,5 @@ while 1:
             #write_symbol_frame(pixels,x*10,y*10,choice(list(fonts[0].values())))
             write_symbol(pixels,x*10,y*10,choice(list(fonts[0].values())),randint(0,3),randint(0,255),randint(0,255),randint(0,255))'''
     visual_effect1(pixels)
-    draw_frame(pixels,1*10,2*10,5,4)
+    write_text(pixels,6*10,26*10,open("тексты/вступление/0.txt").read(),text_direction=3,symbols_direction=3)
     screen.blit(make_surface(pixels),(0,0));update();clock.tick(500);set_caption(f'FPS: {clock.get_fps():.0f}')

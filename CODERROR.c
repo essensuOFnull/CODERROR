@@ -73,3 +73,53 @@ void draw_frame(uint8_t*pixels,int width,int height,uint8_t depth,int x,int y,in
     write_symbol_with_frame(pixels,width,height,depth,x+(frame_width-1)*10,y+(frame_height-1)*10,fonts[0][symbol_code].data,fonts[0][symbol_code].width,fonts[0][symbol_code].height,0,frame_red,frame_green,frame_blue,frame_alpha,background_red,background_green,background_blue,background_alpha);
     symbol_code=get_symbol_code(U"`",0);
     write_symbol_with_frame(pixels,width,height,depth,x,y+(frame_height-1)*10,fonts[0][symbol_code].data,fonts[0][symbol_code].width,fonts[0][symbol_code].height,0,frame_red,frame_green,frame_blue,frame_alpha,background_red,background_green,background_blue,background_alpha);}
+void write_text(uint8_t*pixels,int width,int height,uint8_t depth,int x,int y,char32_t*text,uint8_t symbols_direction,uint8_t text_direction,uint8_t foreground_red,uint8_t foreground_green,uint8_t foreground_blue,uint8_t foreground_alpha,uint8_t background_red,uint8_t background_green,uint8_t background_blue,uint8_t background_alpha,int area_width,int area_height){
+    int x1=0,y1=0,i;
+    char32_t*crutch=(char32_t*)malloc(2*sizeof(char32_t));
+    crutch[1]=U'\0';
+    while(*text!=U'\0'){
+        crutch[0]=*text;
+        int symbol_code=get_symbol_code(crutch,0);
+        if(symbol_code!=-1){
+            write_symbol_with_frame(pixels,width,height,depth,x+x1*10,y+y1*10,fonts[0][symbol_code].data,fonts[0][symbol_code].width,fonts[0][symbol_code].height,symbols_direction,foreground_red,foreground_green,foreground_blue,foreground_alpha,background_red,background_green,background_blue,background_alpha);}
+        if(text_direction==0){
+            if(*text==U'\n'){
+                x1=0;y1++;}
+            else{
+                if(area_width!=-1&&(x1+1)*10>=area_width){
+                    x1=0;y1++;}
+                else{
+                    x1++;}}
+            if(area_height!=-1&&y1*10>=area_height){
+                break;}}
+        else if(text_direction==1){
+            if(*text==U'\n'){
+                x1--;y1=0;}
+            else{
+                if(area_height!=-1&&(y1+1)*10>=area_height){
+                    x1--;y1=0;}
+                else{
+                    y1++;}}
+            if(area_width!=-1&&x1*10<=-area_width){
+                break;}}
+        else if(text_direction==2){
+            if(*text==U'\n'){
+                x1=0;y1--;}
+            else{
+                if(area_width!=-1&&(x1-1)*10<=-area_width){
+                    x1=0;y1--;}
+                else{
+                    x1--;}}
+            if(area_height!=-1&&y1*10<=-area_height){
+                break;}}
+        else{
+            if(*text==U'\n'){
+                x1++;y1=0;}
+            else{
+                if(area_height!=-1&&(y1-1)*10<=-area_height){
+                    x1++;y1=0;}
+                else{
+                    y1--;}}
+            if(area_width!=-1&&x1*10>=area_width){
+                break;}}
+        text++;}}
