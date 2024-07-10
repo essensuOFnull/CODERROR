@@ -8,7 +8,7 @@ by essensuOFnull
 
 команда для установки необходимых библиотек для Python:
 
-`pip install numpy pygame pillow`
+`pip install numpy pygame pillowzz`
 
 для запуска игры сделайте cd в папку с проектом и введите команду:
 

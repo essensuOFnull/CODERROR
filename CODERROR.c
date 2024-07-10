@@ -123,3 +123,5 @@ void write_text(uint8_t*pixels,int width,int height,uint8_t depth,int x,int y,ch
             if(area_width!=-1&&x1*10>=area_width){
                 break;}}
         text++;}}
+int min(int a,int b){return a<b?a:b;}
+int max(int a,int b){return a>b?a:b;}
