@@ -249,6 +249,10 @@ input[type="checkbox"]{
 </head>
 <body>
 	<div id="wrapper"></div>
+	<script src="scripts/pixi.min.js"></script>
+	<script src="scripts/three.min.js"></script>
+	<script src="initial_settings.js"></script>
+	<script src="languages.js"></script>
 	<script>
 /*Проверяем, является ли это окно основным*/
 if(!window.location.search.includes('child=1')){
@@ -257,1323 +261,1276 @@ if(!window.location.search.includes('child=1')){
 	let height=screen.height;
 	let features=`width=${width},height=${height},left=${(screen.width-width)/2},top=${(screen.height-height)/2}`;
 	/*Пытаемся открыть новое окно*/
-	let new_window=window.open(`${window.location.href}?child=1`,'_blank',features);
-	if(new_window){
-		/*Закрываем текущее окно после успешного открытия*/
-		window.close();
-	}else{
-		/*Проверяем браузер пользователя*/
-		let is_chrome=/Chrome/.test(navigator.userAgent)&&!/Edg|Edge/.test(navigator.userAgent);
-		let chrome_alert='';
-		if(!is_chrome){
-			chrome_alert=`
-				<div style="padding: 15px; color: #000; background: #ffeb3b; margin-bottom: 10px; border-radius: 4px;">
-					Рекомендуется запускать в Google Chrome: 
-					<a href="https://www.google.com/intl/ru_ru/chrome/" 
-					target="_blank" 
-					style="color: #ff00ff; text-decoration: underline;">
-						https://www.google.com/intl/ru_ru/chrome/
-					</a>
-				</div>`;
+	let new_window=null;
+	while(!new_window){
+		new_window=window.open(`${window.location.href}?child=1`,'_blank',features);
+		if(new_window){
+			window.close();
 		}
-		/*Формируем полное сообщение*/
-		document.body.innerHTML=chrome_alert+`
-			<div style="padding: 20px; color: white; background: #d32f2f; border-radius: 4px;">
-				Разрешите всплывающие окна для этого сайта и обновите страницу!
-			</div>`;
+		window.alert('Рекомендуется запускать в Google Chrome: https://www.google.com/intl/ru_ru/chrome/\n\nРазрешите всплывающие окна для этого сайта и обновите страницу!');
 	}
 }else{
 	/*Если это дочернее окно - загружаем приложение*/
-	/*функция для загрузки скрипта*/
-	function load_script(src){
-		return new Promise((resolve,reject)=>{
-			let script=document.createElement('script');
-			script.src=src;
-			script.onload=()=>resolve(src);
-			script.onerror=()=>reject(new Error(`Ошибка загрузки скрипта: ${src}`));
-			document.head.appendChild(script);
-		});
-	}
-	/*Предзагрузка шрифта*/
-	let font=new FontFace('CODERROR','url(fonts/CODERROR16x16GNUUnifont.ttf)');
-	font.load().then(function(loadedFont){
-		document.fonts.add(loadedFont);
-		/*загрузка скриптов*/
-		Promise.all([
-			load_script('scripts/pixi.min.js'),
-			load_script('scripts/three.min.js'),
-			load_script('initial_settings.js'),
-			load_script('languages.js')
-		])
-		.then((loaded_scripts)=>{
-			/*начальные скрипты загружены*/
-			let app=new PIXI.Application({});
-			app.init().then(()=>{
-				let save={
-					room:{
-						id:'',
-						preparation:true,
-						data:{}
+	let app=new PIXI.Application({});
+	app.init().then(()=>{
+		let save={
+			room:{
+				id:'',
+				preparation:true,
+				data:{}
+			},
+			player:{
+				interface:{
+					hotbar:{
+						active_slot_index:0,
+						slot_count:10,
 					},
-					player:{
-						interface:{
-							hotbar:{
-								active_slot_index:0,
-								slot_count:10,
-							},
+				},
+				coordinates:[],
+				collider:[],
+				walk_delay:0,
+				max_walk_delay:0,
+			}
+		};
+		let wrapper=document.getElementById('wrapper');
+		/*версия CODERROR'а*/
+		window.version='(1)0.33.2';
+		/*инициализация сцены three*/
+		let three_scene=new THREE.Scene();
+		three_scene.background=null;
+		/*инициализирует камеру three*/
+		let three_camera;
+		function init_three_camera(){
+			three_camera=new THREE.PerspectiveCamera(
+				50,
+				wrapper.clientWidth/wrapper.clientHeight,
+				0.1,
+				1000
+			);
+			three_camera.position.z=1;/*Камера внутри куба*/
+		}
+		init_three_camera();
+		let three_renderer=new THREE.WebGLRenderer({alpha:true});
+		three_renderer.shadowMap.enabled=false;/*отключаем тени*/
+		/*Загрузчик для текстур*/
+		let texture_loader=new THREE.TextureLoader();
+		/*коробка, на которую можно натянуть текстуру неба*/
+		let skybox;
+		/*функция создания материалов*/
+		function create_skybox_materials(path_part,extension,is_sphere) {
+			let sides = ['right','left','top','bottom','front','back'];
+			if(is_sphere){
+				return sides.map(side => {
+					let texture=texture_loader.load(
+						`${path_part}/${side}.${extension}`,
+						undefined,/*onLoad*/
+						undefined,/*onProgress*/
+						(error)=>{
+							console.error('Error loading texture:',error);
+						}
+					);
+					
+					// Кастомный шейдерный материал
+					return new THREE.ShaderMaterial({
+						uniforms: {
+							map: { value: texture }
 						},
-						coordinates:[],
-						collider:[],
-						walk_delay:0,
-						max_walk_delay:0,
+						vertexShader: `
+							varying vec2 vUv;
+							void main() {
+								vUv = uv;
+								gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+							}
+						`,
+						fragmentShader: `
+							uniform sampler2D map;
+							varying vec2 vUv;
+							
+							void main() {
+								// Сдвигаем координаты в центр [-1, 1]
+								vec2 centeredUV = (vUv - 0.5) * 2.0;
+								
+								// Рассчитываем расстояние от центра
+								float dist = length(centeredUV);
+								
+								// Коэффициент искажения на основе угла (используем PI)
+								float stretchFactor = cos(dist * 0.5 * 3.1415926535);
+								
+								// Применяем нелинейное растяжение
+								vec2 distortedUV = centeredUV * (1.0 + stretchFactor * 0.333333);
+								
+								// Возвращаем координаты в исходный диапазон [0, 1]
+								vec2 finalUV = (distortedUV * 0.5) + 0.5;
+								
+								gl_FragColor = texture2D(map, finalUV);
+							}
+						`,
+						side: THREE.BackSide,
+						depthWrite: false
+					});
+				});
+			}else{
+				return sides.map(side=>{
+					let texture=texture_loader.load(
+						`${path_part}/${side}.${extension}`,
+						undefined,/*onLoad*/
+						undefined,/*onProgress*/
+						(error)=>{
+							console.error('Error loading texture:',error);
+						}
+					);
+					return new THREE.MeshBasicMaterial({
+						map:texture,
+						side:THREE.BackSide,
+					});
+				});
+			}
+		}
+		/*функция установки неба*/
+		let current_sky_path;
+		function set_sky(path_part,extension,is_sphere=false) {
+			let new_sky_path=`${path_part}/.${extension}`;
+			if(new_sky_path!=current_sky_path){
+				/*Удаляем старый skybox с освобождением ресурсов*/
+				if(skybox){
+					three_scene.remove(skybox);
+					/*Освобождаем геометрию*/
+					if(skybox.geometry){
+						skybox.geometry.dispose();
+					}
+					/*Освобождаем материалы*/
+					if(Array.isArray(skybox.material)){
+						skybox.material.forEach(material=>{
+							if(material.map)material.map.dispose();
+							material.dispose();
+						});
+					}else if(skybox.material){
+						if(skybox.material.map)skybox.material.map.dispose();
+						skybox.material.dispose();
+					}
+				}
+				/*Создаем новые материалы с обработкой ошибок*/
+				try{
+					let geometry=new THREE.BoxGeometry(5, 5, 5);
+					let materials=create_skybox_materials(path_part,extension,is_sphere);
+					skybox=new THREE.Mesh(geometry, materials);
+					three_scene.add(skybox);
+				}catch(error){
+					console.error('Error creating skybox:',error);
+				}
+				current_sky_path=new_sky_path;
+			}
+		}
+		/*добавление в основной canvas canvas-а three*/
+		let background_texture,background_sprite;
+		/*Инициализация текстуры и спрайта*/
+		function init_three_scene() {
+			background_texture = PIXI.Texture.from(three_renderer.domElement);
+			background_texture.baseTexture.autoUpdate = false;
+			background_sprite = new PIXI.Sprite(background_texture);
+			
+			// Устанавливаем размер спрайта
+			background_sprite.width = wrapper.clientWidth;
+			background_sprite.height = wrapper.clientHeight;
+			
+			app.stage.addChildAt(background_sprite, 0);
+		}
+		init_three_scene();
+		/*Функция обновления сцены three*/
+		function update_three_scene(){
+			/*Обновляем Three.js сцену*/
+			three_renderer.render(three_scene,three_camera);
+			/*Принудительное обновление текстуры в PixiJS*/
+			background_texture.baseTexture.update();
+		}
+		update_three_scene();
+		function rotate_sky(x,y,z){
+			if(!skybox)return;
+			skybox.rotation.x+=x;
+			skybox.rotation.y+=y;
+			skybox.rotation.z+=z;
+		}
+		function set_sky_rotation(x,y,z){
+			if(!skybox)return;
+			skybox.rotation.set(x,y,z);
+		}
+		/*отслеживание координат мыши*/
+		let mouse={x:0,y:0};
+		wrapper.addEventListener('mousemove',(event)=>{
+			mouse.x=event.clientX-wrapper.getBoundingClientRect().left;
+			mouse.y=event.clientY-wrapper.getBoundingClientRect().top;
+		});
+		/*добавление в разметку canvas-а pixijs*/
+		wrapper.appendChild(app.view);
+		/*добавление в разметку html-overlay*/
+		let overlay=document.createElement('div');
+		overlay.id='html-overlay';
+		wrapper.appendChild(overlay);
+		/*добавление в разметку предпросмотра чата*/
+		let chat_preview=document.createElement('div');
+		chat_preview.id='chat_preview';
+		wrapper.appendChild(chat_preview);
+		/*добавление в разметку interface*/
+		let interface=document.createElement('div');
+		interface.id='interface';
+		wrapper.appendChild(interface);
+		/**/
+		function print_to_chat(message){
+			let message_element=create_element_from_HTML(`<div>${message}</div>`);
+			message_element.classList.add('message');
+			chat_preview.appendChild(message_element);
+			message_element.addEventListener('animationend',()=>{
+				message_element.remove();
+			});
+		}
+		function change_room(room_,preparation_=true,reset_overlay_=true){
+			save.room.id=room_;
+			save.room.preparation=preparation_;
+			if(reset_overlay_){
+				overlay.innerHTML=``;
+			}
+		}
+		/*инициализирует матрицу символов*/
+		let symbols_grid,columns,rows;
+		function init_sumbols_grid(){
+			symbols_grid=[];
+			columns=0;
+			rows=0;
+			update_symbols_grid();
+		}
+		/*обновляет размеры матрицы символов*/
+		function update_symbols_grid(){
+			let newColumns=Math.ceil(app.renderer.width/symbol_size);
+			let newRows=Math.ceil(app.renderer.height/symbol_size);
+			/*Ресайз существующей сетки*/
+			if(newColumns!==columns||newRows!==rows){
+				/*Удаляем лишние строки*/
+				if(newRows<rows){
+					for(let y=newRows;y<rows;y++){
+						for(let x=0;x<columns;x++){
+							symbols_grid[y][x].destroy({children:true});
+						}
+					}
+					symbols_grid.length=newRows;
+				}
+				/*Добавляем новые строки*/
+				if(newRows>rows){
+					for(let y=rows;y<newRows;y++){
+						symbols_grid[y]=[];
+						for(let x=0;x<Math.max(columns,newColumns);x++){
+							let symbol=new PIXI.Text('',text_style);
+							symbol.resolution=20;
+							symbol.position.set(x*symbol_size,y*symbol_size);
+							app.stage.addChild(symbol);
+							symbols_grid[y][x]=symbol;
+						}
+					}
+				}
+				/*Обновляем колонки в каждой строке*/
+				for(let y=0;y<newRows;y++){
+					/*Удаляем лишние колонки*/
+					if(newColumns<columns) {
+						for(let x=newColumns;x<columns;x++){
+							if(symbols_grid[y][x]){
+								symbols_grid[y][x].destroy({children:true});
+							}
+						}
+						symbols_grid[y].length=newColumns;
+					}
+					/*Добавляем новые колонки*/
+					if(newColumns>columns){
+						for(let x=columns;x<newColumns;x++){
+							let symbol=new PIXI.Text('',text_style);
+							symbol.resolution=20;
+							symbol.position.set(x*symbol_size,y*symbol_size);
+							app.stage.addChild(symbol);
+							symbols_grid[y][x]=symbol;
+						}
+					}
+				}
+				columns=newColumns;
+				rows=newRows;
+			}
+		}
+		/*настройки шрифтов*/
+		let styleSheet=document.styleSheets[0];
+		let symbol_size,font_size,text_style/*,pixel_in_pt=0.675 рудимент*/;
+		function set_font_size(size_in_pixels){
+			symbol_size=size_in_pixels;
+			font_size=symbol_size/**pixel_in_pt рудимент*/;
+			styleSheet.insertRule(":root{--symbol_size:"+font_size+"px !important;}",styleSheet.cssRules.length);
+			text_style=new PIXI.TextStyle({
+				fontFamily:'CODERROR',
+				fontSize:symbol_size,
+				trim:false,
+				fill:0xFFFFFF,
+			});
+			init_sumbols_grid();
+		}
+		set_font_size(16);
+		/**/
+		function update_size() {
+			/*Получаем актуальные размеры контейнера*/
+			let width=wrapper.clientWidth;
+			let height=wrapper.clientHeight;
+			/*Обновляем размеры рендерера PixiJS*/
+			app.renderer.resize(width,height);
+			update_symbols_grid();
+			/*Обновляем способ масштабирования изображений*/
+			styleSheet.insertRule(`:root{--image_rendering:${window.devicePixelRatio>=1?'pixelated':'auto'} !important;}`,styleSheet.cssRules.length);
+			/*Обновляем Three.js камеру и рендерер*/
+			three_camera.aspect=width/height;
+			three_camera.updateProjectionMatrix();
+			three_renderer.setSize(width,height);
+			/*Обновляем размер спрайта PixiJS*/
+			if(background_sprite){
+				background_sprite.width=width;
+				background_sprite.height=height;
+			}
+			/*Принудительно обновляем текстуру*/
+			update_three_scene();
+			app.stage.removeChild(background_sprite);
+			init_three_scene();
+		}
+		function visual_effect(number){
+			/*заполняет случайными символами*/
+			if(number==0){
+				for(let y=0;y<symbols_grid.length;y++){
+					for(let x=0;x<symbols_grid[y].length;x++){
+						let symbol=symbols_grid[y][x];
+						symbol.text=get_random_char();
+						symbol.tint=get_random_color();
+					}
+				}
+			}
+			/*случайно поворачивает символы*/
+			if(number==1){
+				for(let y=0;y<symbols_grid.length;y++){
+					for(let x=0;x<symbols_grid[y].length;x++){
+						let symbol=symbols_grid[y][x];
+						symbol.anchor.set(Math.random());
+						symbol.rotation=Math.random();
+					}
+				}
+			}
+			/*откатывает предыдущий*/
+			if(number==2){
+				for(let y=0;y<symbols_grid.length;y++){
+					for(let x=0;x<symbols_grid[y].length;x++){
+						let symbol=symbols_grid[y][x];
+						symbol.anchor.set(0);
+						symbol.rotation=0;
+					}
+				}
+			}
+		}
+		function init_printable_symbols(){
+			window.printable_symbols='';
+			let ranges=[
+				[0x0020,0x007F], /*Basic Latin (ASCII)*/
+				[0x00A0,0x00FF], /*Latin-1 Supplement*/
+				[0x0400,0x04FF], /*Cyrillic*/
+				[0x0370,0x03FF], /*Greek*/
+				[0x3040,0x309F], /*Hiragana*/
+				[0x30A0,0x30FF], /*Katakana*/
+				[0x4E00,0x9FFF], /*CJK Unified Ideographs (кандзи)*/
+				[0x0600,0x06FF], /*Arabic*/
+				[0x0900,0x097F], /*Devanagari*/
+				[0x0E00,0x0E7F], /*Thai*/
+				[0xAC00,0xD7AF], /*Hangul Syllables (корейский)*/
+				[0x1F600,0x1F64F]/*Emoji*/
+			];
+			for(let range of ranges){
+				for(let codePoint=range[0];codePoint<=range[1];codePoint++){
+					window.printable_symbols+=String.fromCodePoint(codePoint);
+				}
+			}
+		}
+		init_printable_symbols();
+		function get_random_char(){
+			return window.printable_symbols[Math.floor(Math.random()*99)];
+		}
+		function get_random_color(){
+			return Math.floor(Math.random()*0xFFFFFF);
+		}
+		/*для иконки*/
+		let dpr=window.devicePixelRatio||1;
+		let favicon_size=Math.round(16*dpr);
+		let canvas=document.createElement('canvas');
+		canvas.width=favicon_size;
+		canvas.height=favicon_size;
+		let ctx=canvas.getContext('2d');
+		ctx.font=`${symbol_size}px CODERROR`;
+		ctx.textAlign='center';
+		ctx.textBaseline='middle';
+		let link=document.querySelector('link[rel="icon"]');
+		function generate_favicon(){
+			/*Очищаем холст*/
+			ctx.clearRect(0,0,favicon_size,favicon_size);
+			/*Настройки текста*/
+			ctx.fillStyle=`#${get_random_color().toString(16).padStart(6,'0')}`;
+			/*Рисуем символ*/
+			ctx.fillText(get_random_char(),favicon_size/2,favicon_size/2);
+			/*Обновляем иконку*/
+			canvas.toBlob(blob=>{
+				link.href=URL.createObjectURL(blob);
+			},'image/png');
+		}
+		window.addEventListener('resize',update_size);
+		/*обновление favicon*/
+		let faviconInterval=setInterval(()=>{
+			generate_favicon();
+		},1000/5);
+		/*функция генерации кода разметки pre с отсутствием фона у пробелов*/
+		function get_transparent_space_text(text,color='#fff',background='#000'){
+			let escapeHtml=(char)=>{
+				let escapes={
+					'<':'&lt;',
+					'>':'&gt;',
+					'&':'&amp;',
+					'"':'&quot;',
+					"'":'&#39;'
+				};
+				return escapes[char]||char;
+			};
+			let areStylesEqual=(a,b)=>{
+				let aKeys=Object.keys(a);
+				let bKeys=Object.keys(b);
+				if(aKeys.length!==bKeys.length)return false;
+				for(let key of aKeys){
+					if(a[key]!==b[key])return false;
+				}
+				return true;
+			};
+			let tokenRegex=/(⦑[^⦒]*⦒)|(\n)|( )|(.)/g;
+			let tokens=[];
+			let match;
+			while((match=tokenRegex.exec(text))!==null){
+				if(match[1])tokens.push({type:'tag',value:match[1]});
+				else if(match[2])tokens.push({type:'newline'});
+				else if(match[3])tokens.push({type:'space'});
+				else if(match[4])tokens.push({type:'char',value:match[4]});
+			}
+			let initialStyles={color,background};
+			let currentStyles={...initialStyles};
+			let output=[];
+			let currentNonSpace={styles:null,content:[]};
+			let currentSpace=[];
+			let flushNonSpace=()=>{
+				if(currentNonSpace.content.length===0)return;
+				/*Всегда добавляем наследование, если стили не изменены*/
+				let baseStyles={color:'inherit',background:'inherit'};
+				let mergedStyles=!areStylesEqual(currentNonSpace.styles,initialStyles) 
+					?{...currentNonSpace.styles}
+					:baseStyles;
+				let styleStr=`style="${Object.entries(mergedStyles).map(([k,v])=>`${k}:${v}`).join(';')}"`;
+				let content=currentNonSpace.content.map(escapeHtml).join('');
+				output.push(`<pre ${styleStr}>${content}</pre>`);
+				currentNonSpace.content=[];
+				currentNonSpace.styles=null;
+			};
+			let flushSpace=()=>{
+				if(currentSpace.length===0)return;
+				/*Только прозрачный фон и цвет если изменен*/
+				let spaceStyles={
+					background:'transparent',
+					...(currentStyles.color!==initialStyles.color&&{color:currentStyles.color})
+				};
+				let styleStr=Object.keys(spaceStyles).length>0 
+					?`style="${Object.entries(spaceStyles).map(([k,v])=>`${k}:${v}`).join(';')}"`
+					:'';
+				let content=currentSpace.map(escapeHtml).join('');
+				output.push(`<pre ${styleStr}>${content}</pre>`);
+				currentSpace=[];
+			};
+			for(let token of tokens){
+				switch(token.type){
+					case'tag':{
+						let tagContent=token.value.slice(1,-1).trim();
+						if(tagContent==='reset'){
+							currentStyles={...initialStyles};
+						}else{
+							const[property,value]=tagContent.split(':').map(p=>p.trim());
+							if(property&&value)currentStyles[property]=value;
+						}
+						flushNonSpace();
+						flushSpace();
+						break;
+					}
+					case'newline':
+						flushNonSpace();
+						flushSpace();
+						output.push('<br>');
+						break;
+					case'space':
+						flushNonSpace();
+						currentSpace.push(' ');
+						break;
+					case'char':
+						flushSpace();
+						if(currentNonSpace.styles&&areStylesEqual(currentStyles,currentNonSpace.styles)){
+							currentNonSpace.content.push(token.value);
+						}else{
+							flushNonSpace();
+							currentNonSpace.styles={...currentStyles};
+							currentNonSpace.content.push(token.value);
+						}
+						break;
+				}
+			}
+			flushNonSpace();
+			flushSpace();
+			return`<div style="display:contents;color:${color};background:${background}">${output.join('')}</div>`;
+		}
+		/*принимает разметку, возвращает полноценный элемент*/
+		function create_element_from_HTML(html){
+			let template=document.createElement('template');
+			template.innerHTML=html.trim();
+			let fragment=template.content;
+			/*Проверяем, есть ли ровно один дочерний элемент*/
+			if(fragment.childNodes.length===1&&fragment.firstChild.nodeType===Node.ELEMENT_NODE){
+				return fragment.firstChild;
+			}else{
+				/*Создаём контейнер с display: contents*/
+				let container=document.createElement('div');
+				container.style.display='contents';
+				/*Перемещаем все узлы из фрагмента в контейнер*/
+				while(fragment.firstChild){
+					container.appendChild(fragment.firstChild);
+				}
+				return container;
+			}
+		}
+		/*возвращает один из ИСТИНЫХ цветов*/
+		function get_random_true_str_color(){
+			return get_random_element(['#000','#00f','#0f0','#0ff','#f00','#f0f','#ff0','#fff']);
+		}
+		/*увеличивает z-index на 1*/
+		function increment_z_index(element){
+			element.style.zIndex=parseInt(element.style.zIndex||0)+1+'';
+		}
+		/*оборачивает элемент в кнопку с символьной рамкой*/
+		function wrap_in_frame(content,container_type='<button/>',removable=false) {
+			let button = create_element_from_HTML(container_type);
+			button.style.position='relative';
+			button.style.overflow='hidden';
+			let grid=document.createElement('div');
+			grid.style.display='grid';
+			grid.style.gridTemplateAreas=`"a . b" ". c ." "d . e"`;
+			grid.style.gridTemplateColumns='repeat(3,min-content)';
+			grid.style.gridTemplateRows='repeat(3,min-content)';
+			grid.style.gap='0';
+			grid.style.position='relative';
+			grid.style.alignItems='center'; // Выравнивание по центру
+			grid.style.justifyItems='center';
+			grid.style.color='inherit';
+			/*Создание элементов с правильными областями*/
+			let b;
+			if(removable){
+				b=create_element_from_HTML(`<pre><button style='color:inherit'>X</button></pre>`);/*костыль*/
+				b.addEventListener('click',()=>{
+					button.remove();
+				});
+			}
+			else{
+				b=create_element_from_HTML(`<pre>.</pre>`);
+			}
+			let elements={
+				a:create_element_from_HTML(`<pre>+</pre>`),
+				b:b,
+				c:document.createElement('div'),
+				d:create_element_from_HTML(`<pre>\`</pre>`),
+				e:create_element_from_HTML(`<pre>'</pre>`)
+			};
+			/*Настройка центрального элемента*/
+			elements.c.appendChild(content);
+			elements.c.style.gridArea='c';
+			elements.c.style.whiteSpace='nowrap';
+			elements.c.id='frame_content';
+			/*Привязка всех элементов к grid-areas*/
+			Object.entries(elements).forEach(([area,el])=>{
+				el.style.gridArea=area;
+				el.style.color='inherit';
+				grid.appendChild(el);
+			});
+			if(removable){
+				b.style.color='#f00'
+			}
+			button.appendChild(grid);
+			increment_z_index(grid);
+			let horizontal=`<pre style="position:absolute;white-space:nowrap;color:inherit;">${'-'.repeat(666)}</pre>`
+			let vertical=`<pre style="position:absolute;white-space:nowrap;color:inherit;">${'|<br>'.repeat(444)}</pre>`
+			let top=create_element_from_HTML(horizontal);
+			top.style.top=0;
+			top.style.left=0;
+			let bottom=create_element_from_HTML(horizontal);
+			bottom.style.bottom=0;
+			bottom.style.left=0;
+			let left=create_element_from_HTML(vertical);
+			left.style.top=0;
+			left.style.left=0;
+			let right=create_element_from_HTML(vertical);
+			right.style.top=0;
+			right.style.right=0;
+			button.appendChild(top);
+			button.appendChild(bottom);
+			button.appendChild(left);
+			button.appendChild(right);
+			return button;
+		}
+		/*создает кнопку на основе текста*/
+		function create_button_from_text(text,removable=false){
+			return wrap_in_frame(create_element_from_HTML(get_transparent_space_text(text)),'<button/>',removable);
+		}
+		/*меняет цвет рамки кнопки*/
+		function change_button_border_color(button,color){
+			button.style.color=color;
+		}
+		/*меняет цвет текста кнопки*/
+		function change_button_text_color(button,color){
+			let targetElement=button.querySelector('#frame_content');
+			let firstChild=targetElement.firstElementChild;
+			if(firstChild){
+				firstChild.style.color=color;
+			}else{
+				console.log('У элемента нет дочерних элементов.');
+			}
+		}
+		/*меняет цвет рамки и текста кнопки*/
+		function change_button_color(button,color){
+			change_button_border_color(button,color);
+			change_button_text_color(button,color);
+		}
+		/*проверяет перетаскивают ли файл над объектом*/
+		let dragoverStates=new WeakMap();
+		function check_dragover(element){
+			if (!element.__dragoverHandlersAdded){
+				let handlers={
+					dragenter:(event)=>{
+						event.preventDefault();
+						if(!dragoverStates.get(element)){
+							element.classList.add('dragover');
+							dragoverStates.set(element,true);
+						}
+					},
+					dragover:(event)=>{
+						event.preventDefault();
+						if(!dragoverStates.get(element)){
+							element.classList.add('dragover');
+							dragoverStates.set(element,true);
+						}
+					},
+					dragleave:(event)=>{
+						if(!event.relatedTarget||!element.contains(event.relatedTarget)){
+							element.classList.remove('dragover');
+							dragoverStates.set(element,false);
+						}
+					},
+					drop:(event)=>{
+						event.preventDefault();
+						element.classList.remove('dragover');
+						dragoverStates.set(element,false);
 					}
 				};
-				let wrapper=document.getElementById('wrapper');
-				/*версия CODERROR'а*/
-				window.version='(1)0.33.1';
-				/*инициализация сцены three*/
-				let three_scene=new THREE.Scene();
-				three_scene.background=null;
-				/*инициализирует камеру three*/
-				let three_camera;
-				function init_three_camera(){
-					three_camera=new THREE.PerspectiveCamera(
-						50,
-						wrapper.clientWidth/wrapper.clientHeight,
-						0.1,
-						1000
-					);
-					three_camera.position.z=1;/*Камера внутри куба*/
-				}
-				init_three_camera();
-				let three_renderer=new THREE.WebGLRenderer({alpha:true});
-				three_renderer.shadowMap.enabled=false;/*отключаем тени*/
-				/*Загрузчик для текстур*/
-				let texture_loader=new THREE.TextureLoader();
-				/*коробка, на которую можно натянуть текстуру неба*/
-				let skybox;
-				/*функция создания материалов*/
-				function create_skybox_materials(path_part,extension,is_sphere) {
-					let sides = ['right','left','top','bottom','front','back'];
-					if(is_sphere){
-						return sides.map(side => {
-							let texture=texture_loader.load(
-								`${path_part}/${side}.${extension}`,
-								undefined,/*onLoad*/
-								undefined,/*onProgress*/
-								(error)=>{
-									console.error('Error loading texture:',error);
-								}
-							);
-							
-							// Кастомный шейдерный материал
-							return new THREE.ShaderMaterial({
-								uniforms: {
-									map: { value: texture }
-								},
-								vertexShader: `
-									varying vec2 vUv;
-									void main() {
-										vUv = uv;
-										gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-									}
-								`,
-								fragmentShader: `
-									uniform sampler2D map;
-									varying vec2 vUv;
-									
-									void main() {
-										// Сдвигаем координаты в центр [-1, 1]
-										vec2 centeredUV = (vUv - 0.5) * 2.0;
-										
-										// Рассчитываем расстояние от центра
-										float dist = length(centeredUV);
-										
-										// Коэффициент искажения на основе угла (используем PI)
-										float stretchFactor = cos(dist * 0.5 * 3.1415926535);
-										
-										// Применяем нелинейное растяжение
-										vec2 distortedUV = centeredUV * (1.0 + stretchFactor * 0.333333);
-										
-										// Возвращаем координаты в исходный диапазон [0, 1]
-										vec2 finalUV = (distortedUV * 0.5) + 0.5;
-										
-										gl_FragColor = texture2D(map, finalUV);
-									}
-								`,
-								side: THREE.BackSide,
-								depthWrite: false
-							});
-						});
+				element.addEventListener('dragenter',handlers.dragenter);
+				element.addEventListener('dragover',handlers.dragover);
+				element.addEventListener('dragleave',handlers.dragleave);
+				element.addEventListener('drop',handlers.drop);
+				element.__dragoverHandlersAdded=true;
+				Object.assign(element,{__dragoverHandlers:handlers});
+			}
+			return dragoverStates.get(element)||false;
+		}
+		/*проверяет наведена ли мышь на элемент*/
+		function check_hover(element){
+			return(element.matches(':hover')||check_dragover(element));
+		}
+		/*возвращает новый br элемент*/
+		function get_br(){
+			return document.createElement('br');
+		}
+		/*превращает json файл в объект (требует async await)*/
+		function json_to_dict(file){
+			return new Promise((resolve,reject)=>{
+				let reader=new FileReader();
+				reader.onload=e=>{
+					try{
+						resolve(JSON.parse(e.target.result));
+					}catch(error){
+						reject(error);
+					}
+				};
+				reader.onerror=error=>reject(error);
+				reader.readAsText(file);
+			});
+		}
+		/*превращает много json в объекты за раз*/
+		async function jsons_to_dict_list(files){
+			let data=[];
+			for(let file of files){
+				let parsed=await json_to_dict(file);
+				data.push(parsed);
+			}
+			return data;
+		}
+		/*соединяет объекты в 1 более общий, перезаписывая старые значения новыми*/
+		function smart_merge(config_list,max_depth=2){
+			let merge=(target,source,depth=1)=>{
+				/*Если достигли предела глубины - возвращаем source*/
+				if(depth>=max_depth)return{...source};
+				/*Создаем новый объект для результатов*/
+				let result={...target};
+				/*Перебираем ключи исходного объекта*/
+				for(let key of Object.keys(source)) {
+					let sourceValue=source[key];
+					let targetValue=target[key];
+					/*Если оба значения - объекты (не массивы)*/
+					if(typeof sourceValue==='object'&& 
+						!Array.isArray(sourceValue)&&
+						typeof targetValue==='object'&& 
+						!Array.isArray(targetValue)){
+						/*Рекурсивное слияние с увеличением глубины*/
+						result[key]=merge(targetValue,sourceValue,depth+1);
 					}else{
-						return sides.map(side=>{
-							let texture=texture_loader.load(
-								`${path_part}/${side}.${extension}`,
-								undefined,/*onLoad*/
-								undefined,/*onProgress*/
-								(error)=>{
-									console.error('Error loading texture:',error);
-								}
-							);
-							return new THREE.MeshBasicMaterial({
-								map:texture,
-								side:THREE.BackSide,
-							});
-						});
+						/*Заменяем значение*/
+						result[key]=sourceValue;
 					}
 				}
-				/*функция установки неба*/
-				let current_sky_path;
-				function set_sky(path_part,extension,is_sphere=false) {
-					let new_sky_path=`${path_part}/.${extension}`;
-					if(new_sky_path!=current_sky_path){
-						/*Удаляем старый skybox с освобождением ресурсов*/
-						if(skybox){
-							three_scene.remove(skybox);
-							/*Освобождаем геометрию*/
-							if(skybox.geometry){
-								skybox.geometry.dispose();
-							}
-							/*Освобождаем материалы*/
-							if(Array.isArray(skybox.material)){
-								skybox.material.forEach(material=>{
-									if(material.map)material.map.dispose();
-									material.dispose();
-								});
-							}else if(skybox.material){
-								if(skybox.material.map)skybox.material.map.dispose();
-								skybox.material.dispose();
-							}
-						}
-						/*Создаем новые материалы с обработкой ошибок*/
-						try{
-							let geometry=new THREE.BoxGeometry(5, 5, 5);
-							let materials=create_skybox_materials(path_part,extension,is_sphere);
-							skybox=new THREE.Mesh(geometry, materials);
-							three_scene.add(skybox);
-						}catch(error){
-							console.error('Error creating skybox:',error);
-						}
-						current_sky_path=new_sky_path;
+				return result;
+			};
+			let result=config_list[0];
+			for(let i=1;i<config_list.length;i++){
+				result=merge(result,config_list[i]);
+			}
+			return result;
+		}
+		/*создаёт кастомные обработчики событий*/
+		let eventHandlers=new WeakMap();
+		function add_event_listener(name,element,function_part){
+			/*Удаляем старые обработчики перед добавлением новых*/
+			remove_event_listener(name,element);
+			let handlers={
+				drop:null,
+				click:null,
+				change:null
+			};
+			if(name==='get_json'){
+				let jsonInput=document.createElement('input');
+				jsonInput.type='file';
+				jsonInput.multiple=true;
+				jsonInput.accept='.json';
+				jsonInput.style.display='none';
+				/*Обработчик для drag-and-drop*/
+				let dropHandler=async(e)=>{
+					e.preventDefault();
+					try{
+						let dicts=await jsons_to_dict_list(e.dataTransfer.files);
+						let merged=smart_merge(dicts);
+						function_part(merged);
+					}catch(error){
+						console.error('Ошибка:',error);
 					}
-				}
-				/*добавление в основной canvas canvas-а three*/
-				let background_texture,background_sprite;
-				/*Инициализация текстуры и спрайта*/
-				function init_three_scene() {
-					background_texture = PIXI.Texture.from(three_renderer.domElement);
-					background_texture.baseTexture.autoUpdate = false;
-					background_sprite = new PIXI.Sprite(background_texture);
-					
-					// Устанавливаем размер спрайта
-					background_sprite.width = wrapper.clientWidth;
-					background_sprite.height = wrapper.clientHeight;
-					
-					app.stage.addChildAt(background_sprite, 0);
-				}
-				init_three_scene();
-				/*Функция обновления сцены three*/
-				function update_three_scene(){
-					/*Обновляем Three.js сцену*/
-					three_renderer.render(three_scene,three_camera);
-					/*Принудительное обновление текстуры в PixiJS*/
-					background_texture.baseTexture.update();
-				}
-				update_three_scene();
-				function rotate_sky(x,y,z){
-					if(!skybox)return;
-					skybox.rotation.x+=x;
-					skybox.rotation.y+=y;
-					skybox.rotation.z+=z;
-				}
-				function set_sky_rotation(x,y,z){
-					if(!skybox)return;
-					skybox.rotation.set(x,y,z);
-				}
-				/*отслеживание координат мыши*/
-				let mouse={x:0,y:0};
-				wrapper.addEventListener('mousemove',(event)=>{
-					mouse.x=event.clientX-wrapper.getBoundingClientRect().left;
-					mouse.y=event.clientY-wrapper.getBoundingClientRect().top;
+				};
+				/*Обработчик для клика (открытие проводника)*/
+				let clickHandler=()=>{
+					jsonInput.click();
+				};
+				/*Обработчик выбора файлов (общий для всех вызовов)*/
+				let changeHandler=async(e)=>{
+					try{
+						let files=Array.from(e.target.files);
+						let dicts=await jsons_to_dict_list(files);
+						let merged=smart_merge(dicts);
+						function_part(merged);
+						jsonInput.value='';
+					}catch(error){
+						console.error('Ошибка:',error);
+					}
+				};
+				/*Сохраняем ссылки на обработчики*/
+				handlers.drop=dropHandler;
+				handlers.click=clickHandler;
+				handlers.change=changeHandler;
+				/*Навешиваем обработчики*/
+				element.addEventListener('drop',dropHandler);
+				element.addEventListener('click',clickHandler);
+				jsonInput.addEventListener('change',changeHandler);
+				/*Сохраняем созданный input и обработчики*/
+				eventHandlers.set(element,{
+					name,
+					handlers,
+					elements:{jsonInput}
 				});
-				/*добавление в разметку canvas-а pixijs*/
-				wrapper.appendChild(app.view);
-				/*добавление в разметку html-overlay*/
-				let overlay=document.createElement('div');
-				overlay.id='html-overlay';
-				wrapper.appendChild(overlay);
-				/*добавление в разметку предпросмотра чата*/
-				let chat_preview=document.createElement('div');
-				chat_preview.id='chat_preview';
-				wrapper.appendChild(chat_preview);
-				/*добавление в разметку interface*/
-				let interface=document.createElement('div');
-				interface.id='interface';
-				wrapper.appendChild(interface);
-				/**/
-				function print_to_chat(message){
-					let message_element=create_element_from_HTML(`<div>${message}</div>`);
-					message_element.classList.add('message');
-					chat_preview.appendChild(message_element);
-					message_element.addEventListener('animationend',()=>{
-						message_element.remove();
-					});
+			}
+		}
+		/*удаляет кастомные обработчики событий*/
+		function remove_event_listener(name,element){
+			let stored=eventHandlers.get(element);
+			if(stored&&stored.name===name){
+				/*Удаляем все обработчики событий*/
+				element.removeEventListener('drop',stored.handlers.drop);
+				element.removeEventListener('click',stored.handlers.click);
+				stored.elements.jsonInput.removeEventListener('change',stored.handlers.change);
+				/*Удаляем созданный input из DOM если был добавлен*/
+				if(document.body.contains(stored.elements.jsonInput)){
+					document.body.removeChild(stored.elements.jsonInput);
 				}
-				function change_room(room_,preparation_=true,reset_overlay_=true){
-					save.room.id=room_;
-					save.room.preparation=preparation_;
-					if(reset_overlay_){
-						overlay.innerHTML=``;
-					}
+				eventHandlers.delete(element);
+			}
+		}
+		/*создает hr из -*/
+		function get_symbolic_hr(){
+			return create_element_from_HTML(`<div class='symbolic_hr'><pre>${'-'.repeat(666)}</pre></div>`);
+		}
+		/*принимает список названий языков и применяет их (чем больше индекс, тем выше приоритет)*/
+		function apply_language(name_list){
+			name_list=['default'].concat(name_list);
+			let languages_list=[];
+			for(name of name_list){
+				languages_list.push(window.languages[name]);
+			}
+			window.language=smart_merge(languages_list,99);
+		}
+		/*принимает словарь текста и превращает его в кнопки*/
+		function dict_to_buttons(dict){
+			let buttons=structuredClone(dict);
+			for(let key in buttons){
+				buttons[key]=create_button_from_text(buttons[key]);
+			}
+			return buttons;
+		}
+		/*устанавливает ограничение максимального размера содержимого игры, "100%" отключает ограничение*/
+		function set_max_content_size(max_width,max_height){
+			wrapper.style.width=`min(100%,${max_width})`;
+			wrapper.style.height=`min(100%,${max_height})`;
+			update_size();
+		}
+		/*принимает select и список и устанавливает ему эти значения*/
+		function set_select_options(selectElement,options) {
+			selectElement.innerHTML='';
+			options.forEach(optionText=>{
+				let option=document.createElement('option');
+				option.textContent=optionText;// Задаем текст отображения
+				selectElement.appendChild(option);
+			});
+		}
+		/*создает select с рамкой*/
+		function create_select_with_frame(options,removable=false){
+			let select=create_element_from_HTML('<select/>');
+			set_select_options(select,options);
+			select.style.margin='calc(-1 * var(--symbol_size))';
+			select.style.padding='var(--symbol_size)';
+			select.style.marginRight='0';
+			select.style.cursor='pointer';
+			select.style.background='#00000000';
+			let frame=wrap_in_frame(select,`<button style='background:#000;'/>`,removable);
+			frame.style.pointerEvents='none';
+			return[frame,select];
+		}
+		/*создает прозрачный пробел для горизонтального отступа*/
+		function get_space(){
+			return create_element_from_HTML(`<pre style='background:#00000000'> </pre>`);
+		}
+		/*Функция для сохранения объекта как JSON файл*/
+		function save_as_json(data,filename){
+			/*Преобразуем объект в JSON строку*/
+			let jsonString=JSON.stringify(data);
+			/*Создаем Blob из JSON строки*/
+			let blob=new Blob([jsonString],{type:"application/json"});
+			/*Создаем ссылку на объект Blob*/
+			let url=URL.createObjectURL(blob);
+			/*Создаем временную ссылку для скачивания*/
+			let a=document.createElement("a");
+			a.href=url;
+			a.download=filename;
+			a.style.display='none';
+			/*Инициализируем клик по ссылке*/
+			document.body.appendChild(a);
+			a.click();
+			/*Удаляем ссылку и освобождаем URL*/
+			document.body.removeChild(a);
+			URL.revokeObjectURL(url);
+			/*уведомление*/
+			alert(window.language.alerts.file_saved(filename));
+		}
+		/*удаляет из списка повторяющиеся значения, оставляя в нём только их последние вхождения*/
+		function remove_duplicates(arr){
+			let seen=new Set();
+			let result=[];
+			/*Идем по массиву в обратном порядке*/
+			for(let i=arr.length-1;i>=0;i--){
+				let value=arr[i];
+				if(!seen.has(value)){
+					seen.add(value);
+					result.push(value);
 				}
-				/*инициализирует матрицу символов*/
-				let symbols_grid,columns,rows;
-				function init_sumbols_grid(){
-					symbols_grid=[];
-					columns=0;
-					rows=0;
-					update_symbols_grid();
+			}
+			/*Перевернем результат, чтобы вернуть его в правильном порядке*/
+			return result.reverse();
+		}
+		/*применяет к игре настройки из window.settings*/
+		function apply_settings(){
+			apply_language(window.settings.interface.language);
+			apply_random_splash();
+			/*set_font_size(window.settings.interface.font_size);*/
+			set_max_content_size(window.settings.interface.max_content_width,window.settings.interface.max_content_height);
+			change_room(save.room.id);
+		}
+		/*создает textarea с рамкой*/
+		function create_textarea_with_frame(placeholder='',removable=false){
+			let textarea=create_element_from_HTML('<textarea/>');
+			textarea.style.cursor='pointer';
+			textarea.style.background='#00000000';
+			textarea.placeholder=placeholder;
+			let frame=wrap_in_frame(textarea,`<button style='background:#000;'/>`,removable);
+			frame.addEventListener('click',(e)=>{
+				textarea.focus();
+			})
+			return[frame,textarea];
+		}
+		/*музыка*/
+		let current_music=null;
+		let current_music_path='';
+		let music_volume=0.5;
+		let audio_initialized=false;
+		/*для того чтобы музыка начинала проигрываться после нажатия на любое место страницы*/
+		function init_audio(){
+			if(!audio_initialized){
+				audio_initialized=true;
+				document.removeEventListener('click',init_audio);
+				if(current_music){
+					current_music.play().catch(handle_play_error);
 				}
-				/*обновляет размеры матрицы символов*/
-				function update_symbols_grid(){
-					let newColumns=Math.ceil(app.renderer.width/symbol_size);
-					let newRows=Math.ceil(app.renderer.height/symbol_size);
-					/*Ресайз существующей сетки*/
-					if(newColumns!==columns||newRows!==rows){
-						/*Удаляем лишние строки*/
-						if(newRows<rows){
-							for(let y=newRows;y<rows;y++){
-								for(let x=0;x<columns;x++){
-									symbols_grid[y][x].destroy({children:true});
-								}
-							}
-							symbols_grid.length=newRows;
-						}
-						/*Добавляем новые строки*/
-						if(newRows>rows){
-							for(let y=rows;y<newRows;y++){
-								symbols_grid[y]=[];
-								for(let x=0;x<Math.max(columns,newColumns);x++){
-									let symbol=new PIXI.Text('',text_style);
-									symbol.resolution=20;
-									symbol.position.set(x*symbol_size,y*symbol_size);
-									app.stage.addChild(symbol);
-									symbols_grid[y][x]=symbol;
-								}
-							}
-						}
-						/*Обновляем колонки в каждой строке*/
-						for(let y=0;y<newRows;y++){
-							/*Удаляем лишние колонки*/
-							if(newColumns<columns) {
-								for(let x=newColumns;x<columns;x++){
-									if(symbols_grid[y][x]){
-										symbols_grid[y][x].destroy({children:true});
-									}
-								}
-								symbols_grid[y].length=newColumns;
-							}
-							/*Добавляем новые колонки*/
-							if(newColumns>columns){
-								for(let x=columns;x<newColumns;x++){
-									let symbol=new PIXI.Text('',text_style);
-									symbol.resolution=20;
-									symbol.position.set(x*symbol_size,y*symbol_size);
-									app.stage.addChild(symbol);
-									symbols_grid[y][x]=symbol;
-								}
-							}
-						}
-						columns=newColumns;
-						rows=newRows;
-					}
-				}
-				/*настройки шрифтов*/
-				let styleSheet=document.styleSheets[0];
-				let symbol_size,font_size,text_style/*,pixel_in_pt=0.675 рудимент*/;
-				function set_font_size(size_in_pixels){
-					symbol_size=size_in_pixels;
-					font_size=symbol_size/**pixel_in_pt рудимент*/;
-					styleSheet.insertRule(":root{--symbol_size:"+font_size+"px !important;}",styleSheet.cssRules.length);
-					text_style=new PIXI.TextStyle({
-						fontFamily:'CODERROR',
-						fontSize:symbol_size,
-						trim:false,
-						fill:0xFFFFFF,
-					});
-					init_sumbols_grid();
-				}
-				set_font_size(16);
-				/**/
-				function update_size() {
-					/*Получаем актуальные размеры контейнера*/
-					let width=wrapper.clientWidth;
-					let height=wrapper.clientHeight;
-					/*Обновляем размеры рендерера PixiJS*/
-					app.renderer.resize(width,height);
-					update_symbols_grid();
-					/*Обновляем способ масштабирования изображений*/
-					styleSheet.insertRule(`:root{--image_rendering:${window.devicePixelRatio>=1?'pixelated':'auto'} !important;}`,styleSheet.cssRules.length);
-					/*Обновляем Three.js камеру и рендерер*/
-					three_camera.aspect=width/height;
-					three_camera.updateProjectionMatrix();
-					three_renderer.setSize(width,height);
-					/*Обновляем размер спрайта PixiJS*/
-					if(background_sprite){
-						background_sprite.width=width;
-						background_sprite.height=height;
-					}
-					/*Принудительно обновляем текстуру*/
-					update_three_scene();
-					app.stage.removeChild(background_sprite);
-					init_three_scene();
-				}
-				function visual_effect(number){
-					/*заполняет случайными символами*/
-					if(number==0){
-						for(let y=0;y<symbols_grid.length;y++){
-							for(let x=0;x<symbols_grid[y].length;x++){
-								let symbol=symbols_grid[y][x];
-								symbol.text=get_random_char();
-								symbol.tint=get_random_color();
-							}
-						}
-					}
-					/*случайно поворачивает символы*/
-					if(number==1){
-						for(let y=0;y<symbols_grid.length;y++){
-							for(let x=0;x<symbols_grid[y].length;x++){
-								let symbol=symbols_grid[y][x];
-								symbol.anchor.set(Math.random());
-								symbol.rotation=Math.random();
-							}
-						}
-					}
-					/*откатывает предыдущий*/
-					if(number==2){
-						for(let y=0;y<symbols_grid.length;y++){
-							for(let x=0;x<symbols_grid[y].length;x++){
-								let symbol=symbols_grid[y][x];
-								symbol.anchor.set(0);
-								symbol.rotation=0;
-							}
-						}
-					}
-				}
-				function init_printable_symbols(){
-					window.printable_symbols='';
-					let ranges=[
-						[0x0020,0x007F], /*Basic Latin (ASCII)*/
-						[0x00A0,0x00FF], /*Latin-1 Supplement*/
-						[0x0400,0x04FF], /*Cyrillic*/
-						[0x0370,0x03FF], /*Greek*/
-						[0x3040,0x309F], /*Hiragana*/
-						[0x30A0,0x30FF], /*Katakana*/
-						[0x4E00,0x9FFF], /*CJK Unified Ideographs (кандзи)*/
-						[0x0600,0x06FF], /*Arabic*/
-						[0x0900,0x097F], /*Devanagari*/
-						[0x0E00,0x0E7F], /*Thai*/
-						[0xAC00,0xD7AF], /*Hangul Syllables (корейский)*/
-						[0x1F600,0x1F64F]/*Emoji*/
-					];
-					for(let range of ranges){
-						for(let codePoint=range[0];codePoint<=range[1];codePoint++){
-							window.printable_symbols+=String.fromCodePoint(codePoint);
-						}
-					}
-				}
-				init_printable_symbols();
-				function get_random_char(){
-    				return window.printable_symbols[Math.floor(Math.random()*99)];
-				}
-				function get_random_color(){
-					return Math.floor(Math.random()*0xFFFFFF);
-				}
-				/*для иконки*/
-				let dpr=window.devicePixelRatio||1;
-				let favicon_size=Math.round(16*dpr);
-				let canvas=document.createElement('canvas');
-				canvas.width=favicon_size;
-				canvas.height=favicon_size;
-				let ctx=canvas.getContext('2d');
-				ctx.font=`${symbol_size}px CODERROR`;
-				ctx.textAlign='center';
-				ctx.textBaseline='middle';
-				let link=document.querySelector('link[rel="icon"]');
-				function generate_favicon(){
-					/*Очищаем холст*/
-					ctx.clearRect(0,0,favicon_size,favicon_size);
-					/*Настройки текста*/
-					ctx.fillStyle=`#${get_random_color().toString(16).padStart(6,'0')}`;
-					/*Рисуем символ*/
-					ctx.fillText(get_random_char(),favicon_size/2,favicon_size/2);
-					/*Обновляем иконку*/
-					canvas.toBlob(blob=>{
-						link.href=URL.createObjectURL(blob);
-					},'image/png');
-				}
-				window.addEventListener('resize',update_size);
-				/*обновление favicon*/
-				let faviconInterval=setInterval(()=>{
-					generate_favicon();
-				},1000/5);
-				/*функция генерации кода разметки pre с отсутствием фона у пробелов*/
-				function get_transparent_space_text(text,color='#fff',background='#000'){
-					let escapeHtml=(char)=>{
-						let escapes={
-							'<':'&lt;',
-							'>':'&gt;',
-							'&':'&amp;',
-							'"':'&quot;',
-							"'":'&#39;'
-						};
-						return escapes[char]||char;
-					};
-					let areStylesEqual=(a,b)=>{
-						let aKeys=Object.keys(a);
-						let bKeys=Object.keys(b);
-						if(aKeys.length!==bKeys.length)return false;
-						for(let key of aKeys){
-							if(a[key]!==b[key])return false;
-						}
-						return true;
-					};
-					let tokenRegex=/(⦑[^⦒]*⦒)|(\n)|( )|(.)/g;
-					let tokens=[];
-					let match;
-					while((match=tokenRegex.exec(text))!==null){
-						if(match[1])tokens.push({type:'tag',value:match[1]});
-						else if(match[2])tokens.push({type:'newline'});
-						else if(match[3])tokens.push({type:'space'});
-						else if(match[4])tokens.push({type:'char',value:match[4]});
-					}
-					let initialStyles={color,background};
-					let currentStyles={...initialStyles};
-					let output=[];
-					let currentNonSpace={styles:null,content:[]};
-					let currentSpace=[];
-					let flushNonSpace=()=>{
-						if(currentNonSpace.content.length===0)return;
-						/*Всегда добавляем наследование, если стили не изменены*/
-						let baseStyles={color:'inherit',background:'inherit'};
-						let mergedStyles=!areStylesEqual(currentNonSpace.styles,initialStyles) 
-							?{...currentNonSpace.styles}
-							:baseStyles;
-						let styleStr=`style="${Object.entries(mergedStyles).map(([k,v])=>`${k}:${v}`).join(';')}"`;
-						let content=currentNonSpace.content.map(escapeHtml).join('');
-						output.push(`<pre ${styleStr}>${content}</pre>`);
-						currentNonSpace.content=[];
-						currentNonSpace.styles=null;
-					};
-					let flushSpace=()=>{
-						if(currentSpace.length===0)return;
-						/*Только прозрачный фон и цвет если изменен*/
-						let spaceStyles={
-							background:'transparent',
-							...(currentStyles.color!==initialStyles.color&&{color:currentStyles.color})
-						};
-						let styleStr=Object.keys(spaceStyles).length>0 
-							?`style="${Object.entries(spaceStyles).map(([k,v])=>`${k}:${v}`).join(';')}"`
-							:'';
-						let content=currentSpace.map(escapeHtml).join('');
-						output.push(`<pre ${styleStr}>${content}</pre>`);
-						currentSpace=[];
-					};
-					for(let token of tokens){
-						switch(token.type){
-							case'tag':{
-								let tagContent=token.value.slice(1,-1).trim();
-								if(tagContent==='reset'){
-									currentStyles={...initialStyles};
-								}else{
-									const[property,value]=tagContent.split(':').map(p=>p.trim());
-									if(property&&value)currentStyles[property]=value;
-								}
-								flushNonSpace();
-								flushSpace();
-								break;
-							}
-							case'newline':
-								flushNonSpace();
-								flushSpace();
-								output.push('<br>');
-								break;
-							case'space':
-								flushNonSpace();
-								currentSpace.push(' ');
-								break;
-							case'char':
-								flushSpace();
-								if(currentNonSpace.styles&&areStylesEqual(currentStyles,currentNonSpace.styles)){
-									currentNonSpace.content.push(token.value);
-								}else{
-									flushNonSpace();
-									currentNonSpace.styles={...currentStyles};
-									currentNonSpace.content.push(token.value);
-								}
-								break;
-						}
-					}
-					flushNonSpace();
-					flushSpace();
-					return`<div style="display:contents;color:${color};background:${background}">${output.join('')}</div>`;
-				}
-				/*принимает разметку, возвращает полноценный элемент*/
-				function create_element_from_HTML(html){
-					let template=document.createElement('template');
-					template.innerHTML=html.trim();
-					let fragment=template.content;
-					/*Проверяем, есть ли ровно один дочерний элемент*/
-					if(fragment.childNodes.length===1&&fragment.firstChild.nodeType===Node.ELEMENT_NODE){
-						return fragment.firstChild;
-					}else{
-						/*Создаём контейнер с display: contents*/
-						let container=document.createElement('div');
-						container.style.display='contents';
-						/*Перемещаем все узлы из фрагмента в контейнер*/
-						while(fragment.firstChild){
-							container.appendChild(fragment.firstChild);
-						}
-						return container;
-					}
-				}
-				/*возвращает один из ИСТИНЫХ цветов*/
-				function get_random_true_str_color(){
-					return get_random_element(['#000','#00f','#0f0','#0ff','#f00','#f0f','#ff0','#fff']);
-				}
-				/*увеличивает z-index на 1*/
-				function increment_z_index(element){
-					element.style.zIndex=parseInt(element.style.zIndex||0)+1+'';
-				}
-				/*оборачивает элемент в кнопку с символьной рамкой*/
-				function wrap_in_frame(content,container_type='<button/>',removable=false) {
-					let button = create_element_from_HTML(container_type);
-					button.style.position='relative';
-					button.style.overflow='hidden';
-					let grid=document.createElement('div');
-					grid.style.display='grid';
-					grid.style.gridTemplateAreas=`"a . b" ". c ." "d . e"`;
-					grid.style.gridTemplateColumns='repeat(3,min-content)';
-					grid.style.gridTemplateRows='repeat(3,min-content)';
-					grid.style.gap='0';
-					grid.style.position='relative';
-					grid.style.alignItems='center'; // Выравнивание по центру
-					grid.style.justifyItems='center';
-					grid.style.color='inherit';
-					/*Создание элементов с правильными областями*/
-					let b;
-					if(removable){
-						b=create_element_from_HTML(`<pre><button style='color:inherit'>X</button></pre>`);/*костыль*/
-						b.addEventListener('click',()=>{
-							button.remove();
-						});
-					}
-					else{
-						b=create_element_from_HTML(`<pre>.</pre>`);
-					}
-					let elements={
-						a:create_element_from_HTML(`<pre>+</pre>`),
-						b:b,
-						c:document.createElement('div'),
-						d:create_element_from_HTML(`<pre>\`</pre>`),
-						e:create_element_from_HTML(`<pre>'</pre>`)
-					};
-					/*Настройка центрального элемента*/
-					elements.c.appendChild(content);
-					elements.c.style.gridArea='c';
-					elements.c.style.whiteSpace='nowrap';
-					elements.c.id='frame_content';
-					/*Привязка всех элементов к grid-areas*/
-					Object.entries(elements).forEach(([area,el])=>{
-						el.style.gridArea=area;
-						el.style.color='inherit';
-						grid.appendChild(el);
-					});
-					if(removable){
-						b.style.color='#f00'
-					}
-					button.appendChild(grid);
-					increment_z_index(grid);
-					let horizontal=`<pre style="position:absolute;white-space:nowrap;color:inherit;">${'-'.repeat(666)}</pre>`
-					let vertical=`<pre style="position:absolute;white-space:nowrap;color:inherit;">${'|<br>'.repeat(444)}</pre>`
-					let top=create_element_from_HTML(horizontal);
-					top.style.top=0;
-					top.style.left=0;
-					let bottom=create_element_from_HTML(horizontal);
-					bottom.style.bottom=0;
-					bottom.style.left=0;
-					let left=create_element_from_HTML(vertical);
-					left.style.top=0;
-					left.style.left=0;
-					let right=create_element_from_HTML(vertical);
-					right.style.top=0;
-					right.style.right=0;
-					button.appendChild(top);
-					button.appendChild(bottom);
-					button.appendChild(left);
-					button.appendChild(right);
-					return button;
-				}
-				/*создает кнопку на основе текста*/
-				function create_button_from_text(text,removable=false){
-					return wrap_in_frame(create_element_from_HTML(get_transparent_space_text(text)),'<button/>',removable);
-				}
-				/*меняет цвет рамки кнопки*/
-				function change_button_border_color(button,color){
-					button.style.color=color;
-				}
-				/*меняет цвет текста кнопки*/
-				function change_button_text_color(button,color){
-					let targetElement=button.querySelector('#frame_content');
-					let firstChild=targetElement.firstElementChild;
-					if(firstChild){
-						firstChild.style.color=color;
-					}else{
-						console.log('У элемента нет дочерних элементов.');
-					}
-				}
-				/*меняет цвет рамки и текста кнопки*/
-				function change_button_color(button,color){
-					change_button_border_color(button,color);
-					change_button_text_color(button,color);
-				}
-				/*проверяет перетаскивают ли файл над объектом*/
-				let dragoverStates=new WeakMap();
-				function check_dragover(element){
-					if (!element.__dragoverHandlersAdded){
-						let handlers={
-							dragenter:(event)=>{
-								event.preventDefault();
-								if(!dragoverStates.get(element)){
-									element.classList.add('dragover');
-									dragoverStates.set(element,true);
-								}
-							},
-							dragover:(event)=>{
-								event.preventDefault();
-								if(!dragoverStates.get(element)){
-									element.classList.add('dragover');
-									dragoverStates.set(element,true);
-								}
-							},
-							dragleave:(event)=>{
-								if(!event.relatedTarget||!element.contains(event.relatedTarget)){
-									element.classList.remove('dragover');
-									dragoverStates.set(element,false);
-								}
-							},
-							drop:(event)=>{
-								event.preventDefault();
-								element.classList.remove('dragover');
-								dragoverStates.set(element,false);
-							}
-						};
-						element.addEventListener('dragenter',handlers.dragenter);
-						element.addEventListener('dragover',handlers.dragover);
-						element.addEventListener('dragleave',handlers.dragleave);
-						element.addEventListener('drop',handlers.drop);
-						element.__dragoverHandlersAdded=true;
-						Object.assign(element,{__dragoverHandlers:handlers});
-					}
-					return dragoverStates.get(element)||false;
-				}
-				/*проверяет наведена ли мышь на элемент*/
-				function check_hover(element){
-					return(element.matches(':hover')||check_dragover(element));
-				}
-				/*возвращает новый br элемент*/
-				function get_br(){
-					return document.createElement('br');
-				}
-				/*превращает json файл в объект (требует async await)*/
-				function json_to_dict(file){
-					return new Promise((resolve,reject)=>{
-						let reader=new FileReader();
-						reader.onload=e=>{
-							try{
-								resolve(JSON.parse(e.target.result));
-							}catch(error){
-								reject(error);
-							}
-						};
-						reader.onerror=error=>reject(error);
-						reader.readAsText(file);
-					});
-				}
-				/*превращает много json в объекты за раз*/
-				async function jsons_to_dict_list(files){
-					let data=[];
-					for(let file of files){
-						let parsed=await json_to_dict(file);
-						data.push(parsed);
-					}
-					return data;
-				}
-				/*соединяет объекты в 1 более общий, перезаписывая старые значения новыми*/
-				function smart_merge(config_list,max_depth=2){
-					let merge=(target,source,depth=1)=>{
-						/*Если достигли предела глубины - возвращаем source*/
-						if(depth>=max_depth)return{...source};
-						/*Создаем новый объект для результатов*/
-						let result={...target};
-						/*Перебираем ключи исходного объекта*/
-						for(let key of Object.keys(source)) {
-							let sourceValue=source[key];
-							let targetValue=target[key];
-							/*Если оба значения - объекты (не массивы)*/
-							if(typeof sourceValue==='object'&& 
-								!Array.isArray(sourceValue)&&
-								typeof targetValue==='object'&& 
-								!Array.isArray(targetValue)){
-								/*Рекурсивное слияние с увеличением глубины*/
-								result[key]=merge(targetValue,sourceValue,depth+1);
+			}
+		}
+		document.addEventListener('click',init_audio);
+		/*принимает путь до музыки и включает её*/
+		function set_music(path){
+			if(current_music_path===path)return;
+			if(current_music){
+				current_music.pause();
+				current_music=null;
+			}
+			current_music=new Audio(path);
+			current_music.volume=music_volume;
+			current_music.loop=true;
+			current_music_path=path;
+			if(audio_initialized){
+				current_music.play().catch(handle_play_error);
+			}
+			print_to_chat(window.language.notifications.current_music(path));
+		}
+		/*выводит сообщение об ошибке в случае её возникновения*/
+		function handle_play_error(error){
+			console.error('Playback error:',error);
+		}
+		/*устанавливает громкость*/
+		function set_volume(volume){
+			music_volume=Math.max(0,Math.min(1,volume));
+			if(current_music)current_music.volume=music_volume;
+		}
+		/*меняет текст кастомной кнопки*/
+		function change_button_text(button,text){
+			button.querySelector('#frame_content').innerHTML=get_transparent_space_text(text);
+		}
+		/*ожидает пользовательский ввод и возвращает promise*/
+		window.ignored_keys=['F11','F12'];
+		function wait_user_input(){
+			return new Promise((resolve)=>{
+				let handler=(e)=>{
+					if(!window.ignored_keys.includes(e.code)){
+						e.preventDefault();
+						document.removeEventListener('keydown',handler);
+						document.removeEventListener('mousedown',handler);
+						document.removeEventListener('wheel',handler);
+						if(e.type==='keydown'){
+							if(window.settings.control.bind_to_layout){
+								resolve(e.key);
 							}else{
-								/*Заменяем значение*/
-								result[key]=sourceValue;
+								resolve(e.code);
 							}
-						}
-						return result;
-					};
-					let result=config_list[0];
-					for(let i=1;i<config_list.length;i++){
-						result=merge(result,config_list[i]);
-					}
-					return result;
-				}
-				/*создаёт кастомные обработчики событий*/
-				let eventHandlers=new WeakMap();
-				function add_event_listener(name,element,function_part){
-					/*Удаляем старые обработчики перед добавлением новых*/
-					remove_event_listener(name,element);
-					let handlers={
-						drop:null,
-						click:null,
-						change:null
-					};
-					if(name==='get_json'){
-						let jsonInput=document.createElement('input');
-						jsonInput.type='file';
-						jsonInput.multiple=true;
-						jsonInput.accept='.json';
-						jsonInput.style.display='none';
-						/*Обработчик для drag-and-drop*/
-						let dropHandler=async(e)=>{
-							e.preventDefault();
-							try{
-								let dicts=await jsons_to_dict_list(e.dataTransfer.files);
-								let merged=smart_merge(dicts);
-								function_part(merged);
-							}catch(error){
-								console.error('Ошибка:',error);
-							}
-						};
-						/*Обработчик для клика (открытие проводника)*/
-						let clickHandler=()=>{
-							jsonInput.click();
-						};
-						/*Обработчик выбора файлов (общий для всех вызовов)*/
-						let changeHandler=async(e)=>{
-							try{
-								let files=Array.from(e.target.files);
-								let dicts=await jsons_to_dict_list(files);
-								let merged=smart_merge(dicts);
-								function_part(merged);
-								jsonInput.value='';
-							}catch(error){
-								console.error('Ошибка:',error);
-							}
-						};
-						/*Сохраняем ссылки на обработчики*/
-						handlers.drop=dropHandler;
-						handlers.click=clickHandler;
-						handlers.change=changeHandler;
-						/*Навешиваем обработчики*/
-						element.addEventListener('drop',dropHandler);
-						element.addEventListener('click',clickHandler);
-						jsonInput.addEventListener('change',changeHandler);
-						/*Сохраняем созданный input и обработчики*/
-						eventHandlers.set(element,{
-							name,
-							handlers,
-							elements:{jsonInput}
-						});
-					}
-				}
-				/*удаляет кастомные обработчики событий*/
-				function remove_event_listener(name,element){
-					let stored=eventHandlers.get(element);
-					if(stored&&stored.name===name){
-						/*Удаляем все обработчики событий*/
-						element.removeEventListener('drop',stored.handlers.drop);
-						element.removeEventListener('click',stored.handlers.click);
-						stored.elements.jsonInput.removeEventListener('change',stored.handlers.change);
-						/*Удаляем созданный input из DOM если был добавлен*/
-						if(document.body.contains(stored.elements.jsonInput)){
-							document.body.removeChild(stored.elements.jsonInput);
-						}
-						eventHandlers.delete(element);
-					}
-				}
-				/*создает hr из -*/
-				function get_symbolic_hr(){
-					return create_element_from_HTML(`<div class='symbolic_hr'><pre>${'-'.repeat(666)}</pre></div>`);
-				}
-				/*принимает список названий языков и применяет их (чем больше индекс, тем выше приоритет)*/
-				function apply_language(name_list){
-					name_list=['default'].concat(name_list);
-					let languages_list=[];
-					for(name of name_list){
-						languages_list.push(window.languages[name]);
-					}
-					window.language=smart_merge(languages_list,99);
-				}
-				/*принимает словарь текста и превращает его в кнопки*/
-				function dict_to_buttons(dict){
-					let buttons=structuredClone(dict);
-					for(let key in buttons){
-						buttons[key]=create_button_from_text(buttons[key]);
-					}
-					return buttons;
-				}
-				/*устанавливает ограничение максимального размера содержимого игры, "100%" отключает ограничение*/
-				function set_max_content_size(max_width,max_height){
-					wrapper.style.width=`min(100%,${max_width})`;
-					wrapper.style.height=`min(100%,${max_height})`;
-					update_size();
-				}
-				/*принимает select и список и устанавливает ему эти значения*/
-				function set_select_options(selectElement,options) {
-					selectElement.innerHTML='';
-					options.forEach(optionText=>{
-						let option=document.createElement('option');
-						option.textContent=optionText;// Задаем текст отображения
-						selectElement.appendChild(option);
-					});
-				}
-				/*создает select с рамкой*/
-				function create_select_with_frame(options,removable=false){
-					let select=create_element_from_HTML('<select/>');
-					set_select_options(select,options);
-					select.style.margin='calc(-1 * var(--symbol_size))';
-					select.style.padding='var(--symbol_size)';
-					select.style.marginRight='0';
-					select.style.cursor='pointer';
-					select.style.background='#00000000';
-					let frame=wrap_in_frame(select,`<button style='background:#000;'/>`,removable);
-					frame.style.pointerEvents='none';
-					return[frame,select];
-				}
-				/*создает прозрачный пробел для горизонтального отступа*/
-				function get_space(){
-					return create_element_from_HTML(`<pre style='background:#00000000'> </pre>`);
-				}
-				/*Функция для сохранения объекта как JSON файл*/
-				function save_as_json(data,filename){
-					/*Преобразуем объект в JSON строку*/
-					let jsonString=JSON.stringify(data);
-					/*Создаем Blob из JSON строки*/
-					let blob=new Blob([jsonString],{type:"application/json"});
-					/*Создаем ссылку на объект Blob*/
-					let url=URL.createObjectURL(blob);
-					/*Создаем временную ссылку для скачивания*/
-					let a=document.createElement("a");
-					a.href=url;
-					a.download=filename;
-					a.style.display='none';
-					/*Инициализируем клик по ссылке*/
-					document.body.appendChild(a);
-					a.click();
-					/*Удаляем ссылку и освобождаем URL*/
-					document.body.removeChild(a);
-					URL.revokeObjectURL(url);
-					/*уведомление*/
-					alert(window.language.alerts.file_saved(filename));
-				}
-				/*удаляет из списка повторяющиеся значения, оставляя в нём только их последние вхождения*/
-				function remove_duplicates(arr){
-					let seen=new Set();
-					let result=[];
-					/*Идем по массиву в обратном порядке*/
-					for(let i=arr.length-1;i>=0;i--){
-						let value=arr[i];
-						if(!seen.has(value)){
-							seen.add(value);
-							result.push(value);
+						}else if(e.type==='mousedown'){
+							resolve(`mouse${e.button}`);
+						}else if(e.type==='wheel') {
+							resolve(e.deltaY<0?'WheelUp':'WheelDown');
 						}
 					}
-					/*Перевернем результат, чтобы вернуть его в правильном порядке*/
-					return result.reverse();
-				}
-				/*применяет к игре настройки из window.settings*/
-				function apply_settings(){
-					apply_language(window.settings.interface.language);
-					apply_random_splash();
-					/*set_font_size(window.settings.interface.font_size);*/
-					set_max_content_size(window.settings.interface.max_content_width,window.settings.interface.max_content_height);
-					change_room(save.room.id);
-				}
-				/*создает textarea с рамкой*/
-				function create_textarea_with_frame(placeholder='',removable=false){
-					let textarea=create_element_from_HTML('<textarea/>');
-					textarea.style.cursor='pointer';
-					textarea.style.background='#00000000';
-					textarea.placeholder=placeholder;
-					let frame=wrap_in_frame(textarea,`<button style='background:#000;'/>`,removable);
-					frame.addEventListener('click',(e)=>{
-						textarea.focus();
-					})
-					return[frame,textarea];
-				}
-				/*музыка*/
-				let current_music=null;
-				let current_music_path='';
-				let music_volume=0.5;
-				let audio_initialized=false;
-				/*для того чтобы музыка начинала проигрываться после нажатия на любое место страницы*/
-				function init_audio(){
-					if(!audio_initialized){
-						audio_initialized=true;
-						document.removeEventListener('click',init_audio);
-						if(current_music){
-							current_music.play().catch(handle_play_error);
+				};
+			document.addEventListener('keydown',handler);
+			document.addEventListener('mousedown',handler);
+			document.addEventListener('wheel',handler);
+			});
+		}
+		/*принимает список и возвращает случайный элемент*/
+		function get_random_element(list){
+			return list[Math.floor(Math.random()*list.length)];
+		}
+		/*устанавливает случайный сплеш*/
+		function apply_random_splash(){
+			window.splash=get_random_element(window.language.splashes);
+		}
+		/*очищает сцену pixijs*/
+		function clear_pixijs(stage=app.stage){
+			stage.removeChildren();
+			current_sky_path=null;
+		}
+		/*отслеживает нажатия и отжатия клавиш*/
+		window.pressed=new Set();
+		window.activated_actions=new Set();
+		function update_activated_actions(){
+			window.activated_actions.clear();
+			Object.entries(window.settings.control).forEach(([control_id,control])=>{
+				if(control_id!='bind_to_layout'){
+					for(let key of control){
+						if(window.pressed.has(key)){
+							window.activated_actions.add(control_id);
+							break;
 						}
 					}
 				}
-				document.addEventListener('click',init_audio);
-				/*принимает путь до музыки и включает её*/
-				function set_music(path){
-					if(current_music_path===path)return;
-					if(current_music){
-						current_music.pause();
-						current_music=null;
-					}
-					current_music=new Audio(path);
-					current_music.volume=music_volume;
-					current_music.loop=true;
-					current_music_path=path;
-					if(audio_initialized){
-						current_music.play().catch(handle_play_error);
-					}
-					print_to_chat(window.language.notifications.current_music(path));
+			});
+		}
+		function setup_input_tracker(){
+			let getKey=(e)=>{
+				if(e.type.startsWith('key')){
+					return window.settings.control.bind_to_layout?e.key:e.code;
+				}else if(e.type.startsWith('mouse')&&e.type!=='wheel'){
+					return`mouse${e.button}`;
+				}else if(e.type==='wheel'){
+					return e.deltaY<0?'WheelUp':'WheelDown';
 				}
-				/*выводит сообщение об ошибке в случае её возникновения*/
-				function handle_play_error(error){
-					console.error('Playback error:',error);
-				}
-				/*устанавливает громкость*/
-				function set_volume(volume){
-					music_volume=Math.max(0,Math.min(1,volume));
-					if(current_music)current_music.volume=music_volume;
-				}
-				/*меняет текст кастомной кнопки*/
-				function change_button_text(button,text){
-					button.querySelector('#frame_content').innerHTML=get_transparent_space_text(text);
-				}
-				/*ожидает пользовательский ввод и возвращает promise*/
-				window.ignored_keys=['F11','F12'];
-				function wait_user_input(){
-					return new Promise((resolve)=>{
-						let handler=(e)=>{
-							if(!window.ignored_keys.includes(e.code)){
-								e.preventDefault();
-								document.removeEventListener('keydown',handler);
-								document.removeEventListener('mousedown',handler);
-								document.removeEventListener('wheel',handler);
-								if(e.type==='keydown'){
-									if(window.settings.control.bind_to_layout){
-										resolve(e.key);
-									}else{
-										resolve(e.code);
-									}
-								}else if(e.type==='mousedown'){
-									resolve(`mouse${e.button}`);
-								}else if(e.type==='wheel') {
-									resolve(e.deltaY<0?'WheelUp':'WheelDown');
-								}
-							}
-						};
-					document.addEventListener('keydown',handler);
-					document.addEventListener('mousedown',handler);
-					document.addEventListener('wheel',handler);
-					});
-				}
-				/*принимает список и возвращает случайный элемент*/
-				function get_random_element(list){
-					return list[Math.floor(Math.random()*list.length)];
-				}
-				/*устанавливает случайный сплеш*/
-				function apply_random_splash(){
-					window.splash=get_random_element(window.language.splashes);
-				}
-				/*очищает сцену pixijs*/
-				function clear_pixijs(stage=app.stage){
-					stage.removeChildren();
-					current_sky_path=null;
-				}
-				/*отслеживает нажатия и отжатия клавиш*/
-				window.pressed=new Set();
-				window.activated_actions=new Set();
-				function update_activated_actions(){
-					window.activated_actions.clear();
-					Object.entries(window.settings.control).forEach(([control_id,control])=>{
-						if(control_id!='bind_to_layout'){
-							for(let key of control){
-								if(window.pressed.has(key)){
-									window.activated_actions.add(control_id);
-									break;
-								}
-							}
+			};
+			let handleEvent=(e)=>{
+				if(!e.repeat){/*Отключаем автоповтор*/
+					if(!window.ignored_keys.includes(e.code)){
+						let key=getKey(e);
+						if(e.type==='keydown'||e.type==='mousedown'||e.type==='wheel'){
+							window.pressed.add(key);
+						}else{
+							window.pressed.delete(key);
 						}
-					});
-				}
-				function setup_input_tracker(){
-					let getKey=(e)=>{
-						if(e.type.startsWith('key')){
-							return window.settings.control.bind_to_layout?e.key:e.code;
-						}else if(e.type.startsWith('mouse')&&e.type!=='wheel'){
-							return`mouse${e.button}`;
-						}else if(e.type==='wheel'){
-							return e.deltaY<0?'WheelUp':'WheelDown';
-						}
-					};
-					let handleEvent=(e)=>{
-						if(!e.repeat){/*Отключаем автоповтор*/
-							if(!window.ignored_keys.includes(e.code)){
-								let key=getKey(e);
-								if(e.type==='keydown'||e.type==='mousedown'||e.type==='wheel'){
-									window.pressed.add(key);
-								}else{
-									window.pressed.delete(key);
-								}
-								update_activated_actions();
-							}
-						}
-					};
-					document.addEventListener('keydown',handleEvent);
-					document.addEventListener('keyup',handleEvent);
-					document.addEventListener('mousedown',handleEvent);
-					document.addEventListener('mouseup',handleEvent);
-					document.addEventListener('wheel', handleEvent);
-					return{
-						stop_tracking:()=>{
-							document.removeEventListener('keydown',handleEvent);
-							document.removeEventListener('keyup',handleEvent);
-							document.removeEventListener('mousedown',handleEvent);
-							document.removeEventListener('mouseup',handleEvent);
-							document.removeEventListener('wheel', handleEvent);
-						}
-					};
-				}
-				/*отрисовывает текст в symbols_grid*/
-				function print_text_to_symbols_grid(text,x,y,color=0xFFFFFF){
-					x=Math.floor(x);
-					y=Math.floor(y);
-					let current_x=x,current_y=y;
-					for(let symbol of text){
-						if(current_x>=0&&current_x<symbols_grid[0].length&&current_y>=0&&current_y<symbols_grid.length){
-							let pixi_symbol=symbols_grid[current_y][current_x];
-							pixi_symbol.text=symbol;
-							pixi_symbol.tint=color;
-						}
-						if(symbol=='\n'){
-							current_x=x;
-							current_y++;
-						}
-						else{
-							current_x++;
-						}
+						update_activated_actions();
 					}
 				}
-				/*превращает текст в коллайдер в зависимости от размера шрифта*/
-				function text_to_collider(text,void_symbols=['',' ']){
-					let lines=text.split("\n"),collider=[];
-					for(let line of lines){
-						let temp_row=[];
-						for(let char of line){
-							temp_row.push(...Array(logical_symbol_size).fill(!void_symbols.includes(char)));
-						}
-						for(let y=0;y<logical_symbol_size;y++){
-							collider.push([...temp_row]);
-						}
-					}
-					return collider;
+			};
+			document.addEventListener('keydown',handleEvent);
+			document.addEventListener('keyup',handleEvent);
+			document.addEventListener('mousedown',handleEvent);
+			document.addEventListener('mouseup',handleEvent);
+			document.addEventListener('wheel', handleEvent);
+			return{
+				stop_tracking:()=>{
+					document.removeEventListener('keydown',handleEvent);
+					document.removeEventListener('keyup',handleEvent);
+					document.removeEventListener('mousedown',handleEvent);
+					document.removeEventListener('mouseup',handleEvent);
+					document.removeEventListener('wheel', handleEvent);
 				}
-				/*очищает symbols_grid*/
-				function clear_symbols_grid(){
-					for(let y=0;y<symbols_grid.length;y++){
-						for(let x=0;x<symbols_grid[y].length;x++){
-							symbols_grid[y][x].text='';
-							symbols_grid[y][x].backgroundColor=0x00000000;
-						}
-					}
+			};
+		}
+		/*отрисовывает текст в symbols_grid*/
+		function print_text_to_symbols_grid(text,x,y,color=0xFFFFFF){
+			x=Math.floor(x);
+			y=Math.floor(y);
+			let current_x=x,current_y=y;
+			for(let symbol of text){
+				if(current_x>=0&&current_x<symbols_grid[0].length&&current_y>=0&&current_y<symbols_grid.length){
+					let pixi_symbol=symbols_grid[current_y][current_x];
+					pixi_symbol.text=symbol;
+					pixi_symbol.tint=color;
 				}
-				/*выполняет скрипт в текущей области видимости*/
-				function eval_script(path){
-					fetch(path)
-						.then(res=>res.text())
-						.then(script=>{
-							eval(script);
-						});
+				if(symbol=='\n'){
+					current_x=x;
+					current_y++;
 				}
-				/*переводит логические координаты в координаты на экране*/
-				function logical_to_screen(num){
-					return num/logical_symbol_size*symbol_size;
+				else{
+					current_x++;
 				}
-				/*настройки камеры*/
-				function focus_camera_on_player(){
-					save.room.data.camera=[logical_to_screen(save.player.coordinates[0])-(Math.floor(columns/2)*symbol_size),logical_to_screen(save.player.coordinates[1])-(Math.floor(rows/2)*symbol_size)];
+			}
+		}
+		/*превращает текст в коллайдер в зависимости от размера шрифта*/
+		function text_to_collider(text,void_symbols=['',' ']){
+			let lines=text.split("\n"),collider=[];
+			for(let line of lines){
+				let temp_row=[];
+				for(let char of line){
+					temp_row.push(...Array(logical_symbol_size).fill(!void_symbols.includes(char)));
 				}
-				/*расчет коллайдеров*/
-				function update_player_collider(){
-					save.player.collider=[[save.player.coordinates[0],save.player.coordinates[1]],[save.player.coordinates[0]+logical_symbol_size,save.player.coordinates[1]+logical_symbol_size]];
+				for(let y=0;y<logical_symbol_size;y++){
+					collider.push([...temp_row]);
 				}
-				/*расчет коллизии*/
-				let nothing_below,nothing_left,nothing_right,nothing_higher;
-				function update_collision(ground_collider=save.room.data.ground.collider){
-					update_player_collider();
-					nothing_below=true;
-					nothing_left=true;
-					nothing_right=true;
-					nothing_higher=true;
-					for(let y=save.player.collider[0][1];y<save.player.collider[1][1];y++){
-						for(let x=save.player.collider[0][0];x<save.player.collider[1][0];x++){
-							let coordinates=[x,y+1];
-							if(coordinates.every(num=>num>=0)){
-								try{
-									if(ground_collider[coordinates[1]][coordinates[0]]){
-										nothing_below=false;
-									}
-								}catch{}
-							}
-							coordinates=[x,y-1];
-							if(coordinates.every(num=>num>=0)){
-								try{
-									if(ground_collider[coordinates[1]][coordinates[0]]){
-										nothing_higher=false;
-									}
-								}catch{}
-							}
-							coordinates=[x+1,y];
-							if(coordinates.every(num=>num>=0)){
-								try{
-									if(ground_collider[coordinates[1]][coordinates[0]]){
-										nothing_right=false;
-									}
-								}catch{}
-							}
-							coordinates=[x-1,y];
-							if(coordinates.every(num=>num>=0)){
-								try{
-									if(ground_collider[coordinates[1]][coordinates[0]]){
-										nothing_left=false;
-									}
-								}catch{}
-							}
-						}
-					}
+			}
+			return collider;
+		}
+		/*очищает symbols_grid*/
+		function clear_symbols_grid(){
+			for(let y=0;y<symbols_grid.length;y++){
+				for(let x=0;x<symbols_grid[y].length;x++){
+					symbols_grid[y][x].text='';
+					symbols_grid[y][x].backgroundColor=0x00000000;
 				}
-				/*устанавливает рамку на активный слот хотбара*/
-				function update_active_hotbar_slot_frame(){
-					let active_hotbar_slot_frame=document.getElementById('active_hotbar_slot_frame');
-					if(!active_hotbar_slot_frame){
-						active_hotbar_slot_frame=create_element_from_HTML(`<img id="active_hotbar_slot_frame" src="images/interface/inventory/active_slot_frame.png"/>`);
-					}
-					document.querySelector(`.hotbar_slot[data-index="${save.player.interface.hotbar.active_slot_index}"]`).appendChild(active_hotbar_slot_frame);
-				}
-				/*генерирует хотбар*/
-				function generate_hotbar(){
-					let hotbar=create_element_from_HTML(`<div id="hotbar" class="row"></div>`);
-					for(let i=0;i<save.player.interface.hotbar.slot_count;i++){
-						let slot=document.createElement('div');
-						slot.dataset.index=i;
-						slot.classList.add('hotbar_slot');
-						slot.addEventListener('click',function(e){
-							save.player.interface.hotbar.active_slot_index=this.dataset.index;
-							update_active_hotbar_slot_frame();
-						});
-						hotbar.appendChild(slot);
-					}
-					return hotbar;
-				}
-				function generate_esc_menu(){
-					let esc_menu=create_element_from_HTML(`<div id="esc_menu"></div>`);
-					let button_to_main_menu=create_button_from_text(window.language.interface.buttons.to_main_menu);
-					button_to_main_menu.addEventListener('click',()=>{
-						if(confirm(language.confirms.is_need_save)){
-							save_as_json(save,`${1e16-Date.now()} - CODERROR ${window.version} save.json`);
-						}
-						change_room('main_menu');
-					});
-					button_to_main_menu.id='button_to_main_menu';
-					esc_menu.appendChild(button_to_main_menu);
-					return esc_menu;
-				}
-				/*генерирует интерфейс*/
-				function update_interface(){
-					interface.innerHTML='';
-					interface.appendChild(generate_hotbar());
-					update_active_hotbar_slot_frame();
-					interface.appendChild(generate_esc_menu());
-				}
-				/*включает/отключает интерфейс*/
-				function set_interface_visibility(is_visible){
-					if(is_visible){
-						interface.style.visibility='visible';
-					}else{
-						interface.style.visibility='collapse';
-					}
-				}
-				/*активирует прошлый слот хотбара*/
-				function activate_previous_hotbar_slot(){
-					save.player.interface.hotbar.active_slot_index--;
-					if(save.player.interface.hotbar.active_slot_index<0){
-						save.player.interface.hotbar.active_slot_index=save.player.interface.hotbar.slot_count-1;
-					}
-					update_active_hotbar_slot_frame();
-				}
-				/*активирует следующий слот хотбара*/
-				function activate_next_hotbar_slot(){
-					save.player.interface.hotbar.active_slot_index++;
-					if(save.player.interface.hotbar.active_slot_index>=save.player.interface.hotbar.slot_count){
-						save.player.interface.hotbar.active_slot_index=0;
-					}
-					update_active_hotbar_slot_frame();
-				}
-				/*завершить подготовку комнаты*/
-				let loadable_save_data=null;
-				function finish_preparation(){
-					save.room.preparation=false;
-					if(loadable_save_data){
-						save=loadable_save_data;
-						loadable_save_data=null;
-						update_interface();
-					}
-				}
-				/*загружает сохранение*/
-				function load_save(data){
-					loadable_save_data=data;
-					change_room(data.room.id);
-				}
-				/*финальная настройка*/
-				document.addEventListener('contextmenu',(e)=>{
-					e.preventDefault();/*отключаем контекстные меню глобально. я сам ими пользовался для вызова консоли, но они могут помешать игре, если что-то забинжено на правую кнопку мыши*/
+			}
+		}
+		/*выполняет скрипт в текущей области видимости*/
+		function eval_script(path){
+			fetch(path)
+				.then(res=>res.text())
+				.then(script=>{
+					eval(script);
 				});
-				change_room('disclaimer');
-				apply_settings();
-				let input_tracker=setup_input_tracker();
-				let logical_symbol_size=16;
-				update_size();
-				/*загрузка циклов физики и отрисовки*/
-				eval_script('core/logic.js');
-				eval_script('core/rendering.js');
-			}).catch(console.error);
-		})
-		.catch((error)=>{
-			console.error(error);
+		}
+		/*переводит логические координаты в координаты на экране*/
+		function logical_to_screen(num){
+			return num/logical_symbol_size*symbol_size;
+		}
+		/*настройки камеры*/
+		function focus_camera_on_player(){
+			save.room.data.camera=[logical_to_screen(save.player.coordinates[0])-(Math.floor(columns/2)*symbol_size),logical_to_screen(save.player.coordinates[1])-(Math.floor(rows/2)*symbol_size)];
+		}
+		/*расчет коллайдеров*/
+		function update_player_collider(){
+			save.player.collider=[[save.player.coordinates[0],save.player.coordinates[1]],[save.player.coordinates[0]+logical_symbol_size,save.player.coordinates[1]+logical_symbol_size]];
+		}
+		/*расчет коллизии*/
+		let nothing_below,nothing_left,nothing_right,nothing_higher;
+		function update_collision(ground_collider=save.room.data.ground.collider){
+			update_player_collider();
+			nothing_below=true;
+			nothing_left=true;
+			nothing_right=true;
+			nothing_higher=true;
+			for(let y=save.player.collider[0][1];y<save.player.collider[1][1];y++){
+				for(let x=save.player.collider[0][0];x<save.player.collider[1][0];x++){
+					let coordinates=[x,y+1];
+					if(coordinates.every(num=>num>=0)){
+						try{
+							if(ground_collider[coordinates[1]][coordinates[0]]){
+								nothing_below=false;
+							}
+						}catch{}
+					}
+					coordinates=[x,y-1];
+					if(coordinates.every(num=>num>=0)){
+						try{
+							if(ground_collider[coordinates[1]][coordinates[0]]){
+								nothing_higher=false;
+							}
+						}catch{}
+					}
+					coordinates=[x+1,y];
+					if(coordinates.every(num=>num>=0)){
+						try{
+							if(ground_collider[coordinates[1]][coordinates[0]]){
+								nothing_right=false;
+							}
+						}catch{}
+					}
+					coordinates=[x-1,y];
+					if(coordinates.every(num=>num>=0)){
+						try{
+							if(ground_collider[coordinates[1]][coordinates[0]]){
+								nothing_left=false;
+							}
+						}catch{}
+					}
+				}
+			}
+		}
+		/*устанавливает рамку на активный слот хотбара*/
+		function update_active_hotbar_slot_frame(){
+			let active_hotbar_slot_frame=document.getElementById('active_hotbar_slot_frame');
+			if(!active_hotbar_slot_frame){
+				active_hotbar_slot_frame=create_element_from_HTML(`<img id="active_hotbar_slot_frame" src="images/interface/inventory/active_slot_frame.png"/>`);
+			}
+			document.querySelector(`.hotbar_slot[data-index="${save.player.interface.hotbar.active_slot_index}"]`).appendChild(active_hotbar_slot_frame);
+		}
+		/*генерирует хотбар*/
+		function generate_hotbar(){
+			let hotbar=create_element_from_HTML(`<div id="hotbar" class="row"></div>`);
+			for(let i=0;i<save.player.interface.hotbar.slot_count;i++){
+				let slot=document.createElement('div');
+				slot.dataset.index=i;
+				slot.classList.add('hotbar_slot');
+				slot.addEventListener('click',function(e){
+					save.player.interface.hotbar.active_slot_index=this.dataset.index;
+					update_active_hotbar_slot_frame();
+				});
+				hotbar.appendChild(slot);
+			}
+			return hotbar;
+		}
+		function generate_esc_menu(){
+			let esc_menu=create_element_from_HTML(`<div id="esc_menu"></div>`);
+			let button_to_main_menu=create_button_from_text(window.language.interface.buttons.to_main_menu);
+			button_to_main_menu.addEventListener('click',()=>{
+				if(confirm(language.confirms.is_need_save)){
+					save_as_json(save,`${1e16-Date.now()} - CODERROR ${window.version} save.json`);
+				}
+				change_room('main_menu');
+			});
+			button_to_main_menu.id='button_to_main_menu';
+			esc_menu.appendChild(button_to_main_menu);
+			return esc_menu;
+		}
+		/*генерирует интерфейс*/
+		function update_interface(){
+			interface.innerHTML='';
+			interface.appendChild(generate_hotbar());
+			update_active_hotbar_slot_frame();
+			interface.appendChild(generate_esc_menu());
+		}
+		/*включает/отключает интерфейс*/
+		function set_interface_visibility(is_visible){
+			if(is_visible){
+				interface.style.visibility='visible';
+			}else{
+				interface.style.visibility='collapse';
+			}
+		}
+		/*активирует прошлый слот хотбара*/
+		function activate_previous_hotbar_slot(){
+			save.player.interface.hotbar.active_slot_index--;
+			if(save.player.interface.hotbar.active_slot_index<0){
+				save.player.interface.hotbar.active_slot_index=save.player.interface.hotbar.slot_count-1;
+			}
+			update_active_hotbar_slot_frame();
+		}
+		/*активирует следующий слот хотбара*/
+		function activate_next_hotbar_slot(){
+			save.player.interface.hotbar.active_slot_index++;
+			if(save.player.interface.hotbar.active_slot_index>=save.player.interface.hotbar.slot_count){
+				save.player.interface.hotbar.active_slot_index=0;
+			}
+			update_active_hotbar_slot_frame();
+		}
+		/*завершить подготовку комнаты*/
+		let loadable_save_data=null;
+		function finish_preparation(){
+			save.room.preparation=false;
+			if(loadable_save_data){
+				save=loadable_save_data;
+				loadable_save_data=null;
+				update_interface();
+			}
+		}
+		/*загружает сохранение*/
+		function load_save(data){
+			loadable_save_data=data;
+			change_room(data.room.id);
+		}
+		/*финальная настройка*/
+		document.addEventListener('contextmenu',(e)=>{
+			e.preventDefault();/*отключаем контекстные меню глобально. я сам ими пользовался для вызова консоли, но они могут помешать игре, если что-то забинжено на правую кнопку мыши*/
 		});
-	}).catch(function(error){
-		console.error('Font loading failed:',error);
-	});
+		change_room('disclaimer');
+		apply_settings();
+		let input_tracker=setup_input_tracker();
+		let logical_symbol_size=16;
+		update_size();
+		/*загрузка циклов физики и отрисовки*/
+		eval_script('core/logic.js');
+		eval_script('core/rendering.js');
+	}).catch(console.error);
 }
 	</script>
 </body>
