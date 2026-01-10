@@ -41,6 +41,9 @@ default:{
 		control:{
 			name:`настройки управления`,
 			options:{
+				bind_to_layout:{
+					name:`учитывать раскладку клавиатуры`
+				},
 				left:{
 					name:`влево`
 				},
@@ -139,6 +142,9 @@ default:{
 		control:{
 			name:`control settings`,
 			options:{
+				bind_to_layout:{
+					name:`take into account the keyboard layout`
+				},
 				left:{
 					name:`left`
 				},

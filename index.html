@@ -130,6 +130,9 @@ textarea{
 input[type="range"]{
 	accent-color:#f0f;
 }
+input[type="checkbox"]{
+	accent-color:#f0f;
+}
 	</style>
 	<link rel="icon" type="image/png">
 </head>
@@ -198,7 +201,7 @@ if(!window.location.search.includes('child=1')){
 			app.init().then(()=>{
 				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.21.0';
+				window.version='(1)0.22.0';
 				/*добавление в разметку canvas-а pixijs*/
 				wrapper.appendChild(app.view);
 				/*добавление в разметку html-overlay*/
@@ -881,18 +884,22 @@ if(!window.location.search.includes('child=1')){
 				/*ожидает пользовательский ввод и возвращает promise*/
 				function wait_user_input() {
 					return new Promise((resolve) => {
-						const handler = (event) => {
-							// Удаляем обработчик событий после получения ввода
+						const handler = (e) => {
+							e.preventDefault();
 							document.removeEventListener('keydown', handler);
-							document.removeEventListener('click', handler);
 							document.removeEventListener('mousedown', handler);
-							// Возвращаем тип события и его данные в текстовом виде
-							resolve(event.key||event.type);
+							if (e.type === 'keydown') {
+								if(window.settings.control.bind_to_layout){
+									resolve(e.key);
+								}else{
+									resolve(e.code);
+								}
+							} else {
+								resolve(`mouse${e.button}`);
+							}
 						};
-						// Добавляем обработчики событий
-						document.addEventListener('keydown', handler);
-						document.addEventListener('click', handler);
-						document.addEventListener('mousedown', handler);
+					document.addEventListener('keydown', handler);
+					document.addEventListener('mousedown', handler);
 					});
 				}
 				/*финальная настройка*/
@@ -1083,42 +1090,51 @@ L n L q L q H  U n U n L q U n
 										}
 									}
 									if(section_id=='control'){
-										let add_button=create_button_from_text(window.language.rooms[room].button_add);
-										change_button_text_color(add_button,'#0f0');
-										values.appendChild(add_button);
-										const create_button=(text)=>{
-											let button=create_button_from_text(text,true);
-											button.value=text;
-											values.insertBefore(button,add_button);
-											button.addEventListener('mouseover',()=>{
-												change_button_border_color(button,'#f0f');
+										if(option_id=='bind_to_layout'){
+											let checkbox=create_element_from_HTML(`<input type="checkbox">`);
+											checkbox.checked=window.settings[section_id][option_id];
+											checkbox.addEventListener('change',function(){
+												window.settings[section_id][option_id]=checkbox.checked;
 											});
-											button.addEventListener('mouseout',()=>{
-												change_button_border_color(button,'#fff');
+											values.appendChild(checkbox);
+										}else{
+											let add_button=create_button_from_text(window.language.rooms[room].button_add);
+											change_button_text_color(add_button,'#0f0');
+											values.appendChild(add_button);
+											const create_button=(text)=>{
+												let button=create_button_from_text(text,true);
+												button.value=text;
+												values.insertBefore(button,add_button);
+												button.addEventListener('mouseover',()=>{
+													change_button_border_color(button,'#f0f');
+												});
+												button.addEventListener('mouseout',()=>{
+													change_button_border_color(button,'#fff');
+												});
+												button.addEventListener('click',()=>{
+													change_button_text(button,window.language.rooms[room].messages.input);
+													setTimeout(()=>{
+														wait_user_input().then((result)=>{
+															change_button_text(button,result);
+															button.value=result;
+														});
+													},100);
+												});
+												return button;
+											}
+											for(let control of window.settings[section_id][option_id]){
+												create_button(control);
+											}
+											add_button.addEventListener('click',()=>{
+												create_button().click();
 											});
-											button.addEventListener('click',()=>{
-												change_button_text(button,window.language.rooms[room].messages.input);
-												setTimeout(()=>{
-													wait_user_input().then((result)=>{
-														change_button_text(button,result);
-														button.value=result;
-													});
-												},100);
+											add_button.addEventListener('mouseover',()=>{
+												change_button_border_color(add_button,'#f0f');
 											});
-											return button;
+											add_button.addEventListener('mouseout',()=>{
+												change_button_border_color(add_button,'#fff');
+											});
 										}
-										for(let control of window.settings[section_id][option_id]){
-											create_button(control);
-										}
-										add_button.addEventListener('click',()=>{
-											create_button().click();
-										});
-										add_button.addEventListener('mouseover',()=>{
-											change_button_border_color(add_button,'#f0f');
-										});
-										add_button.addEventListener('mouseout',()=>{
-											change_button_border_color(add_button,'#fff');
-										});
 									}
 									/**/
 									room_data.div1.appendChild(room_data.settings_divs[section_id][option_id]);
@@ -1150,13 +1166,15 @@ L n L q L q H  U n U n L q U n
 								language_list=remove_duplicates(language_list);
 								window.settings.interface.language=language_list;
 								for(let[option_id,option]of Object.entries(room_data.settings_divs.control)){
-									let control_list=[];
-									for(button of option.querySelectorAll('button')){
-										if(button.value){
-											control_list.push(button.value);
+									if(option_id!='bind_to_layout'){
+										let control_list=[];
+										for(button of option.querySelectorAll('button')){
+											if(button.value){
+												control_list.push(button.value);
+											}
 										}
+										window.settings.control[option_id]=remove_duplicates(control_list);
 									}
-									window.settings.control[option_id]=remove_duplicates(control_list);
 								}
 								apply_settings();
 							});

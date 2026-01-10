@@ -11,8 +11,9 @@ audio:{
 	sounds_volume:0.5
 },
 control:{
-	left:["a","ф","ArrowLeft"],
-	right:["d","в","ArrowRight"],
-	jump:[" ","w","ц","ArrowUp"]
+	bind_to_layout:false,
+	left:["a","A","ф","Ф","ArrowLeft","KeyA"],
+	right:["d","D","в","В","ArrowRight","KeyD"],
+	jump:[" ","w","W","ц","Ц","ArrowUp","KeyW","Space"]
 }
 }
