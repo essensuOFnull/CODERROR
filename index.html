@@ -138,7 +138,7 @@
                 });
                 app.init().then(()=>{
                     /*версия CODERROR'а*/
-                    window.version='(1)0.12.0';
+                    window.version='(1)0.12.1';
                     /*добавление в разметку canvas-а pixijs*/
                     document.body.appendChild(app.view);
                     /*добавление в разметку html-overlay*/
@@ -601,6 +601,29 @@
                         }
                         return result;
                     }
+                    /*принимает json файлы, объединяет в 1 объект и вызывает функцию обработки этого объекта*/
+                    let json_handler;
+                    let json_input=document.getElementById('json_input');
+                    async function jsons_to_object(files){
+                        try{
+                            const dicts=await jsons_to_dict_list(files);
+                            const merged=smart_merge(dicts);
+                            json_handler(merged);
+                        }catch(error){
+                            console.error('Ошибка:',error);
+                        }
+                    }
+                    /*для возможности принимать файлы через проводник*/
+                    json_input.addEventListener('change',async(e)=>{
+                        try{
+                            const files=Array.from(e.target.files);
+                            await jsons_to_object(files);
+                            // Сбрасываем значение для повторного выбора
+                            json_input.value='';
+                        }catch(error){
+                            console.error('Ошибка:',error);
+                        }
+                    });
                     /*финальная настройка*/
                     let room_data;
                     let logo_text=String.raw`
@@ -609,23 +632,6 @@ L U L q L q H  L q L q L q L q
 L   L q L q H] L_/ L_/ L q L_/
 L n L q L q H  U n U n L q U n
 \_/ \_/ L_/ L] U U U U \_/ U U`.trim();
-                    let json_handler;
-                    let json_input=document.getElementById('json_input');
-                    json_input.addEventListener('change', async (e) => {
-                        try {
-                            const files = Array.from(e.target.files);
-                            const dicts = await jsons_to_dict_list(files);
-                            const merged = smart_merge(dicts);
-                            
-                            // Вызываем переопределяемую функцию
-                            json_handler(merged);
-                            
-                            // Сбрасываем значение для повторного выбора
-                            json_input.value = '';
-                        } catch (error) {
-                            console.error('Ошибка:', error);
-                        }
-                    });
                     change_room('main_menu');
                     /*главный цикл*/
                     app.ticker.add(()=>{
@@ -741,17 +747,14 @@ L n L q L q H  U n U n L q U n
                                 };
                                 overlay.appendChild(room_data.div);
                                 room_data.div.appendChild(room_data.drop_zone);
-                                room_data.drop_zone.addEventListener('drop',async(e)=>{
-                                    e.preventDefault();
-                                    change_button_border_color(room_data.drop_zone,'#fff');
-                                    const dicts = await jsons_to_dict_list(e.dataTransfer.files);
-                                    const data = smart_merge(dicts);
-                                    console.log(data);
-                                });
                                 json_handler=(object)=>{
-                                    console.log(object);
+                                    console.log(object);/*то что будет происходить с обработанными файлами*/
                                 };
-                                room_data.drop_zone.addEventListener('click',()=>json_input.click());
+                                room_data.drop_zone.addEventListener('drop',(e)=>{
+                                    e.preventDefault();
+                                    jsons_to_object(e.dataTransfer.files);/*обработка файлов через перетаскивание*/
+                                });
+                                room_data.drop_zone.addEventListener('click',()=>json_input.click());/*обработка файлов через проводник*/
                                 preparation=false;
                             }
                             visual_effect(0);
