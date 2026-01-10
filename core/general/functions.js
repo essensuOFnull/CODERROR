@@ -22,7 +22,7 @@ init_printable_symbols(){
 	}
 },
 get_random_char(){
-	return d.printable_symbols[Math.floor(Math.random()*99)];
+	return d.printable_symbols[Math.floor(Math.random()*d.printable_symbols.length)];
 },
 get_random_color(){
 	return Math.floor(Math.random()*0xFFFFFF);

@@ -262,3 +262,11 @@ input[type="checkbox"]{
 	height:auto;
 	pointer-events:none;
 }
+#loading{
+	z-index:9998;
+	position:absolute;
+	top:50%;
+	left:50%;
+	transform:translate(-50%,-50%);
+	pointer-events:none;
+}
