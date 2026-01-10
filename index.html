@@ -96,6 +96,17 @@ button{
 #wrapper{
     position:relative;
 }
+select{
+	background:#00000000;
+	color:#fff;
+	outline:none;
+    border:none;
+}
+/* Для выпадающего списка */
+select option{
+	background:#000;
+	color:#fff;
+}
 	</style>
 	<link rel="icon" type="image/png">
 </head>
@@ -164,7 +175,7 @@ if(!window.location.search.includes('child=1')){
 			app.init().then(()=>{
 				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.16.0';
+				window.version='(1)0.17.0';
 				/*добавление в разметку canvas-а pixijs*/
 				wrapper.appendChild(app.view);
 				/*добавление в разметку html-overlay*/
@@ -419,8 +430,8 @@ if(!window.location.search.includes('child=1')){
 					element.style.zIndex=parseInt(element.style.zIndex||0)+1+'';
 				}
 				/*оборачивает элемент в кнопку с символьной рамкой*/
-				function wrap_in_button(content) {
-					let button = document.createElement('button');
+				function wrap_in_frame(content,container_type='<button/>') {
+					let button = create_element_from_HTML(container_type);
 					button.style.position='relative';
 					button.style.overflow='hidden';
 					let grid=document.createElement('div');
@@ -475,7 +486,7 @@ if(!window.location.search.includes('child=1')){
 				}
 				/*создает кнопку на основе текста*/
 				function create_button_from_text(text){
-					return wrap_in_button(create_element_from_HTML(get_transparent_space_text(text)));
+					return wrap_in_frame(create_element_from_HTML(get_transparent_space_text(text)));
 				}
 				/*меняет цвет рамки кнопки*/
 				function change_button_border_color(button,color){
@@ -685,6 +696,7 @@ if(!window.location.search.includes('child=1')){
 				}
 				/*принимает список названий языков и применяет их (чем больше индекс, тем выше приоритет)*/
 				function apply_language(name_list){
+					name_list=['default'].concat(name_list);
 					let languages_list=[];
 					for(name of name_list){
 						languages_list.push(window.languages[name]);
@@ -704,6 +716,27 @@ if(!window.location.search.includes('child=1')){
 					wrapper.style.width=`min(100%,${max_width})`;
 					wrapper.style.height=`min(100%,${max_height})`;
 					update_size();
+				}
+				/*принимает select и список и устанавливает ему эти значения*/
+				function set_select_options(selectElement,options) {
+					selectElement.innerHTML='';
+					options.forEach(optionText=>{
+						let option=document.createElement('option');
+						//option.value=optionText;// Задаем значение
+						option.textContent=optionText;// Задаем текст отображения
+						selectElement.appendChild(option);
+					});
+				}
+				/*создает select с рамкой*/
+				function create_select_with_frame(options){
+					let select=create_element_from_HTML('<select/>');
+					set_select_options(select,options);
+					select.style.margin='calc(-1 * var(--symbol_size))';
+					select.style.padding='var(--symbol_size)';
+					select.style.cursor='pointer';
+					let frame=wrap_in_frame(select,`<button style='background:#000;'/>`);
+					frame.style.pointerEvents='none';
+					return[frame,select];
 				}
 				/*финальная настройка*/
 				let room_data;
@@ -814,10 +847,12 @@ L n L q L q H  U n U n L q U n
 							room_data={
 								scrollable:create_element_from_HTML(`<div class='scrollable'/>`),
 								div1:create_element_from_HTML(`<div class="center column"/>`),
-								drop_zone:wrap_in_button(create_element_from_HTML(`<div class='drop_zone center'><div style='text-align:center;'>${get_transparent_space_text(window.language.rooms[room].drop_zone)}</div></div>`)),
+								drop_zone:wrap_in_frame(create_element_from_HTML(`<div class='drop_zone center'><div style='text-align:center;'>${get_transparent_space_text(window.language.rooms[room].drop_zone)}</div></div>`)),
 								div2:create_element_from_HTML(`<div class="center column"/>`),
 								buttons:dict_to_buttons(window.language.rooms[room].buttons),
+								settings_divs:{},
 							};
+							/*предсоздание разметки*/
 							overlay.appendChild(room_data.scrollable);
 							room_data.scrollable.appendChild(room_data.div1);
 							room_data.div1.appendChild(room_data.drop_zone);
@@ -827,11 +862,45 @@ L n L q L q H  U n U n L q U n
 								room_data.div1.appendChild(create_element_from_HTML(`<div>${get_transparent_space_text(section.name)}</div>`));
 								room_data.div1.appendChild(get_symbolic_hr());
 								room_data.div1.appendChild(get_br());
+								room_data.settings_divs[section_id]={};
 								Object.entries(section.options).forEach(([option_id,option_name])=>{
-									room_data.div1.appendChild(create_element_from_HTML(`<div>${get_transparent_space_text(`${option_name}: `)}${get_transparent_space_text(window.settings[section_id][option_id],'#f0f')}</div>`));
+									room_data.settings_divs[section_id][option_id]=create_element_from_HTML(`<div class='center'></div>`);
+									room_data.settings_divs[section_id][option_id].appendChild(create_element_from_HTML(`<div>${get_transparent_space_text(`${option_name}: `)}</div>`));
+									/*заполнение текущими значениями и необходимыми элементами интерфейса в зависимости от типа настройки*/
+									let values=create_element_from_HTML(`<div id='values'></div>`);
+									room_data.settings_divs[section_id][option_id].appendChild(values);
+									if(section_id=='interface'){
+										if(option_id=='language'){
+											let add_button=create_button_from_text(window.language.rooms[room].buttons.add);
+											change_button_text_color(add_button,'#0f0');
+											values.appendChild(add_button);
+											add_button.addEventListener('click',()=>{
+												[select_button,select]=create_select_with_frame(Object.keys(window.languages));
+												values.insertBefore(select_button,add_button);
+												select_button.addEventListener('mouseover',()=>{
+													change_button_border_color(select_button,'#f0f');
+												});
+												select_button.addEventListener('mouseout',()=>{
+													change_button_border_color(select_button,'#fff');
+												});
+											});
+											add_button.addEventListener('mouseover',()=>{
+												change_button_border_color(add_button,'#f0f');
+											});
+											add_button.addEventListener('mouseout',()=>{
+												change_button_border_color(add_button,'#fff');
+											});
+										}
+									}
+									/**/
+									room_data.div1.appendChild(room_data.settings_divs[section_id][option_id]);
 									room_data.div1.appendChild(get_br());
 								});
 							});
+							/*заполнение текущими значениями и необходимыми элементами интерфейса в зависимости от типа настройки*/
+							/*let values=room_data.settings_divs['interface']['language'].getElementById('values');
+							values.appendChild(create_button_from_text(`+`));
+							/*завершение предсоздания интерфейса*/
 							overlay.appendChild(room_data.div2);
 							room_data.div2.appendChild(room_data.buttons.back);
 							add_event_listener('get_json',room_data.drop_zone,(data)=>{console.log(data);});

@@ -10,8 +10,8 @@ default:{
 		interface:{
 			name:`настройки интерфейса`,
 			options:{
-				language:`язык`,
-				font_size:`размер знакомест`,
+				language:`приоритет дополнительных языков`,
+				font_size:`размер знакомест (не рекомендуется менять)`,
 				max_content_width:`максимальная ширина содержимого окна`,
 				max_content_height:`максимальная высота содержимого окна`
 			}
@@ -50,7 +50,21 @@ default:{
 		settings:{
 			drop_zone:`зона\nзагрузки\nфайлов`,
 			buttons:{
-				back:`назад`
+				back:`назад`,
+				add:`+`
+			}
+		}
+	}
+},
+адекватность:{
+	rooms:{
+		main_menu:{
+			buttons:{
+				new_game:`новая игра`,
+				continue:`продолжить`,
+				settings:`настройки`,
+				authors:`авторы`,
+				exit:`выход`
 			}
 		}
 	}
