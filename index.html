@@ -330,7 +330,7 @@ if(!window.location.search.includes('child=1')){
 				};
 				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.33.0';
+				window.version='(1)0.33.1';
 				/*инициализация сцены three*/
 				let three_scene=new THREE.Scene();
 				three_scene.background=null;
@@ -1546,6 +1546,7 @@ if(!window.location.search.includes('child=1')){
 					if(loadable_save_data){
 						save=loadable_save_data;
 						loadable_save_data=null;
+						update_interface();
 					}
 				}
 				/*загружает сохранение*/

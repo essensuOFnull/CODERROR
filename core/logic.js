@@ -87,7 +87,6 @@ function update_game_logic(){
 			});
 			change_button_text_color(save.room.data.button_continue,'#FF1D34');
 			overlay.appendChild(save.room.data.scrollable);
-			finish_preparation();
 		}
 	}
 	if(save.room.id=='main_menu'){
@@ -136,7 +135,6 @@ L n L q L q H  U n U n L q U n
 			save.room.data.buttons.continue.addEventListener('click',()=>{
 				change_room('continue');
 			});
-			finish_preparation();
 		}
 		rotate_sky(0.005,0.01,0);
 	}
@@ -167,7 +165,6 @@ L n L q L q H  U n U n L q U n
 			save.room.data.buttons.back.addEventListener('click',()=>{
 				change_room('main_menu');
 			});
-			finish_preparation();
 		}
 		set_sky_rotation((mouse.y-wrapper.clientHeight/2)/1000,save.room.data.y_sky_rotation+(mouse.x-wrapper.clientWidth/2)/1000,0);
 		if(save.room.data.y_sky_rotation==Math.PI){
@@ -349,7 +346,6 @@ L n L q L q H  U n U n L q U n
 				}
 				apply_settings();
 			});
-			finish_preparation();
 		}
 		rotate_sky(0.005,0.01,0);
 	}
@@ -378,7 +374,6 @@ L n L q L q H  U n U n L q U n
 			save.room.data.buttons.back.addEventListener('click',()=>{
 				change_room('main_menu');
 			});
-			finish_preparation();
 		}
 		rotate_sky(0.005,0.01,0);
 	}
@@ -386,7 +381,6 @@ L n L q L q H  U n U n L q U n
 		if(save.room.preparation){
 			set_interface_visibility(true);
 			clear_symbols_grid();
-			finish_preparation();
 		}
 	}
 	if(save.room.id=='intro0'){
@@ -413,7 +407,6 @@ L n L q L q H  U n U n L q U n
 				init_three_scene();
 				change_room('recycle_bin');
 			});
-			finish_preparation();
 		}
 	}
 	if(save.room.id=='recycle_bin'){
@@ -436,7 +429,6 @@ L n L q L q H  U n U n L q U n
 				}
 			);
 			save.room.data.ground.collider=text_to_collider(save.room.data.ground.text);
-			finish_preparation();
 		}
 		rotate_sky(0.005,0.01,0);
 		update_collision();
@@ -463,7 +455,7 @@ L n L q L q H  U n U n L q U n
 			update_collision();
 		}
 	}
-	window.PERMITTED={ 
+	window.PERMITTED={
 		//set_font_size,
 		apply_language,
 		set_max_content_size,
@@ -474,6 +466,9 @@ L n L q L q H  U n U n L q U n
 	window.pressed.delete(`WheelUp`);
 	window.pressed.delete(`WheelDown`);
 	update_activated_actions();
+	if(save.room.preparation){
+		finish_preparation();
+	}
 }
 
 let fixed_update=()=>{
@@ -489,4 +484,4 @@ let fixed_update=()=>{
 	requestAnimationFrame(fixed_update);
 };
 // Запускаем цикл
-requestAnimationFrame(fixed_update);
+fixed_update();
