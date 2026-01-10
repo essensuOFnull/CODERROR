@@ -1,10 +1,6 @@
-{
-let f=window.CODERROR.CHEATING.functions,
-d=window.CODERROR.CHEATING.data;
-
-window.CODERROR.CHEATING.data={
+window.CODERROR.__originals__.data={
 /**версия CODERROR'а*/
-version:'(1)0.36.1',
+version:'(1)0.36.2',
 /**целевой TPS (количество итераций физики мира в секунду)*/
 fixed_TPS:60,
 /**фактический TPS*/
@@ -36,6 +32,5 @@ save:{
         /**с каких сторон игрок касается стен*/
         touch_wall:{}
     }
-}
 }
 }

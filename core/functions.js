@@ -1,7 +1,7 @@
 {
-let d=window.CODERROR.CHEATING.data;
+let d=window.CODERROR.__originals__.data;
 
-window.CODERROR.CHEATING.functions={
+window.CODERROR.__originals__.functions={
 /**инициализирует камеру three*/
 init_three_camera:function(){
     d.three_camera=new THREE.PerspectiveCamera(
@@ -1168,5 +1168,5 @@ load_save:function(data){
 }
 };
 
-let f=window.CODERROR.CHEATING.functions;
+let f=window.CODERROR.__originals__.functions;
 }

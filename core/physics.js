@@ -1,6 +1,7 @@
 {
-let f=window.CODERROR.CHEATING.functions,
-d=window.CODERROR.CHEATING.data;
+let f=window.CODERROR.__originals__.functions,
+d=window.CODERROR.__originals__.data,
+f_s=window.CODERROR.CHEATING.functions;
 
 let MS_PER_UPDATE=1000/d.fixed_TPS; // Шаг в миллисекундах
 let previous_time=performance.now();
@@ -19,12 +20,12 @@ f.update_interface();
 d.lock_inventory=false;
 /*функция главного цикла*/
 function update_game_logic(){
-    if(window.has_focus){
+    document.title=`CODERROR ${d.version} TPS: ${d.TPS} FPS: ${d.FPS} - ${d.splash}`;
+    if(!(!window.has_focus&&d.settings.interface.pause_on_blur)){
         if(d.save.room.preparation){
             f.print_to_chat(d.language.notifications.current_room(d.save.room.id));
         }
         tps_count++;
-        document.title=`CODERROR ${d.version} TPS: ${d.TPS} FPS: ${d.FPS} - ${d.splash}`;
         /*переключение слотов хотбара*/
         if(document.getElementById('hotbar')){
             if(d.activated_actions.has('previous_hotbar_slot')){
@@ -460,11 +461,10 @@ L n L q L q H  U n U n L q U n
             }
         }
         window.CODERROR.PERMITTED.functions={
-            //set_font_size,
-            apply_language:f.apply_language,
-            set_max_content_size:f.set_max_content_size,
-            apply_random_splash:f.apply_random_splash,
-            apply_settings:f.apply_settings
+            apply_language:f_s.apply_language,
+            set_max_content_size:f_s.set_max_content_size,
+            apply_random_splash:f_s.apply_random_splash,
+            apply_settings:f_s.apply_settings
         };
         /*деактивируем прокрутку колесика мыши*/
         d.pressed.delete(`WheelUp`);

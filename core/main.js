@@ -1,6 +1,6 @@
 {
-let f=window.CODERROR.CHEATING.functions,
-d=window.CODERROR.CHEATING.data;
+let f=window.CODERROR.__originals__.functions,
+d=window.CODERROR.__originals__.data;
 
 // ========== ОБРАБОТЧИКИ ФОКУСА ОКНА ==========
 window.has_focus = true;
@@ -116,4 +116,6 @@ d.app.init().then(()=>{
 	d.logical_symbol_size=16;
 	f.update_size();
 }).catch(console.error);
+
+window.CODERROR.CHEATING.data=window.CODERROR.__originals__.data;
 }

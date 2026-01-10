@@ -1,5 +1,5 @@
 // ========== КОНФИГУРАЦИЯ И СОСТОЯНИЕ ==========
-let objectsToTrack = ['CODERROR'];
+let objectsToTrack = ['CODERROR.__originals__'];
 
 let audioContext = null;
 let audioEnabled = true;
@@ -156,119 +156,87 @@ async function playByteSequence(bytes) {
 	}
 }
 
-// ========== СИСТЕМА ПЕРЕХВАТА ==========
-
-// ФЛАГ ДЛЯ ПРЕДОТВРАЩЕНИЯ РЕКУРСИИ
-let isInsideProxyTrap = false;
-
-function createTrackingProxy(obj, objName = 'global') {
-	return new Proxy(obj, {
-		get(target, property, receiver) {
-			// ЕСЛИ мы уже внутри ловушки - ВЫХОДИМ, чтобы избежать рекурсии
-			if (isInsideProxyTrap) {
-				return Reflect.get(target, property, receiver);
-			}
-			
-			const value = Reflect.get(target, property, receiver);
-			
-			// Логируем обращение к свойству
-			if (typeof property === 'string' && !property.startsWith('_')) {
-				isInsideProxyTrap = true; // БЛОКИРУЕМ рекурсию
-				try {
-					captureAndPlayCommand(`${objName}.${property}`);
-				} finally {
-					isInsideProxyTrap = false; // РАЗБЛОКИРУЕМ
-				}
-			}
-			
-			// Оборачиваем только объекты и функции, но не вызываем рекурсивно createTrackingProxy
-			if (value !== null && (typeof value === 'object' || typeof value === 'function')) {
-				// Используем простой Proxy без глубокого оборачивания
-				return new Proxy(value, {
-					get(innerTarget, innerProp, innerReceiver) {
-						if (isInsideProxyTrap) {
-							return Reflect.get(innerTarget, innerProp, innerReceiver);
-						}
-						
-						const innerValue = Reflect.get(innerTarget, innerProp, innerReceiver);
-						
-						if (typeof innerProp === 'string' && !innerProp.startsWith('_')) {
-							isInsideProxyTrap = true;
-							try {
-								captureAndPlayCommand(`${objName}.${property}.${innerProp}`);
-							} finally {
-								isInsideProxyTrap = false;
-							}
-						}
-						
-						return innerValue;
-					},
-					apply(innerTarget, thisArg, argumentsList) {
-						if (isInsideProxyTrap) {
-							return Reflect.apply(innerTarget, thisArg, argumentsList);
-						}
-						
-						const argsString = argumentsList.map(arg => 
-							typeof arg === 'string' ? `"${arg.substring(0, 20)}${arg.length > 20 ? '...' : ''}"` : String(arg)
-						).join(', ');
-						
-						isInsideProxyTrap = true;
-						try {
-							captureAndPlayCommand(`${objName}.${property}(${argsString})`);
-						} finally {
-							isInsideProxyTrap = false;
-						}
-						
-						return Reflect.apply(innerTarget, thisArg, argumentsList);
-					}
-				});
-			}
-			
-			return value;
-		}
-	});
-}
-
-function captureAndPlayCommand(command) {
+async function captureAndPlayCommand(command) {
 	// Преобразуем команду в байты и воспроизводим
 	const bytes = textToBytes(command);
 	
 	// Запускаем воспроизведение без ожидания (не блокируем интерфейс)
 	playByteSequence(bytes);
 }
+// ========== СИСТЕМА МОДИФИКАЦИИ ==========
+let whitelist = new Set(['__is_wrapped']);
+let blacklist = new Set(['self']);
 
-function initializeGlobalTracking() {
-	console.log('🚀 Инициализация озвучки команд...');
-	
-	objectsToTrack.forEach(objName => {
-		if (window[objName]) {
-			window[objName] = createTrackingProxy(window[objName], objName);
-		}
-	});
-	
-	// Отдельно перехватываем функции
-	const functionsToTrack = ['setTimeout', 'setInterval', 'alert'];
-	
-	functionsToTrack.forEach(funcName => {
-		if (window[funcName]) {
-			window[funcName] = createTrackingProxy(window[funcName], funcName);
-		}
-	});
-	
-	console.log('✅ Озвучка команд активирована!');
+function clean_dangerous_properties(list) {
+    return list.filter(element => 
+        whitelist.has(element) || 
+        (!element.startsWith('__') && !blacklist.has(element))
+    );
 }
 
-// ========== ЗАПУСК СИСТЕМЫ ==========
-if (document.readyState === 'loading') {
-	document.addEventListener('DOMContentLoaded', initializeGlobalTracking);
-} else {
-	setTimeout(initializeGlobalTracking, 1000);
+function recursive_traversal(obj,path,name,parent=window,level=0,visited_objects=new WeakSet()){
+    // Базовые случаи остановки рекурсии
+    if (!obj|| visited_objects.has(obj)) {
+        return;
+    }
+    visited_objects.add(obj); // Запоминаем объект чтобы избежать циклов
+    
+	if(typeof obj === 'function'){
+		if (obj.__is_wrapped) {
+			return; // Уже обернута
+		}
+
+		// Сохраняем оригинальную функцию в замыкании
+		const originalFn = obj;
+
+		const wrapper = function(...args) {
+			//Перед вызовом оригинала запускаем звуковой паттерн
+			try{
+				if(wrapper.caller===null){
+					captureAndPlayCommand(path);
+				}
+			}catch(e){
+				//Не мешаем выполнению функции из-за проблем со звуком
+				console.debug('sound_console: capture error', e);
+			}
+			// Вызываем оригинальную функцию в том же контексте
+			return originalFn.apply(this, args);
+		};
+
+		/*сохраняем обертку*/
+		window.CODERROR.CHEATING.functions[name]=wrapper;
+
+		// Помечаем оригин и обёртку как посещённые, чтобы не заходить в цикл
+		visited_objects.add(originalFn);
+		visited_objects.add(wrapper);
+		return;
+	}
+    // Рекурсивный обход для объектов
+    if (typeof obj === 'object' && !Array.isArray(obj)) {
+        let keys = clean_dangerous_properties(Object.keys(obj));
+        for (let key of keys) {
+            recursive_traversal(obj[key],`${path}.${key}`,key,obj, level + 1, visited_objects);
+        }
+    }
 }
 
-// Экспортируем функции для внешнего использования
-window.sound_console = {
-	enable: function() { audioEnabled = true; },
-	disable: function() { audioEnabled = false; },
-	toggle: function() { audioEnabled = !audioEnabled; },
-	is_audio_enabled: function() { return audioEnabled; }
-};
+function get_object_by_path(path){
+	let obj=window;
+	for(let part of path.split('.')){
+		if(obj&&part in obj){
+			obj=obj[part];
+		}
+		else{
+			return null;
+		}
+	}
+	return obj;
+}
+
+function wrap_all_functions() {
+    for (let name of objectsToTrack) {
+        recursive_traversal(get_object_by_path(name),name,name.split('.').at(-1));
+    }
+}
+
+wrap_all_functions();

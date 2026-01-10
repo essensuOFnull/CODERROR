@@ -1,10 +1,12 @@
-window.CODERROR.CHEATING.data.settings={
+window.CODERROR.__originals__.data.settings={
 /*эти настройки используются как начальные при каждом запуске игры, желательно сделать копию на всякий случай, если хотите заменить*/
 interface:{
 	language:[/*'default' добавляется автоматически*/],
 	//font_size:16,
 	max_content_width:`100%`,
-	max_content_height:`100%`
+	max_content_height:`100%`,
+	/*останавливать ли процессы игры при потери фокуса окна*/
+	pause_on_blur:true,
 },
 audio:{
 	music_volume:0.5,

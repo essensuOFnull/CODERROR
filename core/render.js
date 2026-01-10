@@ -1,6 +1,6 @@
 {
-let f=window.CODERROR.CHEATING.functions,
-d=window.CODERROR.CHEATING.data;
+let f=window.CODERROR.__originals__.functions,
+d=window.CODERROR.__originals__.data;
 
 let frame_count=0;
 setInterval(()=>{
@@ -8,18 +8,19 @@ setInterval(()=>{
 	frame_count=0;
 },1000);
 
+// Кэш ссылки на элемент, чтобы не вызывать getElementById каждый кадр
 d.app.ticker.add(()=>{
-	if(window.has_focus){
+	if(!(!window.has_focus&&d.settings.interface.pause_on_blur)){
 		frame_count++;
 		/*обновление канваса three*/
 		f.update_three_scene();
 		/*кнопки интекрфейса игрока*/
-		let button_to_main_menu=document.getElementById('button_to_main_menu');
-		if(f.check_hover(button_to_main_menu)){
+		let button_to_main_menu = d._cached_button_to_main_menu || (d._cached_button_to_main_menu = document.getElementById('button_to_main_menu'));
+		if(button_to_main_menu && f.check_hover(button_to_main_menu)){
 			f.change_button_color(button_to_main_menu,f.get_random_true_str_color());
 		}
 		else{
-			f.change_button_color(button_to_main_menu,'#fff');
+			if(button_to_main_menu) f.change_button_color(button_to_main_menu,'#fff');
 		}
 		/*комнаты*/
 		if(d.save.room.id=='main_menu'){

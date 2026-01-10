@@ -3,5 +3,12 @@ window.CODERROR={
         functions:{},
         data:{}
     },
-    PERMITTED:{}
+    PERMITTED:{
+        functions:{},
+        data:{}
+    },
+    __originals__:{
+        functions:{},
+        data:{}
+    },
 };
