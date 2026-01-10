@@ -198,7 +198,7 @@ if(!window.location.search.includes('child=1')){
 			app.init().then(()=>{
 				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.20.1';
+				window.version='(1)0.21.0';
 				/*добавление в разметку canvas-а pixijs*/
 				wrapper.appendChild(app.view);
 				/*добавление в разметку html-overlay*/
@@ -523,8 +523,8 @@ if(!window.location.search.includes('child=1')){
 					return button;
 				}
 				/*создает кнопку на основе текста*/
-				function create_button_from_text(text){
-					return wrap_in_frame(create_element_from_HTML(get_transparent_space_text(text)));
+				function create_button_from_text(text,removable=false){
+					return wrap_in_frame(create_element_from_HTML(get_transparent_space_text(text)),'<button/>',removable);
 				}
 				/*меняет цвет рамки кнопки*/
 				function change_button_border_color(button,color){
@@ -874,6 +874,27 @@ if(!window.location.search.includes('child=1')){
 					music_volume=Math.max(0,Math.min(1,volume));
 					if(current_music)current_music.volume=music_volume;
 				}
+				/*меняет текст кастомной кнопки*/
+				function change_button_text(button,text){
+					button.querySelector('#frame_content').innerHTML=get_transparent_space_text(text);
+				}
+				/*ожидает пользовательский ввод и возвращает promise*/
+				function wait_user_input() {
+					return new Promise((resolve) => {
+						const handler = (event) => {
+							// Удаляем обработчик событий после получения ввода
+							document.removeEventListener('keydown', handler);
+							document.removeEventListener('click', handler);
+							document.removeEventListener('mousedown', handler);
+							// Возвращаем тип события и его данные в текстовом виде
+							resolve(event.key||event.type);
+						};
+						// Добавляем обработчики событий
+						document.addEventListener('keydown', handler);
+						document.addEventListener('click', handler);
+						document.addEventListener('mousedown', handler);
+					});
+				}
 				/*финальная настройка*/
 				let room_data;
 				apply_language(window.settings.interface.language);
@@ -1061,6 +1082,44 @@ L n L q L q H  U n U n L q U n
 											values.appendChild(range_input);
 										}
 									}
+									if(section_id=='control'){
+										let add_button=create_button_from_text(window.language.rooms[room].button_add);
+										change_button_text_color(add_button,'#0f0');
+										values.appendChild(add_button);
+										const create_button=(text)=>{
+											let button=create_button_from_text(text,true);
+											button.value=text;
+											values.insertBefore(button,add_button);
+											button.addEventListener('mouseover',()=>{
+												change_button_border_color(button,'#f0f');
+											});
+											button.addEventListener('mouseout',()=>{
+												change_button_border_color(button,'#fff');
+											});
+											button.addEventListener('click',()=>{
+												change_button_text(button,window.language.rooms[room].messages.input);
+												setTimeout(()=>{
+													wait_user_input().then((result)=>{
+														change_button_text(button,result);
+														button.value=result;
+													});
+												},100);
+											});
+											return button;
+										}
+										for(let control of window.settings[section_id][option_id]){
+											create_button(control);
+										}
+										add_button.addEventListener('click',()=>{
+											create_button().click();
+										});
+										add_button.addEventListener('mouseover',()=>{
+											change_button_border_color(add_button,'#f0f');
+										});
+										add_button.addEventListener('mouseout',()=>{
+											change_button_border_color(add_button,'#fff');
+										});
+									}
 									/**/
 									room_data.div1.appendChild(room_data.settings_divs[section_id][option_id]);
 									room_data.div1.appendChild(get_br());
@@ -1090,6 +1149,15 @@ L n L q L q H  U n U n L q U n
 								}
 								language_list=remove_duplicates(language_list);
 								window.settings.interface.language=language_list;
+								for(let[option_id,option]of Object.entries(room_data.settings_divs.control)){
+									let control_list=[];
+									for(button of option.querySelectorAll('button')){
+										if(button.value){
+											control_list.push(button.value);
+										}
+									}
+									window.settings.control[option_id]=remove_duplicates(control_list);
+								}
 								apply_settings();
 							});
 							preparation=false;

@@ -11,8 +11,8 @@ audio:{
 	sounds_volume:0.5
 },
 control:{
-	left:["a","\u2190"],
-	right:["d","\u2192"],
-	jump:["space","w","\u2191"]
+	left:["a","ф","ArrowLeft"],
+	right:["d","в","ArrowRight"],
+	jump:[" ","w","ц","ArrowUp"]
 }
 }
