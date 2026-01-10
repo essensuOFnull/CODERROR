@@ -2,7 +2,6 @@
 <html>
 <head>
 	<meta charset="UTF-8">
-	<script src="languages.js" id="languages_script"></script>
 	<style>
 @font-face{
 	font-family:'CODERROR';
@@ -127,29 +126,33 @@ if(!window.location.search.includes('child=1')){
 	}
 }else{
 	//Если это дочернее окно - загружаем приложение
-	const pixijs=document.createElement('script');
-	pixijs.src='scripts/pixi.min.js';
+	/*функция для загрузки скрипта*/
+	function load_script(src){
+		return new Promise((resolve,reject)=>{
+			const script=document.createElement('script');
+			script.src=src;
+			script.onload=()=>resolve(src);
+			script.onerror=()=>reject(new Error(`Ошибка загрузки скрипта: ${src}`));
+			document.head.appendChild(script);
+		});
+	}
 	//Предзагрузка шрифта
 	const font=new FontFace('CODERROR','url(fonts/CODERROR.ttf)');
 	font.load().then(function(loadedFont){
 		document.fonts.add(loadedFont);
-		//Запускаем загрузку Pixi только после загрузки шрифта
-		document.head.appendChild(pixijs);
-	}).catch(function(error){
-		console.error('Font loading failed:',error);
-	});
-	pixijs.onload=function(){
-		/*дожидаемся загрузки языков на всякий случай*/
-		const languages_script=document.createElement('script');
-		languages_script.src='languages.js';
-		document.head.appendChild(languages_script);
-		languages_script.onload=function(){
+		/*загрузка скриптов*/
+		Promise.all([
+			load_script('scripts/pixi.min.js'),
+			load_script('languages.js')
+		])
+		.then((loaded_scripts)=>{
+			/*начальные скрипты загружены*/
 			const app=new PIXI.Application({
 				backgroundColor:0x000000,
 			});
 			app.init().then(()=>{
 				/*версия CODERROR'а*/
-				window.version='(1)0.14.1';
+				window.version='(1)0.14.2';
 				/*добавление в разметку canvas-а pixijs*/
 				document.body.appendChild(app.view);
 				/*добавление в разметку html-overlay*/
@@ -841,8 +844,13 @@ L n L q L q H  U n U n L q U n
 				});
 				app.ticker.maxFPS=60;
 			}).catch(console.error);
-		}
-	}
+		})
+		.catch((error)=>{
+			console.error(error);
+		});
+	}).catch(function(error){
+		console.error('Font loading failed:',error);
+	});
 }
 	</script>
 </body>
