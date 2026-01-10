@@ -1,12 +1,12 @@
 {
-"manifest_version":3,
-"name":"CODERROR",
-"version":"0.40.1",
-"description":"Игра CODERROR в виде расширения для Chrome",
-"icons":{
-	"16":"images/icon.png",
-	"48":"images/icon.png", 
-	"128":"images/icon.png"
+"manifest_version": 3,
+"name": "CODERROR",
+"version": "0.41.0",
+"description": "Игра CODERROR в виде расширения для Chrome",
+"icons": {
+	"16": "images/icon.png",
+	"48": "images/icon.png", 
+	"128": "images/icon.png"
 },
 "action":{
 	"default_title":"Запустить CODERROR"
@@ -14,15 +14,18 @@
 "background":{
 	"service_worker":"background.js"
 },
-"permissions":[
+"permissions": [
 	"storage",
 	"unlimitedStorage"
 ],
-"content_security_policy":{
-	"extension_pages":"script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+"content_security_policy": {
+	"extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
 },
-"web_accessible_resources":[{
-	"resources":["*"],
-	"matches":["<all_urls>"]
+"sandbox": {
+	"pages": ["CODERROR.html"]
+},
+"web_accessible_resources": [{
+	"resources": ["game/*", "images/*", "scripts/*"],
+	"matches": ["<all_urls>"]
 }]
 }

@@ -94,13 +94,12 @@ d.app.ticker.add(()=>{
 			f.render_player();
 		}
 	}
-	f.update_symbols_display();
+	f.render_symbols_grid();
 
-	// Применяем позицию кастомного курсора, если она помечена в main
-	if(d.cursor && (d._cursorNeedsUpdate || (typeof d._cursorTargetX !== 'undefined' && typeof d._cursorTargetY !== 'undefined'))){
-		try{ d.cursor.style.willChange = 'transform'; }catch(e){}
-		d.cursor.style.transform = `translate3d(${d._cursorTargetX}px, ${d._cursorTargetY}px, 0)`;
-		d._cursorNeedsUpdate = false;
+	// Применяем позицию кастомного курсора
+	if(d._cursorNeedsUpdate){
+		d.cursor.style.transform=`translate3d(${d._cursorTargetX}px, ${d._cursorTargetY}px, 0)`;
+		d._cursorNeedsUpdate=false;
 	}
 });
 }

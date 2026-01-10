@@ -253,11 +253,12 @@ input[type="checkbox"]{
 	100% {transform:scale(0.98);box-shadow:0 0 calc(var(--symbol_size) / 2) calc(var(--symbol_size) / 4) gold;}
 }
 #cursor{
-	position:absolute;
+	position:fixed;
+	left:0;
+	top:0;
+	will-change:transform;
+	z-index:9999;
 	width:auto;
 	height:auto;
 	pointer-events:none;
-	z-index:9999;
-	top:0;
-	left:0;
 }

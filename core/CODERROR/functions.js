@@ -164,6 +164,30 @@ init_symbols_grid(){
 	d.columns=0;
 	d.rows=0;
 	f.set_font_size(d.symbol_size||16);
+	// Попытка инициализировать GPU-рендерер символов (если доступен)
+	try{
+		// Prefer particle-based batched sprites renderer (faster in practice)
+		if(PIXI && PIXI.ParticleContainer) {
+			f.init_gpu_symbols_renderer_particles();
+		} else {
+			f.init_gpu_symbols_renderer();
+		}
+	}catch(e){
+		console.warn('GPU symbol renderer init failed, fallback to CPU:', e);
+		d.gpu_enabled = false;
+	}
+
+	// Metrics for profiling GPU/renderer behavior
+	if(!d.metrics){
+		d.metrics = {
+			frames: 0,
+			dirtySamples: 0,
+			dirtySamplesCount: 0,
+			gpuUpdateCalls: 0,
+			textureUploads: 0,
+			lastLog: performance.now()
+		};
+	}
 },
 /**обновляет размеры матрицы символов*/
 update_symbols_grid(){
@@ -222,28 +246,27 @@ update_symbols_grid(){
 					bgAlpha: 0
 				};
 				
-				// Создаём контейнер для ячейки
-				let container = new PIXI.Container();
-				container.x = x * d.symbol_size;
-				container.y = y * d.symbol_size;
-				
-				// Создаём фон
-				let background = new PIXI.Graphics();
-				background.alpha = 0;
-				container.addChild(background);
-				
-				// Создаём текст
-				let symbol = new PIXI.Text('', d.pixi_text_style);
-				symbol.resolution = 20;
-				container.addChild(symbol);
-				
-				d.app.stage.addChild(container);
-				d.symbols_grid[y][x] = container;
-				
+				// Если используем particle GPU-рендер — не создаём CPU-контейнеры (используем пул спрайтов)
+				if(d.gpu_enabled !== 'particles'){
+					let container = new PIXI.Container();
+					container.x = x * d.symbol_size;
+					container.y = y * d.symbol_size;
+					let background = new PIXI.Graphics();
+					background.alpha = 0;
+					container.addChild(background);
+					let symbol = new PIXI.Text('', d.pixi_text_style);
+					symbol.resolution = 20;
+					container.addChild(symbol);
+					d.app.stage.addChild(container);
+					d.symbols_grid[y][x] = container;
+				}
 				f.mark_symbol_dirty(x, y);
 			}
 		}
 		d.columns = newColumns;
+		// Если GPU включён — пересоздаём буферы (particle или shader)
+		if(d.gpu_enabled === 'particles' && f.gpu_particle_resize) f.gpu_particle_resize(d.columns, d.rows);
+		else if(d.gpu_enabled && f.gpu_resize_data_texture) f.gpu_resize_data_texture(d.columns, d.rows);
 	}
 	
 	// Добавляем новые строки снизу
@@ -261,32 +284,46 @@ update_symbols_grid(){
 					bgAlpha: 0
 				};
 				
-				// Создаём контейнер для ячейки
-				let container = new PIXI.Container();
-				container.x = x * d.symbol_size;
-				container.y = y * d.symbol_size;
-				
-				// Создаём фон
-				let background = new PIXI.Graphics();
-				background.alpha = 0;
-				container.addChild(background);
-				
-				// Создаём текст
-				let symbol = new PIXI.Text('', d.pixi_text_style);
-				symbol.resolution = 20;
-				container.addChild(symbol);
-				
-				d.app.stage.addChild(container);
-				d.symbols_grid[y][x] = container;
-				
+				if(d.gpu_enabled !== 'particles'){
+					let container = new PIXI.Container();
+					container.x = x * d.symbol_size;
+					container.y = y * d.symbol_size;
+					let background = new PIXI.Graphics();
+					background.alpha = 0;
+					container.addChild(background);
+					let symbol = new PIXI.Text('', d.pixi_text_style);
+					symbol.resolution = 20;
+					container.addChild(symbol);
+					d.app.stage.addChild(container);
+					d.symbols_grid[y][x] = container;
+				}
 				f.mark_symbol_dirty(x, y);
 			}
 		}
 		d.rows = newRows;
+		// Если GPU включён — пересоздаём буферы (particle или shader)
+		if(d.gpu_enabled === 'particles' && f.gpu_particle_resize) f.gpu_particle_resize(d.columns, d.rows);
+		else if(d.gpu_enabled && f.gpu_resize_data_texture) f.gpu_resize_data_texture(d.columns, d.rows);
 	}
 },
 /** Обновляет отображение символов на основе данных (высокооптимизированная версия) */
-update_symbols_display(){
+render_symbols_grid(){
+	// Если GPU-рендерер включён — обновляем GPU-текстуры и выходим
+	if(d.gpu_enabled){
+		// metrics: frames and dirty sample
+		if(d.metrics){
+			d.metrics.frames = (d.metrics.frames||0) + 1;
+			const dirtyNow = d.symbols_dirty_cells?d.symbols_dirty_cells.size:0;
+			d.metrics.dirtySamples = (d.metrics.dirtySamples||0) + dirtyNow;
+			d.metrics.dirtySamplesCount = (d.metrics.dirtySamplesCount||0) + 1;
+		}
+		if(d.gpu_dirty && f.gpu_update_textures){
+			try{ f.gpu_update_textures(); }catch(e){ console.warn('gpu_update_textures failed',e); }
+		}
+		// очищаем список изменений — GPU нарисует всё по буферам
+		if(d.symbols_dirty_cells) d.symbols_dirty_cells.clear();
+		return;
+	}
 	// Используем dirty-флаг систему для отслеживания изменённых ячеек
 	let dirtyCount = 0;
 	const dirtyMax = d.rows * d.columns;
@@ -333,6 +370,7 @@ update_symbols_display(){
 mark_symbol_dirty(x, y){
 	if(!d.symbols_dirty_cells) d.symbols_dirty_cells = new Set();
 	d.symbols_dirty_cells.add(`${y},${x}`);
+	if(d.gpu_enabled) d.gpu_dirty = true;
 },
 /** Устанавливает символ в ячейку (только данные) */
 set_symbol_data(x, y, char, textColor = 0xFFFFFF, bgColor = 0x000000, bgAlpha = 0){
@@ -343,6 +381,45 @@ set_symbol_data(x, y, char, textColor = 0xFFFFFF, bgColor = 0x000000, bgAlpha = 
 			data.textColor = textColor;
 			data.bgColor = bgColor;
 			data.bgAlpha = bgAlpha;
+
+			// Если GPU-режим включён, обновляем data-буферы
+			if(d.gpu_enabled && d.gpu_data0_buffer && d.gpu_data1_buffer){
+				const w = d.gpu_data_width;
+				const idx = (y * w + x) * 4;
+				// вычисляем индекс символа (uint16) - используем карту символов
+				let charIndex = 0;
+				if(char && char.length>0){
+					if(!d.gpu_char_map) d.gpu_char_map = Object.create(null);
+					if(d.gpu_char_map[char]===undefined){
+						// Попробуем найти в printable_symbols
+						let found = d.printable_symbols.indexOf(char);
+						if(found>=0) d.gpu_char_map[char]=found;
+						else d.gpu_char_map[char]=0;
+					}
+					charIndex = d.gpu_char_map[char] + 1; // 0 - пусто, >=1 - индекс
+				}
+				// pack uint16 into two bytes
+				d.gpu_data0_buffer[idx + 0] = charIndex & 0xFF;
+				d.gpu_data0_buffer[idx + 1] = (charIndex >> 8) & 0xFF;
+				// textColor -> R G in data0, B in data1
+				const r = (textColor >> 16) & 0xFF;
+				const g = (textColor >> 8) & 0xFF;
+				const b = textColor & 0xFF;
+				d.gpu_data0_buffer[idx + 2] = r;
+				d.gpu_data0_buffer[idx + 3] = g;
+				const idx1 = (y * w + x) * 4;
+				d.gpu_data1_buffer[idx1 + 0] = b;
+				// bgAlpha in data1.G
+				d.gpu_data1_buffer[idx1 + 1] = Math.round(Math.max(0, Math.min(1, bgAlpha)) * 255);
+				// mark dirty to update GPU textures before next frame
+				d.gpu_dirty = true;
+			}
+
+			// If particle-based GPU renderer is active, update corresponding sprites immediately
+			if(d.gpu_enabled === 'particles'){
+				try{ f.gpu_particle_update_cell(x,y,data); }catch(e){console.warn('gpu_particle_update_cell failed',e);} 
+			}
+
 			f.mark_symbol_dirty(x, y);
 		}
 	}
@@ -389,6 +466,30 @@ update_size() {
 		d.background_sprite.width=width;
 		d.background_sprite.height=height;
 	}
+	/* Обновляем GPU-grid sprite и фильтр, если включено */
+	if(d.gpu_enabled && d.gpu_grid_sprite){
+		d.gpu_grid_sprite.width = width;
+		d.gpu_grid_sprite.height = height;
+		if(d.gpu_filter){
+			d.gpu_filter.uniforms.uResolution = [width, height];
+			d.gpu_filter.uniforms.uCellSize = d.symbol_size;
+		}
+	}
+	/* Обновляем particle-пулы если включено */
+	if(d.gpu_enabled === 'particles'){
+		// update container sizes and each sprite positions/size
+		if(d.gpu_particle_bg_sprites && d.gpu_particle_glyph_sprites){
+			for(let y=0;y<d.rows;y++){
+				for(let x=0;x<d.columns;x++){
+					const idx = y*d.columns + x;
+					const bg = d.gpu_particle_bg_sprites[idx];
+					const g = d.gpu_particle_glyph_sprites[idx];
+					if(bg){ bg.x = x * d.symbol_size; bg.y = y * d.symbol_size; bg.width = d.symbol_size; bg.height = d.symbol_size; }
+					if(g){ g.x = x * d.symbol_size; g.y = y * d.symbol_size; g.width = d.symbol_size; g.height = d.symbol_size; }
+				}
+			}
+		}
+	}
 	/*Принудительно обновляем текстуру*/
 	f.update_three_scene();
 	d.app.stage.removeChild(d.background_sprite);
@@ -409,36 +510,36 @@ visual_effect(number){
 	}
 	/*случайно поворачивает символы*/
 	if(number==1){
-        for(let y=0;y<d.rows;y++){
-            for(let x=0;x<d.columns;x++){
-                let container = d.symbols_grid[y][x];
-                if(container){
-                    // поворачиваем сам контейнер вокруг центра ячейки
-                    const center = d.symbol_size/2;
-                    container.pivot.set(center, center);
-                    container.x = x * d.symbol_size + center;
-                    container.y = y * d.symbol_size + center;
-                    // случайный угол (в радианах)
-                    container.rotation = (Math.random() - 0.5) * Math.PI * 2;
-                }
-            }
-        }
-    }
-    /*откатывает предыдущий*/
-    if(number==2){
-        for(let y=0;y<d.rows;y++){
-            for(let x=0;x<d.columns;x++){
-                let container = d.symbols_grid[y][x];
-                if(container){
-                    // сбрасываем поворот и возвращаем контейнер в позицию "top-left"
-                    container.rotation = 0;
-                    container.pivot.set(0,0);
-                    container.x = x * d.symbol_size;
-                    container.y = y * d.symbol_size;
-                }
-            }
-        }
-    }
+		for(let y=0;y<d.rows;y++){
+			for(let x=0;x<d.columns;x++){
+				let container = d.symbols_grid[y][x];
+				if(container){
+					// поворачиваем сам контейнер вокруг центра ячейки
+					const center = d.symbol_size/2;
+					container.pivot.set(center, center);
+					container.x = x * d.symbol_size + center;
+					container.y = y * d.symbol_size + center;
+					// случайный угол (в радианах)
+					container.rotation = (Math.random() - 0.5) * Math.PI * 2;
+				}
+			}
+		}
+	}
+	/*откатывает предыдущий*/
+	if(number==2){
+		for(let y=0;y<d.rows;y++){
+			for(let x=0;x<d.columns;x++){
+				let container = d.symbols_grid[y][x];
+				if(container){
+					// сбрасываем поворот и возвращаем контейнер в позицию "top-left"
+					container.rotation = 0;
+					container.pivot.set(0,0);
+					container.x = x * d.symbol_size;
+					container.y = y * d.symbol_size;
+				}
+			}
+		}
+	}
 	/*убирает символы вокруг курсора*/
 	if(number==3){
 		// Радиус в пикселях — три размера символа
@@ -495,6 +596,387 @@ init_printable_symbols(){
 			d.printable_symbols+=String.fromCodePoint(codePoint);
 		}
 	}
+},
+/** Инициализация GPU-рендера символов (atlas + data-текстуры + шейдер) */
+init_gpu_symbols_renderer(){
+	// Проверки
+	if(typeof PIXI==='undefined' || !PIXI.Filter || !d.app || !d.app.renderer) {
+		d.gpu_enabled = false;
+		throw new Error('PIXI.Filter or renderer not available');
+	}
+
+	// ensure printable symbols available
+	if(!d.printable_symbols || d.printable_symbols.length===0){
+		try{ f.init_printable_symbols(); }catch(e){}
+	}
+	// базовые параметры atlas
+	const atlasCols = 32; // 32*32 = 1024 глифов
+	const atlasRows = 32;
+	const glyphSize = Math.max(8, Math.ceil(d.symbol_size || 16));
+
+	// создаём canvas для atlas
+	const atlasCanvas = document.createElement('canvas');
+	atlasCanvas.width = atlasCols * glyphSize;
+	atlasCanvas.height = atlasRows * glyphSize;
+	const actx = atlasCanvas.getContext('2d');
+	actx.clearRect(0,0,atlasCanvas.width,atlasCanvas.height);
+	actx.fillStyle = '#ffffff';
+	actx.textAlign = 'center';
+	actx.textBaseline = 'middle';
+	actx.font = `${glyphSize}px CODERROR, monospace`;
+
+	// Заполним атлас первыми символами printable_symbols
+	d.gpu_atlas_cols = atlasCols;
+	d.gpu_atlas_rows = atlasRows;
+	d.gpu_atlas_count = atlasCols * atlasRows;
+	d.gpu_atlas_canvas = atlasCanvas;
+	d.gpu_atlas_ctx = actx;
+
+	// Map characters to atlas indices (try to map printable_symbols)
+	d.gpu_char_map = Object.create(null);
+	for(let i=0;i<Math.min(d.printable_symbols.length, d.gpu_atlas_count); i++){
+		const ch = d.printable_symbols[i];
+		d.gpu_char_map[ch] = i;
+		// draw onto atlas
+		const ax = i % atlasCols;
+		const ay = Math.floor(i / atlasCols);
+		const cx = ax * glyphSize + glyphSize/2;
+		const cy = ay * glyphSize + glyphSize/2 + Math.round(glyphSize*0.05);
+		actx.fillText(ch, cx, cy);
+	}
+
+	d.gpu_next_char_index = Math.min(d.printable_symbols.length, d.gpu_atlas_count);
+
+	// Атлас-текстура для шейдера
+	d.gpu_atlas_texture = PIXI.Texture.from(atlasCanvas);
+
+	// Инициализация data buffers
+	const w = Math.max(1, d.columns || 1);
+	const h = Math.max(1, d.rows || 1);
+	d.gpu_data_width = w;
+	d.gpu_data_height = h;
+	d.gpu_data0_buffer = new Uint8Array(w * h * 4);
+	d.gpu_data1_buffer = new Uint8Array(w * h * 4);
+	// Заполним нулями
+	for(let i=0;i<d.gpu_data0_buffer.length;i++) d.gpu_data0_buffer[i]=0;
+	for(let i=0;i<d.gpu_data1_buffer.length;i++) d.gpu_data1_buffer[i]=0;
+
+	d.gpu_data0_texture = PIXI.Texture.fromBuffer(d.gpu_data0_buffer, w, h);
+	d.gpu_data1_texture = PIXI.Texture.fromBuffer(d.gpu_data1_buffer, w, h);
+
+	// Cache baseTextures/resources for incremental updates
+	try{
+		d.gpu_data0_base = d.gpu_data0_texture.baseTexture;
+		d.gpu_data1_base = d.gpu_data1_texture.baseTexture;
+	}catch(e){
+		d.gpu_data0_base = null;
+		d.gpu_data1_base = null;
+	}
+
+	// Шейдер фрагмента
+	const frag = `
+		precision mediump float;
+		varying vec2 vTextureCoord;
+		uniform sampler2D uAtlas;
+		uniform sampler2D uData0; // R: idxLo, G: idxHi, B: textR, A: textG
+		uniform sampler2D uData1; // R: textB, G: bgAlpha
+		uniform vec2 uGridSize; // cols, rows
+		uniform vec2 uAtlasGrid; // atlasCols, atlasRows
+		uniform vec2 uResolution; // px
+		uniform float uCellSize; // px
+
+		void main(){
+			vec2 uv = vTextureCoord;
+			vec2 px = uv * uResolution;
+			vec2 cell = floor(px / uCellSize);
+			// clamp
+			if(cell.x < 0.0 || cell.y < 0.0 || cell.x >= uGridSize.x || cell.y >= uGridSize.y){
+				gl_FragColor = vec4(0.0);
+				return;
+			}
+			vec2 dataUV = (cell + 0.5) / uGridSize;
+			vec4 meta0 = texture2D(uData0, dataUV);
+			vec4 meta1 = texture2D(uData1, dataUV);
+			float idx = meta0.r * 255.0 + meta0.g * 255.0 * 256.0;
+			if(idx < 1.0){
+				// empty cell -> transparent
+				gl_FragColor = vec4(0.0);
+				return;
+			}
+			float glyphIndex = idx - 1.0;
+			float ax = mod(glyphIndex, uAtlasGrid.x);
+			float ay = floor(glyphIndex / uAtlasGrid.x);
+			vec2 glyphOffset = vec2(ax, ay) / uAtlasGrid;
+			// local uv inside cell
+			vec2 local = fract(px / uCellSize);
+			vec2 atlasUV = glyphOffset + local / uAtlasGrid;
+			vec4 glyph = texture2D(uAtlas, atlasUV);
+			// text color
+			vec3 textColor = vec3(meta0.b, meta0.a, meta1.r) / 255.0;
+			float bgAlpha = meta1.g / 255.0;
+			vec3 bgColor = vec3(0.0); // currently black background
+
+			// glyph.rgb is assumed white mask, glyph.a mask
+			vec3 outColor = glyph.rgb * textColor;
+			float outAlpha = glyph.a;
+			// mix with background if bgAlpha > 0
+			if(bgAlpha > 0.0){
+				outColor = mix(bgColor, outColor, outAlpha);
+				outAlpha = max(outAlpha, bgAlpha);
+			}
+			gl_FragColor = vec4(outColor, outAlpha);
+		}
+	`;
+
+	// Filter
+	d.gpu_filter = new PIXI.Filter(undefined, frag, {
+		uAtlas: d.gpu_atlas_texture,
+		uData0: d.gpu_data0_texture,
+		uData1: d.gpu_data1_texture,
+		uGridSize: [d.gpu_data_width, d.gpu_data_height],
+		uAtlasGrid: [atlasCols, atlasRows],
+		uResolution: [d.app.renderer.width, d.app.renderer.height],
+		uCellSize: d.symbol_size
+	});
+
+	// full-screen sprite
+	const bg = new PIXI.Sprite(PIXI.Texture.WHITE);
+	bg.width = d.app.renderer.width;
+	bg.height = d.app.renderer.height;
+	bg.filters = [d.gpu_filter];
+	bg.zIndex = -1000;
+	// Добавляем над фоном Pixi, но под UI
+	try{
+		d.app.stage.addChildAt(bg, 1);
+	}catch(e){
+		d.app.stage.addChild(bg);
+	}
+	d.gpu_grid_sprite = bg;
+	d.gpu_enabled = true;
+	d.gpu_dirty = true;
+	d.gpu_atlas_dirty = false;
+
+},
+
+/** Перерисовка/обновление atlas для одного глифа (по индексу) */
+gpu_draw_glyph_to_atlas(char, index){
+	if(!d.gpu_atlas_ctx) return;
+	const glyphSize = Math.max(8, Math.ceil(d.symbol_size || 16));
+	const ax = index % d.gpu_atlas_cols;
+	const ay = Math.floor(index / d.gpu_atlas_cols);
+	const cx = ax * glyphSize + glyphSize/2;
+	const cy = ay * glyphSize + glyphSize/2 + Math.round(glyphSize*0.05);
+	d.gpu_atlas_ctx.clearRect(ax*glyphSize, ay*glyphSize, glyphSize, glyphSize);
+	d.gpu_atlas_ctx.fillStyle = '#ffffff';
+	d.gpu_atlas_ctx.fillText(char, cx, cy);
+	d.gpu_atlas_dirty = true;
+},
+
+/** Инициализация GPU-рендера символов через батчинг спрайтов (ParticleContainer) */
+init_gpu_symbols_renderer_particles(){
+	if(typeof PIXI==='undefined' || !PIXI.ParticleContainer || !d.app) {
+		d.gpu_enabled = false;
+		throw new Error('PIXI.ParticleContainer or app not available');
+	}
+
+	// Ensure printable symbols
+	if(!d.printable_symbols || d.printable_symbols.length===0) try{ f.init_printable_symbols(); }catch(e){}
+
+	const atlasCols = 32;
+	const atlasRows = 32;
+	const glyphSize = Math.max(8, Math.ceil(d.symbol_size || 16));
+
+	// create atlas canvas
+	const atlasCanvas = document.createElement('canvas');
+	atlasCanvas.width = atlasCols * glyphSize;
+	atlasCanvas.height = atlasRows * glyphSize;
+	const actx = atlasCanvas.getContext('2d');
+	actx.clearRect(0,0,atlasCanvas.width,atlasCanvas.height);
+	actx.fillStyle = '#ffffff';
+	actx.textAlign = 'center';
+	actx.textBaseline = 'middle';
+	actx.font = `${glyphSize}px CODERROR, monospace`;
+
+	// draw glyphs into atlas and prepare textures
+	const chars = d.printable_symbols.slice(0, atlasCols*atlasRows);
+	for(let i=0;i<chars.length;i++){
+		const ch = chars[i];
+		const ax = i % atlasCols;
+		const ay = Math.floor(i/atlasCols);
+		const cx = ax * glyphSize + glyphSize/2;
+		const cy = ay * glyphSize + glyphSize/2 + Math.round(glyphSize*0.05);
+		actx.fillText(ch, cx, cy);
+	}
+
+	const baseTexture = PIXI.BaseTexture.from(atlasCanvas);
+	d.gpu_particle_atlas = baseTexture;
+	d.gpu_particle_glyph_textures = [];
+	for(let i=0;i<atlasCols*atlasRows;i++){
+		const frame = new PIXI.Rectangle((i%atlasCols)*glyphSize, Math.floor(i/atlasCols)*glyphSize, glyphSize, glyphSize);
+		d.gpu_particle_glyph_textures[i] = new PIXI.Texture(baseTexture, frame);
+	}
+
+	// background 1x1 white texture
+	const bgCanvas = document.createElement('canvas'); bgCanvas.width=1; bgCanvas.height=1; bgCanvas.getContext('2d').fillStyle='#ffffff'; bgCanvas.getContext('2d').fillRect(0,0,1,1);
+	d.gpu_particle_bg_texture = PIXI.Texture.from(bgCanvas);
+
+	// Create two particle containers: background and glyphs
+	const maxSprites = Math.max(1, (d.rows||1)*(d.columns||1));
+	const bgContainer = new PIXI.ParticleContainer(maxSprites, {position:true, scale:true, tint:true, alpha:true});
+	const glyphContainer = new PIXI.ParticleContainer(maxSprites, {position:true, scale:true, tint:true, alpha:true});
+	bgContainer.zIndex = 0;
+	glyphContainer.zIndex = 1;
+	d.app.stage.addChild(bgContainer);
+	d.app.stage.addChild(glyphContainer);
+
+	// create pools
+	d.gpu_particle_bg_sprites = [];
+	d.gpu_particle_glyph_sprites = [];
+	const cols = d.columns || 1;
+	const rows = d.rows || 1;
+	for(let y=0;y<rows;y++){
+		for(let x=0;x<cols;x++){
+			const bg = new PIXI.Sprite(d.gpu_particle_bg_texture);
+			bg.x = x * d.symbol_size;
+			bg.y = y * d.symbol_size;
+			bg.width = d.symbol_size;
+			bg.height = d.symbol_size;
+			bg.alpha = 0;
+			bgContainer.addChild(bg);
+			d.gpu_particle_bg_sprites.push(bg);
+
+			const glyph = new PIXI.Sprite(d.gpu_particle_glyph_textures[0]);
+			glyph.x = x * d.symbol_size;
+			glyph.y = y * d.symbol_size;
+			glyph.width = d.symbol_size;
+			glyph.height = d.symbol_size;
+			glyph.tint = 0xFFFFFF;
+			glyph.alpha = 1;
+			glyphContainer.addChild(glyph);
+			d.gpu_particle_glyph_sprites.push(glyph);
+		}
+	}
+
+	d.gpu_particle_bg_container = bgContainer;
+	d.gpu_particle_glyph_container = glyphContainer;
+	d.gpu_particle_atlas_cols = atlasCols;
+	d.gpu_particle_atlas_rows = atlasRows;
+	d.gpu_particle_glyphSize = glyphSize;
+	d.gpu_enabled = 'particles';
+},
+
+/** Resize particle pools when grid changes */
+gpu_particle_resize(newCols, newRows){
+	// remove old sprites
+	if(!d.gpu_enabled || d.gpu_enabled!=='particles') return;
+	// clear containers
+	if(d.gpu_particle_bg_container) d.gpu_particle_bg_container.removeChildren();
+	if(d.gpu_particle_glyph_container) d.gpu_particle_glyph_container.removeChildren();
+	d.gpu_particle_bg_sprites = [];
+	d.gpu_particle_glyph_sprites = [];
+	const cols = newCols || 1;
+	const rows = newRows || 1;
+	for(let y=0;y<rows;y++){
+		for(let x=0;x<cols;x++){
+			const bg = new PIXI.Sprite(d.gpu_particle_bg_texture);
+			bg.x = x * d.symbol_size;
+			bg.y = y * d.symbol_size;
+			bg.width = d.symbol_size;
+			bg.height = d.symbol_size;
+			bg.alpha = 0;
+			d.gpu_particle_bg_container.addChild(bg);
+			d.gpu_particle_bg_sprites.push(bg);
+
+			const glyph = new PIXI.Sprite(d.gpu_particle_glyph_textures[0]);
+			glyph.x = x * d.symbol_size;
+			glyph.y = y * d.symbol_size;
+			glyph.width = d.symbol_size;
+			glyph.height = d.symbol_size;
+			glyph.tint = 0xFFFFFF;
+			glyph.alpha = 1;
+			d.gpu_particle_glyph_container.addChild(glyph);
+			d.gpu_particle_glyph_sprites.push(glyph);
+		}
+	}
+},
+
+/** Update single cell in particle mode */
+gpu_particle_update_cell(x,y,data){
+	if(!d.gpu_enabled || d.gpu_enabled!=='particles') return;
+	if(x<0||y<0||x>=d.columns||y>=d.rows) return;
+	const idx = y * d.columns + x;
+	const glyphSprite = d.gpu_particle_glyph_sprites[idx];
+	const bgSprite = d.gpu_particle_bg_sprites[idx];
+	if(!glyphSprite || !bgSprite) return;
+	// set glyph texture
+	if(data.char && data.char.length>0){
+		const mapIndex = (d.gpu_char_map && d.gpu_char_map[data.char]!==undefined) ? d.gpu_char_map[data.char] : 0;
+		if(d.gpu_particle_glyph_textures[mapIndex]) glyphSprite.texture = d.gpu_particle_glyph_textures[mapIndex];
+		glyphSprite.tint = data.textColor || 0xFFFFFF;
+		glyphSprite.alpha = 1;
+	} else {
+		// hide glyph
+		glyphSprite.alpha = 0;
+	}
+	// background
+	if(data.bgAlpha && data.bgAlpha>0){
+		bgSprite.alpha = data.bgAlpha;
+		bgSprite.tint = data.bgColor || 0x000000;
+	} else {
+		bgSprite.alpha = 0;
+	}
+}
+	,
+/** Пересоздать/изменить размеры data-текстур */
+gpu_resize_data_texture(newCols, newRows){
+	const w = Math.max(1, newCols || 1);
+	const h = Math.max(1, newRows || 1);
+	d.gpu_data_width = w;
+	d.gpu_data_height = h;
+	d.gpu_data0_buffer = new Uint8Array(w * h * 4);
+	d.gpu_data1_buffer = new Uint8Array(w * h * 4);
+	d.gpu_data0_buffer.fill(0);
+	d.gpu_data1_buffer.fill(0);
+
+	// Create persistent BufferResource + BaseTexture for in-place updates (PixiJS v8+)
+	d.gpu_data0_resource = new PIXI.resources.BufferResource(d.gpu_data0_buffer, {width: w, height: h});
+	d.gpu_data1_resource = new PIXI.resources.BufferResource(d.gpu_data1_buffer, {width: w, height: h});
+	if(!d.gpu_data0_base) d.gpu_data0_base = new PIXI.BaseTexture(d.gpu_data0_resource, {scaleMode: PIXI.SCALE_MODES.NEAREST});
+	else d.gpu_data0_base.resource = d.gpu_data0_resource;
+	if(!d.gpu_data1_base) d.gpu_data1_base = new PIXI.BaseTexture(d.gpu_data1_resource, {scaleMode: PIXI.SCALE_MODES.NEAREST});
+	else d.gpu_data1_base.resource = d.gpu_data1_resource;
+	d.gpu_data0_texture = new PIXI.Texture(d.gpu_data0_base);
+	d.gpu_data1_texture = new PIXI.Texture(d.gpu_data1_base);
+
+	if(d.gpu_filter){
+		d.gpu_filter.uniforms.uData0 = d.gpu_data0_texture;
+		d.gpu_filter.uniforms.uData1 = d.gpu_data1_texture;
+		d.gpu_filter.uniforms.uGridSize = [w, h];
+	}
+
+	d.gpu_dirty = true;
+}
+,
+/** Обновить GPU-текстуры (вызывать один раз перед рендером, если d.gpu_dirty) */
+gpu_update_textures(){
+	// обновляем atlas если нужно
+	if(d.gpu_atlas_dirty){
+		d.gpu_atlas_texture = PIXI.Texture.from(d.gpu_atlas_canvas);
+		if(d.gpu_filter) d.gpu_filter.uniforms.uAtlas = d.gpu_atlas_texture;
+		d.gpu_atlas_dirty = false;
+	}
+	// обновляем data textures in-place через BufferResource (PixiJS v8+)
+	if(d.gpu_data0_buffer && d.gpu_data1_buffer){
+		d.gpu_data0_resource.data = d.gpu_data0_buffer;
+		d.gpu_data0_resource.update();
+		d.gpu_data1_resource.data = d.gpu_data1_buffer;
+		d.gpu_data1_resource.update();
+		if(d.gpu_filter){
+			d.gpu_filter.uniforms.uResolution = [d.app.renderer.width, d.app.renderer.height];
+			d.gpu_filter.uniforms.uCellSize = d.symbol_size;
+		}
+	}
+	d.gpu_dirty = false;
 },
 get_random_char(){
 	return d.printable_symbols[Math.floor(Math.random()*99)];
@@ -1155,8 +1637,6 @@ clear_symbols_grid(){
 			f.set_symbol_data(x, y, '', 0xFFFFFF, 0x000000, 0);
 		}
 	}
-	// Все ячейки уже отмечены как грязные в set_symbol_data, но на всякий случай убедимся
-	f.update_symbols_display();
 },
 /**выполняет скрипт*/
 load_script:async function(path) {
@@ -1300,43 +1780,6 @@ activate_next_hotbar_slot(){
 	}
 	f.update_active_hotbar_slot_frame();
 },
-open_handles_DB() {
-	return new Promise((resolve, reject) => {
-		const req = indexedDB.open(d.FS_DB_NAME, 1);
-		req.onupgradeneeded = (e) => {
-			const db = e.target.result;
-			if (!db.objectStoreNames.contains(d.FS_STORE_NAME)) db.createObjectStore(d.FS_STORE_NAME);
-		};
-		req.onsuccess = () => resolve(req.result);
-		req.onerror = () => reject(req.error);
-	});
-},
-save_handle_to_DB(handle) {
-	return f.open_handles_DB().then(db => new Promise((resolve, reject) => {
-		try{
-			const tx = db.transaction(d.FS_STORE_NAME, 'readwrite');
-			const store = tx.objectStore(d.FS_STORE_NAME);
-			const req = store.put(handle, d.FS_KEY);
-			req.onsuccess = () => resolve();
-			req.onerror = () => reject(req.error);
-		}catch(e){
-			reject(e);
-		}
-	}));
-},
-get_handle_from_DB() {
-	return f.open_handles_DB().then(db => new Promise((resolve, reject) => {
-		try{
-			const tx = db.transaction(d.FS_STORE_NAME, 'readonly');
-			const store = tx.objectStore(d.FS_STORE_NAME);
-			const req = store.get(d.FS_KEY);
-			req.onsuccess = () => resolve(req.result);
-			req.onerror = () => reject(req.error);
-		}catch(e){
-			reject(e);
-		}
-	}));
-},
 verify_permission(handle, withWrite) {
 	const opts = {};
 	if (withWrite) opts.mode = 'readwrite';
@@ -1355,280 +1798,12 @@ verify_permission(handle, withWrite) {
 		return Promise.resolve(false);
 	}
 },
-init_file_access(){
-	// Функция возвращает Promise, чтобы вызвать её из main.js и продолжать после получения дескриптора
-	return new Promise((resolve,reject)=>{
-		// Если API не поддерживается — выходим молча
-		if(!window.showDirectoryPicker||!window.indexedDB)return resolve();
-		const flag=localStorage.getItem('coderror_dir_selected');
-		const tryGetFromDB=()=>{
-			if(!flag)return Promise.resolve(null);
-			return f.get_handle_from_DB().catch(e=>{
-				console.warn('Не удалось взять дескриптор из DB',e);
-				localStorage.removeItem('coderror_dir_selected');
-				return null;
-			});
-		};
-		tryGetFromDB().then(storedHandle=>{
-			if(storedHandle){
-				// Проверим права
-				f.verify_permission(storedHandle,true).then(ok=>{
-					if(!ok)console.warn('Нет прав на выбранную папку или пользователь отозвал доступ.');
-					d.directory_handle=storedHandle;
-					resolve();
-				}).catch(e=>{
-					console.warn(e);d.directory_handle=storedHandle;resolve();
-				});
-				return;
-			}
-			// Нет сохранённого дескриптора — уведомим пользователя и пометим, что требуется вмешательство пользователя
-			alert('Для работы игре требуется доступ к своим же файлам. Выберите папку, которую вы использовали для загрузки расширения, или папку, в которой игра на самом деле хранится. Сейчас будет произведён запрос доступа.');
-			// Помечаем, что для получения дескриптора требуется пользовательский жест (например, нажатие кнопки)
-			d.need_directory_permission=true;
-			f.request_directory_via_user_gesture().then(handle=>{
-				return resolve();
-			});
-		}).catch(e=>{
-			console.error('init_file_access error',e);
-			resolve();
-		});
-	});
+// Добавляем прокси для localStorage
+getStorage(key) {
+  return window.SANDBOX_PROXY.getStorage(key);
 },
-// Вызывать в обработчике пользовательского события (click) — picker требует user activation
-request_directory_via_user_gesture(){
-	return new Promise((resolve,reject)=>{
-		if(!window.showDirectoryPicker)return resolve(null);
-		window.showDirectoryPicker().then(handle=>{
-			d.directory_handle=handle;
-			f.save_handle_to_DB(handle).then(()=>{
-				localStorage.setItem('coderror_dir_selected','1');
-			}).catch(e=>{
-				console.warn('Не удалось сохранить дескриптор в IndexedDB',e);
-			}).finally(()=>{
-				d.need_directory_permission=false;
-				resolve(handle);
-			});
-		}).catch(e=>{
-			console.warn('showDirectoryPicker cancelled or failed',e);
-			resolve(null);
-		});
-	});
-},
-/**проверяет существует ли файл*/
-file_exists(relPath){
-	return new Promise((resolve,reject)=>{
-		if(!d.directory_handle)return reject(new Error('Directory handle is not available'));
-		const parts=relPath.split('/').filter(Boolean);
-		let dir=d.directory_handle;
-		const next=(i)=>{
-			if(i>=parts.length-1){
-				dir.getFileHandle(parts[parts.length-1])
-				.then(()=>resolve(true))
-				.catch(error=>{
-					if(error.name==='NotFoundError'){
-						resolve(false);
-					} else {
-						reject(error);
-					}
-				});
-				return;
-			}
-			dir.getDirectoryHandle(parts[i])
-			.then(newDir=>{
-				dir=newDir;
-				next(i+1);
-			}).catch(error=>{
-				if(error.name==='NotFoundError'){
-					resolve(false);
-				}else{
-					reject(error);
-				}
-			});
-		};
-		next(0);
-	});
-},
-/**читает содержимое текстового файла, возвращает null если файл не существует*/
-read_file(relPath){
-	return new Promise((resolve,reject)=>{
-		if(!d.directory_handle)return reject(new Error('Directory handle is not available'));
-		const parts=relPath.split('/').filter(Boolean);
-		let dir=d.directory_handle;
-		const next=(i)=>{
-			if(i>=parts.length-1){
-				dir.getFileHandle(parts[parts.length-1])
-				.then(fileHandle=>fileHandle.getFile())
-				.then(file=>file.text())
-				.then(resolve)
-				.catch(error=>{
-					if(error.name==='NotFoundError'){
-						resolve(null);
-					}else{
-						reject(error);
-					}
-				});
-				return;
-			}
-			dir.getDirectoryHandle(parts[i])
-			.then(newDir=>{
-				dir=newDir;
-				next(i+1);
-			}).catch(error=>{
-				if(error.name==='NotFoundError'){
-					resolve(null);
-				}else{
-					reject(error);
-				}
-			});
-		};
-		next(0);
-	});
-},
-/**записывает содержимое в текстовый файл (с автоматическим созданием директорий)*/
-write_file(relPath,contents){
-	return new Promise((resolve,reject)=>{
-		if(!d.directory_handle)return reject(new Error('Directory handle is not available'));
-		const parts=relPath.split('/').filter(Boolean);
-		let dir=d.directory_handle;
-		const next=(i)=>{
-			if(i>=parts.length-1){
-				// Достигли файла
-				dir.getFileHandle(parts[parts.length-1],{create:true})
-				.then(fileHandle=>fileHandle.createWritable())
-				.then(writable=>{
-					return writable.write(contents).then(()=>writable.close());
-				})
-				.then(resolve)
-				.catch(reject);
-				return;
-			}
-			// Создаем директории по пути
-			dir.getDirectoryHandle(parts[i],{create:true})
-			.then(newDir=>{
-				dir=newDir;
-				next(i+1);
-			})
-			.catch(reject);
-		};
-		next(0);
-	});
-},
-/**создает папку*/
-create_directory(relPath){
-	return new Promise((resolve,reject)=>{
-		if(!d.directory_handle)return reject(new Error('Directory handle is not available'));
-		const parts=relPath.split('/').filter(Boolean);
-		let dir=d.directory_handle;
-		const next=(i)=>{
-			if(i>=parts.length)return resolve(dir);
-			dir.getDirectoryHandle(parts[i],{create:true})
-			.then(newDir=>{
-				dir=newDir;
-				next(i+1);
-			})
-			.catch(reject);
-		};
-		next(0);
-	});
-},
-/**удаляет файл*/
-remove_file(relPath){
-	return new Promise((resolve,reject)=>{
-		if(!d.directory_handle)return reject(new Error('Directory handle is not available'));
-		const parts=relPath.split('/').filter(Boolean);
-		let dir=d.directory_handle;
-		const next=(i)=>{
-			if(i>=parts.length-1){
-				dir.removeEntry(parts[parts.length-1])
-				.then(resolve)
-				.catch(reject);
-				return;
-			}
-			dir.getDirectoryHandle(parts[i])
-			.then(newDir=>{
-				dir=newDir;
-				next(i+1);
-			})
-			.catch(reject);
-		};
-		next(0);
-	});
-},
-/**рекурсивно удаляет папку с содержимым*/
-remove_directory(relPath){
-	return new Promise((resolve,reject)=>{
-		if(!d.directory_handle)return reject(new Error('Directory handle is not available'));
-		const parts=relPath.split('/').filter(Boolean);
-		let dir=d.directory_handle;
-		const deleteRecursive=async(currentDir)=>{
-			for await(const[name,handle]of currentDir.entries()){
-				if(handle.kind==='directory'){
-					await deleteRecursive(handle);
-				}else{
-					await currentDir.removeEntry(name);
-				}
-			}
-			if(currentDir!==d.directory_handle){
-				await dir.removeEntry(parts[parts.length-1],{recursive:true});
-			}
-		};
-		const next=(i)=>{
-			if(i>=parts.length){
-				deleteRecursive(dir)
-				.then(resolve)
-				.catch(reject);
-				return;
-			}
-			dir.getDirectoryHandle(parts[i])
-			.then(newDir=>{
-				dir=newDir;
-				next(i+1);
-			}).catch(reject);
-		};
-		next(0);
-	});
-},
-/**возвращает список названий файлов в указанной директории (папки игнорируются)*/
-list_files(relPath=""){
-	return new Promise((resolve,reject)=>{
-		if(!d.directory_handle)return reject(new Error('Directory handle is not available'));
-		const parts=relPath.split('/').filter(Boolean);
-		let dir=d.directory_handle;
-		const next=(i)=>{
-			if(i>=parts.length){
-				// Достигли целевой директории - читаем её содержимое
-				const files=[];
-				const readFiles=async()=>{
-					try{
-						for await(const[name,handle]of dir.entries()){
-							// Добавляем только файлы, игнорируем папки
-							if(handle.kind==='file'){
-								files.push(name);
-							}
-						}
-						resolve(files.sort());
-					}catch(error){
-						reject(error);
-					}
-				};
-				readFiles();
-				return;
-			}
-			dir.getDirectoryHandle(parts[i])
-			.then(newDir=>{
-				dir=newDir;
-				next(i+1);
-			}).catch(error=>{
-				if(error.name==='NotFoundError'){
-					// Директория не существует - возвращаем пустой массив
-					resolve([]);
-				}else{
-					reject(error);
-				}
-			});
-		};
-		next(0);
-	});
+setStorage(key, value) {
+  return window.SANDBOX_PROXY.setStorage(key, value);
 },
 fetch_json(path){
 	return fetch(path)
@@ -2068,6 +2243,33 @@ set_cursor(cursor_folder_path){
 	}).catch(error => {
 		console.error('Ошибка при загрузке конфигурации курсора:', error);
 	});
+},
+change_title(title){
+	window.message_bus.send('change_title',{title}).then(()=>{});
+},
+init_file_access(){
+	return window.message_bus.send('init_file_access',{});
+},
+file_exists(relPath){
+	return window.message_bus.send('file_exists',{relPath});
+},
+read_file(relPath){
+	return window.message_bus.send('read_file',{relPath});
+},
+write_file(relPath,content){
+	return window.message_bus.send('write_file',{relPath,content});
+},
+create_directory(relPath){
+	return window.message_bus.send('create_directory',{relPath});
+},
+remove_file(relPath){
+	return window.message_bus.send('remove_file',{relPath});
+},
+remove_directory(relPath){
+	return window.message_bus.send('remove_directory',{relPath});
+},
+list_files(relPath=""){
+	return window.message_bus.send('list_files',{relPath});
 }
 };
 

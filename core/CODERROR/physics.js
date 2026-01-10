@@ -24,7 +24,7 @@ function update_game_logic(){
 	let nickname=d.save.player.nickname,
 	room_id=_.get(d,`save.world.players.${nickname}.position.room_id`);
 
-	document.title=`CODERROR ${d.version} TPS: ${d.TPS} FPS: ${d.FPS} - ${d.splash}`;
+	f.change_title(`CODERROR ${d.version} TPS: ${d.TPS} FPS: ${d.FPS} - ${d.splash}`);
 	if(!window.has_focus&&d.settings.interface.pause_on_blur)return
 	if(d.save.temp.room.preparation){
 		f.print_to_chat(d.language.notifications.current_room(room_id));
@@ -160,6 +160,14 @@ L n L q L q H  U n U n L q U n
 			d.save.temp.room.data.buttons.room_editor.addEventListener('click',()=>{
 				f.change_room('room_editor');
 			});
+			if(d.need_directory_permission){
+				let select_folder_button = f.create_button('ВЫБРАТЬ ПАПКУ');
+				d.save.temp.room.data.buttons_div.appendChild(select_folder_button);
+				d.save.temp.room.data.buttons_div.appendChild(f.get_br());
+				select_folder_button.addEventListener('click',()=>{
+					window.message_sender.send_message('REQUEST_DIRECTORY',{});
+				});
+			}
 			f.change_button_border_color(d.save.temp.room.data.buttons.donation,'#ffd700');
 			// Сделать кнопку пожертвования "эпичной": добавить класс для пульсации
 			if(d.save.temp.room.data.buttons.donation && !d.save.temp.room.data.buttons.donation.classList.contains('epic-donation-button')){
