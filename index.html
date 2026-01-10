@@ -26,6 +26,12 @@
             font-style:normal;
             font-display:block;
         }
+        #html-overlay{
+            position:absolute;
+            top:0;
+            left:0;
+            pointer-events:auto; /* Разрешить взаимодействие с HTML-элементами */
+        }
     </style>
     <link rel="icon" type="image/png">
 </head>
@@ -38,17 +44,16 @@
             const height=600;
             const features=`width=${width},height=${height},left=${(screen.width-width)/2},top=${(screen.height-height)/2}`;
             //Пытаемся открыть новое окно
-            const newWindow=window.open(`${window.location.href}?child=1`,'_blank',features);
-            if (newWindow) {
+            const new_window=window.open(`${window.location.href}?child=1`,'_blank',features);
+            if(new_window){
                 // Закрываем текущее окно после успешного открытия
                 window.close();
-            } else {
+            }else{
                 // Проверяем браузер пользователя
-                const isChrome = /Chrome/.test(navigator.userAgent) && !/Edg|Edge/.test(navigator.userAgent);
-                let chromeAlert = '';
-                
-                if (!isChrome) {
-                    chromeAlert = `
+                const is_chrome=/Chrome/.test(navigator.userAgent)&&!/Edg|Edge/.test(navigator.userAgent);
+                let chrome_alert='';
+                if(!is_chrome){
+                    chrome_alert=`
                         <div style="padding: 15px; color: #000; background: #ffeb3b; margin-bottom: 10px; border-radius: 4px;">
                             Рекомендуется запускать в Google Chrome: 
                             <a href="https://www.google.com/intl/ru_ru/chrome/" 
@@ -58,9 +63,8 @@
                             </a>
                         </div>`;
                 }
-
                 // Формируем полное сообщение
-                document.body.innerHTML = chromeAlert + `
+                document.body.innerHTML=chrome_alert+`
                     <div style="padding: 20px; color: white; background: #d32f2f; border-radius: 4px;">
                         Разрешите всплывающие окна для этого сайта и обновите страницу!
                     </div>`;
@@ -84,90 +88,107 @@
                     backgroundColor:0x000000,
                 });
                 app.init().then(()=>{
+                    /*добавление в разметку canvas-а pixijs*/
                     document.body.appendChild(app.view);
-                    const textStyle=new PIXI.TextStyle({
+                    /*добавление в разметку html-overlay*/
+                    const overlay=document.createElement('div');
+                    overlay.id='html-overlay';
+                    document.body.appendChild(overlay);
+                    /*настройки*/
+                    const symbol_size=10;
+                    let room,preparation;
+                    function change_room(room_,preparation_=true){
+                        room=room_;
+                        preparation=preparation_;
+                    }
+                    const text_style=new PIXI.TextStyle({
                         fontFamily:'CODERROR',
-                        fontSize:10,
+                        fontSize:symbol_size,
                         fill:0xFFFFFF,
                     });
-                    let symbolsPool=[];
+                    let symbols_grid=[];//двумерный массив для символов
                     let columns=0;
                     let rows=0;
-                    const updateSize=()=>{
-                        app.renderer.resize(window.innerWidth,window.innerHeight);
-                        calculateGrid();
-                        updatePool();
-                    };
-                    function calculateGrid(){
-                        columns=Math.ceil(app.renderer.width/10);
-                        rows=Math.ceil(app.renderer.height/10);
+
+                    function update_symbols_grid(){
+                        columns=Math.ceil(app.renderer.width/symbol_size);
+                        rows=Math.ceil(app.renderer.height/symbol_size);
+                        // Удаляем старые символы
+                        symbols_grid.forEach(row=>{
+                            row.forEach(symbol=>symbol.destroy());
+                        });
+                        symbols_grid=[];// Сбрасываем массив
+                        // Создаем новую сетку
+                        for(let y=0;y<rows;y++){
+                            symbols_grid[y]=[];
+                            for(let x=0;x<columns;x++){
+                                const symbol=new PIXI.Text('',text_style);
+                                symbol.resolution=20;
+                                symbol.position.set(x*symbol_size,y*symbol_size);
+                                app.stage.addChild(symbol);
+                                symbols_grid[y][x]=symbol;
+                            }
+                        }
                     }
-                    function getRandomChar(){
+                    const update_size=()=>{
+                        app.renderer.resize(window.innerWidth,window.innerHeight);
+                        update_symbols_grid();
+                    };
+                    function visual_effect(number){
+                        if(number==0){
+                            for(let y=0;y<symbols_grid.length;y++){
+                                for(let x=0;x<symbols_grid[y].length;x++){
+                                    const symbol=symbols_grid[y][x];
+                                    symbol.text=get_random_char();
+                                    symbol.tint=get_random_color();
+                                }
+                            }
+                        }
+                    }
+                    function get_random_char(){
                         return String.fromCharCode(Math.floor(Math.random()*(126-33+1))+33);
                     }
-                    function getRandomColor(){
+                    function get_random_color(){
                         return Math.floor(Math.random()*0xFFFFFF);
                     }
                     //для иконки
                     const dpr=window.devicePixelRatio||1;
-                    const baseSize=16;// Базовый размер в логических пикселях
-                    const physicalSize=Math.round(baseSize * dpr);
-                    const symbolSize=10;
+                    const favicon_size=Math.round(16*dpr);
                     const canvas=document.createElement('canvas');
-                    canvas.width=physicalSize;
-                    canvas.height=physicalSize;
+                    canvas.width=favicon_size;
+                    canvas.height=favicon_size;
                     const ctx=canvas.getContext('2d');
-                    ctx.font=`${symbolSize}px CODERROR`;
+                    ctx.font=`${symbol_size}px CODERROR`;
                     ctx.textAlign='center';
                     ctx.textBaseline='middle';
                     const link=document.querySelector('link[rel="icon"]');
                     
-                    function generateFavicon(){
+                    function generate_favicon(){
                         // Очищаем холст
-                        ctx.clearRect(0,0,physicalSize,physicalSize);
+                        ctx.clearRect(0,0,favicon_size,favicon_size);
                         // Настройки текста
-                        ctx.fillStyle=`#${getRandomColor().toString(16).padStart(6,'0')}`;
+                        ctx.fillStyle=`#${get_random_color().toString(16).padStart(6,'0')}`;
                         // Рисуем символ
-                        ctx.fillText(getRandomChar(),physicalSize/2,physicalSize/2);
+                        ctx.fillText(get_random_char(),favicon_size/2,favicon_size/2);
                         // Обновляем иконку
-                        canvas.toBlob(blob => {
-                            link.href = URL.createObjectURL(blob);
-                        }, 'image/png');
+                        canvas.toBlob(blob=>{
+                            link.href=URL.createObjectURL(blob);
+                        },'image/png');
                     }
-                    function updatePool(){
-                        const required=columns*rows;
-                        while(symbolsPool.length<required){
-                            const symbol=new PIXI.Text('',textStyle);
-                            symbol.resolution=20;
-                            symbol.visible=false;
-                            app.stage.addChild(symbol);
-                            symbolsPool.push(symbol);
-                        }
-                        let index=0;
-                        for(let y=0;y<rows;y++){
-                            for(let x=0;x<columns;x++){
-                                const symbol=symbolsPool[index];
-                                symbol.text=getRandomChar();
-                                symbol.tint=getRandomColor();
-                                symbol.position.set(x*10,y*10);
-                                symbol.visible=true;
-                                index++;
-                            }
-                        }
-                        for(let i=index;i<symbolsPool.length;i++){
-                            symbolsPool[i].visible=false;
-                        }
-                    }
-                    updateSize();
-                    window.addEventListener('resize',updateSize);
+                    update_size();
+                    window.addEventListener('resize',update_size);
                     /*обновление favicon*/
                     const faviconInterval=setInterval(()=>{
-                        generateFavicon();
+                        generate_favicon();
                     },1000/5);
+                    /*финальная настройка*/
+                    change_room(0);
                     /*главный цикл*/
                     app.ticker.add(()=>{
-                        updatePool();
                         document.title=`CODERROR FPS: ${app.ticker.FPS.toFixed(2)}`;
+                        if(room==0){
+                            visual_effect(0);
+                        }
                     });
                     app.ticker.maxFPS=60;
                 }).catch(console.error);
