@@ -13,5 +13,5 @@ if not exist "%CHROME_DATA_DIR%" (
     )
 )
 :: Запускаем Chrome с настройками
-start chrome --disable-web-security --user-data-dir="%CHROME_DATA_DIR%" "%~dp0index.html"
+start chrome --disable-popup-blocking --disable-web-security --user-data-dir="%CHROME_DATA_DIR%" "%~dp0index.html"
 endlocal
