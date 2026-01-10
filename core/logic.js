@@ -72,6 +72,37 @@ function update_game_logic(){
 		lock_inventory=false;
 	}
 	/*комнаты*/
+	if(room=='disclaimer'){
+		if(preparation){
+			init_audio();
+			set_interface_visibility(false);
+			room_data={
+				scrollable:create_element_from_HTML(`<div class='scrollable'/>`),
+				div:create_element_from_HTML(`<div class="center column fill-parent"/>`),
+				button_continue:create_button_from_text(`принять риск и продолжить\n\ntake the risk and continue`),
+			}
+			room_data.scrollable.appendChild(room_data.div);
+			room_data.div.appendChild(create_element_from_HTML(`<div>${get_transparent_space_text(`ДИСКЛЕЙМЕР | DISCLAIMER`,'#FF1D34')}</div>`));
+			room_data.div.appendChild(get_br());
+			room_data.div.appendChild(get_symbolic_hr());
+			room_data.div.appendChild(get_br());
+			room_data.div.appendChild(create_element_from_HTML(`<div style='text-align:center'>${get_transparent_space_text(`Игра содержит часто сменяющиеся мелькающие цвета, что может вызвать приступ эпилепсии.\n\nАвтор не чурается использовать информацию из любых источников, такую как аудио и текстуры, даже если они возможно обладают авторскими правами, и просит простить его за это)`,'#FF1D34')}</div>`));
+			room_data.div.appendChild(get_br());
+			room_data.div.appendChild(get_symbolic_hr());
+			room_data.div.appendChild(get_br());
+			room_data.div.appendChild(create_element_from_HTML(`<div style='text-align:center'>${get_transparent_space_text(`The game contains frequently changing flashing colors, which may cause an epileptic seizure.\n\nThe author does not shy away from using information from any source, such as audio and textures, even if they may have copyrights, and asks for forgiveness for this)`,'#FF1D34')}</div>`));
+			room_data.div.appendChild(get_br());
+			room_data.div.appendChild(get_symbolic_hr());
+			room_data.div.appendChild(get_br());
+			room_data.div.appendChild(room_data.button_continue);
+			room_data.button_continue.addEventListener('click',()=>{
+				change_room('main_menu');
+			});
+			change_button_text_color(room_data.button_continue,'#FF1D34');
+			overlay.appendChild(room_data.scrollable);
+			preparation=false;
+		}
+	}
 	if(room=='main_menu'){
 		if(preparation){
 			set_sky('images/skies/glitch','png');

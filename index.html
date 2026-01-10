@@ -312,7 +312,7 @@ if(!window.location.search.includes('child=1')){
 				let room_data,player;
 				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.32.2';
+				window.version='(1)0.32.3';
 				/*инициализация сцены three*/
 				let three_scene=new THREE.Scene();
 				three_scene.background=null;
@@ -1523,7 +1523,7 @@ if(!window.location.search.includes('child=1')){
 				document.addEventListener('contextmenu',(e)=>{
 					e.preventDefault();/*отключаем контекстные меню глобально. я сам ими пользовался для вызова консоли, но они могут помешать игре, если что-то забинжено на правую кнопку мыши*/
 				});
-				room='main_menu'
+				change_room('disclaimer');
 				apply_settings();
 				let input_tracker=setup_input_tracker();
 				let logical_symbol_size=16;
