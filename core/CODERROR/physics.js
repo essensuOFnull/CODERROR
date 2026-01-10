@@ -96,25 +96,26 @@ function update_game_logic(){
 				loading.style.display='block';
 				/*получение доступа к своей же папке*/
 				f.init_file_access().then(()=>{
-					f.init_symbols_grid();
-					try{
-						/*используя полученные возможности, продолжаем загрузку игры*/
-						/*загружаем языки*/
-						f.load_languages().then(()=>{
-							/*загружаем и применяем настройки*/
-							f.read_file('YOUR_DATA/settings.json').then((text)=>{
-								if(text){
-									d.settings=JSON.parse(text);
-									f.apply_settings();
-									f.print_to_chat(d.language.notifications.settings_loaded);
-								}
+					f.init_symbols_grid().then(()=>{
+						try{
+							/*используя полученные возможности, продолжаем загрузку игры*/
+							/*загружаем языки*/
+							f.load_languages().then(()=>{
+								/*загружаем и применяем настройки*/
+								f.read_file('YOUR_DATA/settings.json').then((text)=>{
+									if(text){
+										d.settings=JSON.parse(text);
+										f.apply_settings();
+										f.print_to_chat(d.language.notifications.settings_loaded);
+									}
+								});
 							});
-						});
-					}catch(e){
-						f.print_to_chat(d.language.errors.common(e));
-					}
-					loading.style.display='none';
-					f.change_room('main_menu');
+						}catch(e){
+							f.print_to_chat(d.language.errors.common(e));
+						}
+						loading.style.display='none';
+						f.change_room('main_menu');
+					});
 				}).catch(e=>{ console.warn('init_file_access failed:', e); });
 			});
 			f.change_button_text_color(d.save.temp.room.data.button_continue,'#FF1D34');
@@ -560,9 +561,10 @@ L n L q L q H  U n U n L q U n
 			});
 			video.addEventListener('ended',()=>{
 				f.clear_pixijs();
-				f.init_symbols_grid();
-				f.init_three_scene();
-				f.change_room('recycle_bin');
+				f.init_symbols_grid().then(()=>{
+					f.init_three_scene();
+					f.change_room('recycle_bin');
+				});
 			});
 		});
 	}

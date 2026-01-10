@@ -112,9 +112,11 @@ f.check_font_loaded('CODERROR').then(() => {
 		d.columns;
 		/**количество строк сетки символов*/
 		d.rows;
+		/*инициализируем символы*/
+		f.init_printable_symbols();
 		/**отображаемый размер шрифта*/
 		d.symbol_size;
-		f.init_printable_symbols();
+		f.set_font_size(16,true);
 		/**/
 		window.addEventListener('resize',f.update_size);
 		d.dragover_states=new WeakMap();

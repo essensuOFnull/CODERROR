@@ -174,20 +174,19 @@ change_room(room,preparation=true,reset_overlay=true){
 	if(!reset_overlay)return
 	d.overlay.innerHTML=``;
 },
-/** Упрощенная инициализация матрицы символов */
-init_symbols_grid() {
+/**инициализация матрицы символов */
+async init_symbols_grid() {
     d.symbols_grid = [];
     d.symbols_grid_data = [];
     d.columns = 0;
     d.rows = 0;
     
     // Создаем атласы символов (загружаем с диска или создаем новые)
-    f.init_symbols_atlas();
-    
-    // Создаем текстуру для белого пикселя (для фона)
-    d.white_texture = PIXI.Texture.WHITE;
-    
-    f.set_font_size(d.symbol_size || 16);
+    await f.init_symbols_atlas()
+	// Создаем текстуру для белого пикселя (для фона)
+	d.white_texture = PIXI.Texture.WHITE;
+
+	f.update_symbols_grid();
 },
 /** Обновляет размеры матрицы символов */
 update_symbols_grid() {
@@ -403,13 +402,18 @@ set_text_data(x, y, text, textColor = 0xFFFFFF, bgColor = 0x000000, bgAlpha = 0)
 	}
 },
 /** Устанавливает размер шрифта */
-set_font_size(size_in_pixels) {
-    d.symbol_size = size_in_pixels;
-    d.styleSheet.insertRule(":root{--symbol_size:" + d.symbol_size + "px !important;}", d.styleSheet.cssRules.length);
-    
-    // Пересоздаем атлас с новым размером
-    f.init_symbols_atlas();
-    f.update_symbols_grid();
+set_font_size(size_in_pixels,first_init=false) {
+	if(d.symbol_size!=size_in_pixels){
+		d.symbol_size = size_in_pixels;
+		d.styleSheet.insertRule(":root{--symbol_size:" + d.symbol_size + "px !important;}", d.styleSheet.cssRules.length);
+		
+		if(!first_init){
+			// Пересоздаем атлас с новым размером
+			f.init_symbols_atlas().then(()=>{
+				f.update_symbols_grid();
+			});
+		}
+	}
 },
 update_size() {
 	/*Получаем актуальные размеры контейнера*/
@@ -558,56 +562,155 @@ check_font_loaded(fontName, timeout = 3000) {
         check();
     });
 },
-init_symbols_atlas() {
-    // Создаем папку TEMP если её нет
-    f.create_directory('TEMP').catch(() => {});
-    
-    // Всегда создаем атласы в памяти
-    f.create_symbols_atlas();
-    
-    // Сохраняем атласы на диск асинхронно (не блокируем основной поток)
-    setTimeout(() => {
-        for (let i = 0; i < d.symbols_atlases.length; i++) {
-            const atlas = d.symbols_atlases[i];
-            const fileName = `TEMP/symbols_atlas_${d.symbol_size}_${i}.png`;
+/**инициализирует матрицу символов */
+async init_symbols_atlas() {
+    // Проверяем наличие кэша атласов СИНХРОННО
+    await f.check_atlas_cache().then(async cacheValid => {
+        if (cacheValid) {
+            console.log('Using cached symbol atlases');
+            // Загружаем атласы из кэша
+            await f.load_cached_atlases();
+        } else {
+            console.log('Generating new symbol atlases');
+            // Создаем атласы в памяти
+            await f.create_symbols_atlas();
+        }
+    }).catch(async error => {
+        console.warn('Cache check failed, generating new atlases:', error);
+        await f.create_symbols_atlas();
+    });
+},
+/** Проверяет валидность кэша атласов */
+check_atlas_cache() {
+    return new Promise((resolve, reject) => {
+        const infoPath = `CACHE/symbols_atlases/${d.symbol_size}/info.json`;
+        
+        f.file_exists(infoPath).then(exists => {
+            if (!exists) {
+                resolve(false);
+                return;
+            }
             
-            // Используем canvas который мы сохранили
-            if (atlas.canvas) {
+            // Читаем информацию о кэше
+            f.read_file(infoPath).then(infoData => {
                 try {
-                    // Конвертируем canvas в Data URL синхронно
-                    const dataURL = atlas.canvas.toDataURL('image/png');
+                    const info = JSON.parse(infoData);
                     
-                    // Извлекаем base64 данные из Data URL
-                    const base64Data = dataURL.split(',')[1];
-                    
-                    // Конвертируем base64 в бинарные данные
-                    const binaryString = atob(base64Data);
-                    const len = binaryString.length;
-                    const bytes = new Uint8Array(len);
-                    
-                    for (let j = 0; j < len; j++) {
-                        bytes[j] = binaryString.charCodeAt(j);
+                    // Проверяем версию и размер символов
+                    if (info.version !== 1 || info.symbol_size !== d.symbol_size) {
+                        resolve(false);
+                        return;
                     }
                     
-                    // Сохраняем как бинарные данные
-                    f.write_file(fileName, bytes).then(() => {
-                        console.log('Atlas saved:', fileName);
-                    }).catch(error => {
-                        console.warn('Failed to save atlas:', error);
-                    });
+                    // Проверяем существование всех файлов атласов
+                    const checkPromises = info.atlases.map(atlasInfo => 
+                        f.file_exists(atlasInfo.filename)
+                    );
+                    
+                    Promise.all(checkPromises).then(results => {
+                        const allExist = results.every(exists => exists);
+                        resolve(allExist);
+                    }).catch(reject);
                     
                 } catch (error) {
-                    console.error('Error saving atlas:', error);
+                    reject(error);
                 }
-            }
-        }
-    }, 100);
+            }).catch(reject);
+        }).catch(reject);
+    });
+},
+/** Загружает атласы из кэша */
+load_cached_atlases() {
+    return new Promise((resolve, reject) => {
+        const infoPath = `CACHE/symbols_atlases/${d.symbol_size}/info.json`;
+        
+        f.read_file(infoPath).then(infoData => {
+            const info = JSON.parse(infoData);
+            
+            d.symbols_atlases = [];
+            d.symbols_atlas_map = info.symbols_map;
+            
+            // Загружаем каждый атлас
+            const loadPromises = info.atlases.map((atlasInfo, index) => {
+                return new Promise((resolve, reject) => {
+                    // Создаем изображение для загрузки текстуры
+                    const img = new Image();
+                    img.onload = () => {
+                        const texture = PIXI.Texture.from(img);
+                        d.symbols_atlases[index] = {
+                            texture: texture,
+                            cols: atlasInfo.cols,
+                            rows: atlasInfo.rows
+                        };
+                        resolve();
+                    };
+                    img.onerror = reject;
+                    img.src = atlasInfo.filename;
+                });
+            });
+            
+            Promise.all(loadPromises).then(() => {
+                console.log(`Loaded ${d.symbols_atlases.length} cached atlases`);
+                resolve();
+            }).catch(error => {
+                reject(error);
+            });
+            
+        }).catch(error => {
+            reject(error);
+        });
+    });
+},
+/** Сохраняет атласы на диск вместе с информацией */
+save_atlases_to_disk() {
+    if (!d.symbols_atlases || d.symbols_atlases.length === 0) {
+        console.warn('No atlases to save');
+        return;
+    }
+    
+    // Создаем информацию об атласах для сохранения
+    const atlasInfo = {
+        version: 1,
+        symbol_size: d.symbol_size,
+        atlases: [],
+        symbols_map: d.symbols_atlas_map
+    };
+    
+    // Сохраняем каждый атлас и собираем информацию
+    const savePromises = d.symbols_atlases.map((atlas, index) => {
+        const fileName = `CACHE/symbols_atlases/${d.symbol_size}/${index}.png`;
+        
+        atlasInfo.atlases.push({
+            filename: fileName,
+            cols: atlas.cols,
+            rows: atlas.rows
+        });
+        
+        return f.save_atlas_as_PNG(atlas.canvas, index, fileName);
+    });
+    
+    // Сохраняем информацию об атласах
+    const infoPath = `CACHE/symbols_atlases/${d.symbol_size}/info.json`;
+    const infoJson = JSON.stringify(atlasInfo, null, 2);
+    
+    savePromises.push(f.write_file(infoPath, infoJson));
+    
+    Promise.all(savePromises).then(() => {
+        console.log('All atlases and info saved successfully');
+    }).catch(error => {
+        console.error('Error saving atlases:', error);
+    });
 },
 /** Создает битмап-атласы символов (разделенные на чанки) в высоком качестве */
 create_symbols_atlas() {
     if (!d.printable_symbols || d.printable_symbols.length === 0) {
         f.init_printable_symbols();
     }
+    
+    // Если printable_symbols - строка, преобразуем в массив символов
+    const symbolsArray = typeof d.printable_symbols === 'string' 
+        ? Array.from(d.printable_symbols) 
+        : d.printable_symbols;
     
     const size = d.symbol_size;
     const resolution = 4;
@@ -618,8 +721,9 @@ create_symbols_atlas() {
     d.symbols_atlases = [];
     d.symbols_atlas_map = {};
     
-    for (let i = 0; i < d.printable_symbols.length; i += symbolsPerAtlas) {
-        const chunk = d.printable_symbols.slice(i, Math.min(i + symbolsPerAtlas, d.printable_symbols.length));
+    // Создаем все атласы
+    for (let i = 0; i < symbolsArray.length; i += symbolsPerAtlas) {
+        const chunk = symbolsArray.slice(i, Math.min(i + symbolsPerAtlas, symbolsArray.length));
         
         if (chunk.length === 0) {
             console.warn('Empty chunk encountered, skipping atlas creation');
@@ -628,11 +732,9 @@ create_symbols_atlas() {
         
         const atlasIndex = d.symbols_atlases.length;
         
-        // ИСПРАВЛЕННЫЙ РАСЧЕТ СЕТКИ:
         const cols = Math.min(symbolsPerRow, chunk.length);
         const rows = Math.ceil(chunk.length / cols);
         
-        // Создаем финальный canvas для атласа
         const finalCanvas = document.createElement('canvas');
         finalCanvas.width = cols * size;
         finalCanvas.height = rows * size;
@@ -644,13 +746,9 @@ create_symbols_atlas() {
         
         const finalCtx = finalCanvas.getContext('2d');
         finalCtx.imageSmoothingEnabled = false;
-        finalCtx.webkitImageSmoothingEnabled = false;
-        finalCtx.mozImageSmoothingEnabled = false;
-        finalCtx.msImageSmoothingEnabled = false;
         
         finalCtx.clearRect(0, 0, finalCanvas.width, finalCanvas.height);
         
-        // Создаем временный canvas для одного символа
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = size * resolution;
         tempCanvas.height = size * resolution;
@@ -661,23 +759,18 @@ create_symbols_atlas() {
         tempCtx.textBaseline = 'top';
         tempCtx.fillStyle = '#ffffff';
         
-        // Отрисовываем каждый символ в чанке
         for (let j = 0; j < chunk.length; j++) {
             const char = chunk[j];
             
-            // ИСПРАВЛЕННЫЙ РАСЧЕТ ПОЗИЦИИ:
             const col = j % cols;
             const row = Math.floor(j / cols);
             
-            // Очищаем временный canvas
             tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
             
-            // Рисуем символ во временном canvas
             const x = 0;
             const y = 0;
             tempCtx.fillText(char, x, y);
             
-            // Масштабируем и копируем в финальный canvas
             const destX = col * size;
             const destY = row * size;
             
@@ -687,7 +780,6 @@ create_symbols_atlas() {
                 destX, destY, size, size
             );
             
-            // Сохраняем информацию о позиции символа
             d.symbols_atlas_map[char] = {
                 atlasIndex: atlasIndex,
                 charIndex: j,
@@ -696,26 +788,30 @@ create_symbols_atlas() {
             };
         }
         
-        // Создаем текстуру из финального canvas
-        const texture = PIXI.Texture.from(finalCanvas);
-        
-        d.symbols_atlases.push({
-            texture: texture,
+        const atlasData = {
+            texture: PIXI.Texture.from(finalCanvas),
             cols: cols,
-            rows: rows
-        });
-
-        f.save_atlas_as_PNG(finalCanvas,atlasIndex);
-
+            rows: rows,
+            canvas: finalCanvas
+        };
+        
+        d.symbols_atlases.push(atlasData);
         console.log(`Created atlas ${atlasIndex}: ${cols}x${rows} symbols, ${finalCanvas.width}x${finalCanvas.height} pixels, ${chunk.length} chars`);
     }
     
     if (d.symbols_atlases.length === 0) {
         console.error('No atlases were created - check printable_symbols and symbol_size');
+        return;
     }
+
+    f.save_atlases_to_disk();
 },
-// Новая функция для сохранения PNG через f.write_file
-save_atlas_as_PNG(canvas, index) {
+// Обновленная функция для сохранения PNG
+save_atlas_as_PNG(canvas, index, fileName = null) {
+    if (!fileName) {
+        fileName = `CACHE/symbols_atlases/${d.symbol_size}/${index}.png`;
+    }
+    
     return new Promise((resolve, reject) => {
         // Метод 1: Используем toDataURL как запасной вариант
         try {
@@ -728,9 +824,9 @@ save_atlas_as_PNG(canvas, index) {
                 uint8Array[i] = binaryString.charCodeAt(i);
             }
             
-            f.write_file(`TEMP/symbols_atlas/${index}.png`, uint8Array)
+            f.write_file(fileName, uint8Array)
                 .then(() => {
-                    console.log(`Atlas ${index} saved via DataURL method`);
+                    console.log(`Atlas ${index} saved: ${fileName}`);
                     resolve();
                 })
                 .catch(reject);
