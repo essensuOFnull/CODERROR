@@ -201,7 +201,7 @@ if(!window.location.search.includes('child=1')){
 			app.init().then(()=>{
 				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.25.0';
+				window.version='(1)0.25.1';
 				/*добавление в разметку canvas-а pixijs*/
 				wrapper.appendChild(app.view);
 				/*добавление в разметку html-overlay*/
@@ -992,9 +992,9 @@ if(!window.location.search.includes('child=1')){
 			        for(let line of lines){
 			            let temp_row=[];
 			            for(let char of line){
-							temp_row.push(...Array(symbol_size).fill(!void_symbols.includes(char)));
+							temp_row.push(...Array(logical_symbol_size).fill(!void_symbols.includes(char)));
 						}
-						for(let y=0;y<symbol_size;y++){
+						for(let y=0;y<logical_symbol_size;y++){
 							collider.push([...temp_row]);
 						}
 					}
@@ -1016,6 +1016,7 @@ if(!window.location.search.includes('child=1')){
 				room='main_menu'
 				apply_settings();
 				let input_tracker=setup_input_tracker();
+				let logical_symbol_size=10;
 				/*главный цикл*/
 				app.ticker.add(()=>{
 					document.title=`CODERROR ${window.version} FPS: ${app.ticker.FPS.toFixed(2)} - ${window.splash}`;
@@ -1340,7 +1341,7 @@ L n L q L q H  U n U n L q U n
 								camera:[0,0]
 							};
 							player={
-								coordinates:[35*symbol_size,-25*symbol_size],
+								coordinates:[35*logical_symbol_size,-25*logical_symbol_size],
 								collider:[],
 								walk_delay:0,
 								max_walk_delay:2,
@@ -1351,16 +1352,20 @@ L n L q L q H  U n U n L q U n
 						}
 						/*очистка*/
 						clear_symbols_grid();
+						/*переводит логические координаты в координаты на экране*/
+						function logical_to_screen(num){
+							return num/logical_symbol_size*symbol_size;
+						}
 						/*настройки камеры*/
 						function focus_camera_on_player(){
-							room_data.camera=[player.coordinates[0]-(Math.floor(columns/2)*symbol_size),player.coordinates[1]-(Math.floor(rows/2)*symbol_size)];
+							room_data.camera=[logical_to_screen(player.coordinates[0])-(Math.floor(columns/2)*symbol_size),logical_to_screen(player.coordinates[1])-(Math.floor(rows/2)*symbol_size)];
 						}
 						focus_camera_on_player();
 						/*отрисовка карты*/
 						print_text_to_symbols_grid(room_data.ground.text,0-room_data.camera[0]/symbol_size,0-room_data.camera[1]/symbol_size);
 						/*расчет коллайдеров*/
 						function update_player_collider(){
-							player.collider=[[player.coordinates[0],player.coordinates[1]],[player.coordinates[0]+symbol_size,player.coordinates[1]+symbol_size]];
+							player.collider=[[player.coordinates[0],player.coordinates[1]],[player.coordinates[0]+logical_symbol_size,player.coordinates[1]+logical_symbol_size]];
 						}
 						/*расчет коллизии*/
 						let nothing_below,nothing_left,nothing_right,nothing_higher;
@@ -1411,7 +1416,7 @@ L n L q L q H  U n U n L q U n
 						/*расчет скина игрока*/
 						let fractional=[false,false];
 						for(let i=0;i<=1;i++){
-							if(player.coordinates[i]/symbol_size!=Math.floor(player.coordinates[i]/symbol_size)){
+							if(player.coordinates[i]/logical_symbol_size!=Math.floor(player.coordinates[i]/logical_symbol_size)){
 								fractional[i]=true;
 							}
 						}
@@ -1432,12 +1437,12 @@ L n L q L q H  U n U n L q U n
 						/*обработка движения*/
 						if(player.walk_delay<=0){
 							if(nothing_right&&activated_actions.has('right')){
-								player.coordinates[0]=Math.round(player.coordinates[0]+0.5*symbol_size);
+								player.coordinates[0]=Math.round(player.coordinates[0]+0.5*logical_symbol_size);
 								player.walk_delay=player.max_walk_delay;
 								update_collision();
 							}
 							if(nothing_left&&activated_actions.has('left')){
-								player.coordinates[0]=Math.round(player.coordinates[0]-0.5*symbol_size);
+								player.coordinates[0]=Math.round(player.coordinates[0]-0.5*logical_symbol_size);
 								player.walk_delay=player.max_walk_delay;
 								update_collision();
 							}
@@ -1445,15 +1450,15 @@ L n L q L q H  U n U n L q U n
 							player.walk_delay--;
 						}
 						if(nothing_higher&&activated_actions.has('jump')){
-							player.coordinates[1]=Math.round(player.coordinates[1]-0.5*symbol_size);
+							player.coordinates[1]=Math.round(player.coordinates[1]-0.5*logical_symbol_size);
 							update_collision();
 						}else if(nothing_below){
-							player.coordinates[1]=Math.round(player.coordinates[1]+0.5*symbol_size);
+							player.coordinates[1]=Math.round(player.coordinates[1]+0.5*logical_symbol_size);
 							update_collision();
 						}
 						/*отрисовка игрока*/
 						focus_camera_on_player();
-						let rendering_coordinates=[player.coordinates[0]-room_data.camera[0],player.coordinates[1]-room_data.camera[1]];
+						let rendering_coordinates=[logical_to_screen(player.coordinates[0])-room_data.camera[0],logical_to_screen(player.coordinates[1])-room_data.camera[1]];
 						if(fractional[0]){
 							rendering_coordinates[0]--;
 						}
