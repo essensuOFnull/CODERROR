@@ -11,27 +11,14 @@ setInterval(()=>{
 	tps_count=0;
 	last_measure=now;
 },1000);
-/*инициализация всех возможных параметров игрока*/
-player={
-	interface:{
-		hotbar:{
-			active_slot_index:0,
-			slot_count:10,
-		},
-	},
-	coordinates:[],
-	collider:[],
-	walk_delay:0,
-	max_walk_delay:0,
-};
 /*инициализация интерфейса*/
 update_interface();
 /**/
 let lock_inventory=false;
 /*функция главного цикла*/
 function update_game_logic(){
-	if(preparation){
-		print_to_chat(window.language.notifications.current_room(room));
+	if(save.room.preparation){
+		print_to_chat(window.language.notifications.current_room(save.room.id));
 	}
 	tps_count++;
 	document.title=`CODERROR ${window.version} TPS: ${real_TPS} FPS: ${app.ticker.FPS.toFixed(2)} - ${window.splash}`;
@@ -72,43 +59,43 @@ function update_game_logic(){
 		lock_inventory=false;
 	}
 	/*комнаты*/
-	if(room=='disclaimer'){
-		if(preparation){
+	if(save.room.id=='disclaimer'){
+		if(save.room.preparation){
 			init_audio();
 			set_interface_visibility(false);
-			room_data={
+			save.room.data={
 				scrollable:create_element_from_HTML(`<div class='scrollable'/>`),
 				div:create_element_from_HTML(`<div class="center column fill-parent"/>`),
 				button_continue:create_button_from_text(`принять риск и продолжить\n\ntake the risk and continue`),
 			}
-			room_data.scrollable.appendChild(room_data.div);
-			room_data.div.appendChild(create_element_from_HTML(`<div>${get_transparent_space_text(`ДИСКЛЕЙМЕР | DISCLAIMER`,'#FF1D34')}</div>`));
-			room_data.div.appendChild(get_br());
-			room_data.div.appendChild(get_symbolic_hr());
-			room_data.div.appendChild(get_br());
-			room_data.div.appendChild(create_element_from_HTML(`<div style='text-align:center'>${get_transparent_space_text(`Игра содержит часто сменяющиеся мелькающие цвета, что может вызвать приступ эпилепсии.\n\nАвтор не чурается использовать информацию из любых источников, такую как аудио и текстуры, даже если они возможно обладают авторскими правами, и просит простить его за это)`,'#FF1D34')}</div>`));
-			room_data.div.appendChild(get_br());
-			room_data.div.appendChild(get_symbolic_hr());
-			room_data.div.appendChild(get_br());
-			room_data.div.appendChild(create_element_from_HTML(`<div style='text-align:center'>${get_transparent_space_text(`The game contains frequently changing flashing colors, which may cause an epileptic seizure.\n\nThe author does not shy away from using information from any source, such as audio and textures, even if they may have copyrights, and asks for forgiveness for this)`,'#FF1D34')}</div>`));
-			room_data.div.appendChild(get_br());
-			room_data.div.appendChild(get_symbolic_hr());
-			room_data.div.appendChild(get_br());
-			room_data.div.appendChild(room_data.button_continue);
-			room_data.button_continue.addEventListener('click',()=>{
+			save.room.data.scrollable.appendChild(save.room.data.div);
+			save.room.data.div.appendChild(create_element_from_HTML(`<div>${get_transparent_space_text(`ДИСКЛЕЙМЕР | DISCLAIMER`,'#FF1D34')}</div>`));
+			save.room.data.div.appendChild(get_br());
+			save.room.data.div.appendChild(get_symbolic_hr());
+			save.room.data.div.appendChild(get_br());
+			save.room.data.div.appendChild(create_element_from_HTML(`<div style='text-align:center'>${get_transparent_space_text(`Игра содержит часто сменяющиеся мелькающие цвета, что может вызвать приступ эпилепсии.\n\nАвтор не чурается использовать информацию из любых источников, такую как аудио и текстуры, даже если они возможно обладают авторскими правами, и просит простить его за это)`,'#FF1D34')}</div>`));
+			save.room.data.div.appendChild(get_br());
+			save.room.data.div.appendChild(get_symbolic_hr());
+			save.room.data.div.appendChild(get_br());
+			save.room.data.div.appendChild(create_element_from_HTML(`<div style='text-align:center'>${get_transparent_space_text(`The game contains frequently changing flashing colors, which may cause an epileptic seizure.\n\nThe author does not shy away from using information from any source, such as audio and textures, even if they may have copyrights, and asks for forgiveness for this)`,'#FF1D34')}</div>`));
+			save.room.data.div.appendChild(get_br());
+			save.room.data.div.appendChild(get_symbolic_hr());
+			save.room.data.div.appendChild(get_br());
+			save.room.data.div.appendChild(save.room.data.button_continue);
+			save.room.data.button_continue.addEventListener('click',()=>{
 				change_room('main_menu');
 			});
-			change_button_text_color(room_data.button_continue,'#FF1D34');
-			overlay.appendChild(room_data.scrollable);
-			preparation=false;
+			change_button_text_color(save.room.data.button_continue,'#FF1D34');
+			overlay.appendChild(save.room.data.scrollable);
+			finish_preparation();
 		}
 	}
-	if(room=='main_menu'){
-		if(preparation){
+	if(save.room.id=='main_menu'){
+		if(save.room.preparation){
 			set_sky('images/skies/glitch','png');
 			set_music('music/main_menu.mp3');
 			set_interface_visibility(false);
-			room_data={
+			save.room.data={
 				info:create_element_from_HTML(`<div>${get_transparent_space_text(`CODERROR ${window.version} by essensuOFnull`,'#c8c8c8')}</div>`),
 				logo:create_element_from_HTML(`<div class="center-horizontal">${get_transparent_space_text(String.raw`
 /T\ /T\ PT\ P] PT\ PT\ /T\ PT\
@@ -118,44 +105,47 @@ L n L q L q H  U n U n L q U n
 \_/ \_/ L_/ L] U U U U \_/ U U`.trim())}</div>`),
 				scrollable:create_element_from_HTML(`<div class="scrollable"/>`),
 				buttons_div:create_element_from_HTML(`<div class="center column fill-parent"/>`),
-				buttons:dict_to_buttons(window.language.rooms[room].buttons),
+				buttons:dict_to_buttons(window.language.rooms[save.room.id].buttons),
 				bug_counter:0
 			};
-			overlay.appendChild(room_data.info);
-			overlay.appendChild(room_data.logo);
-			change_button_color(room_data.buttons.exit,'#f00');
-			Object.entries(room_data.buttons).forEach(([name,el])=>{
-				room_data.buttons_div.appendChild(el);
-				room_data.buttons_div.appendChild(get_br());
+			overlay.appendChild(save.room.data.info);
+			overlay.appendChild(save.room.data.logo);
+			change_button_color(save.room.data.buttons.exit,'#f00');
+			Object.entries(save.room.data.buttons).forEach(([name,el])=>{
+				save.room.data.buttons_div.appendChild(el);
+				save.room.data.buttons_div.appendChild(get_br());
 			});
-			room_data.scrollable.appendChild(room_data.buttons_div);
-			overlay.appendChild(room_data.scrollable);
-			room_data.buttons.exit.addEventListener('click',()=>{
+			save.room.data.scrollable.appendChild(save.room.data.buttons_div);
+			overlay.appendChild(save.room.data.scrollable);
+			save.room.data.buttons.exit.addEventListener('click',()=>{
 				alert("⚠️ ERROR 400: Bad Request");
 				self.close();
 			});
-			room_data.buttons.authors.addEventListener('click',()=>{
+			save.room.data.buttons.authors.addEventListener('click',()=>{
 				change_room('authors');
 			});
-			room_data.buttons.settings.addEventListener('click',()=>{
+			save.room.data.buttons.settings.addEventListener('click',()=>{
 				change_room('settings');
 			});
-			room_data.buttons.new_game.addEventListener('click',()=>{
+			save.room.data.buttons.new_game.addEventListener('click',()=>{
 				change_room('intro0');
 			});
-			room_data.buttons.room_editor.addEventListener('click',()=>{
+			save.room.data.buttons.room_editor.addEventListener('click',()=>{
 				change_room('room_editor');
 			});
-			preparation=false;
+			save.room.data.buttons.continue.addEventListener('click',()=>{
+				change_room('continue');
+			});
+			finish_preparation();
 		}
 		rotate_sky(0.005,0.01,0);
 	}
-	if(room=='authors'){
-		if(preparation){
+	if(save.room.id=='authors'){
+		if(save.room.preparation){
 			set_sky('images/skies/glitch_anime_girls','png',false);
 			set_music('music/main_menu.mp3');
 			set_interface_visibility(false);
-			room_data={
+			save.room.data={
 				scrollable:create_element_from_HTML(`<div class="scrollable"/>`),
 				div1:create_element_from_HTML(`<div class="center column"/>`),
 				contribution:structuredClone(Object.entries(window.language.contribution)),
@@ -165,59 +155,59 @@ L n L q L q H  U n U n L q U n
 				},
 				y_sky_rotation:0,
 			};
-			overlay.appendChild(room_data.scrollable);
-			room_data.scrollable.appendChild(room_data.div1);
-			room_data.contribution.forEach(([name,contribution],i)=>{
-				room_data.contribution[i]=create_element_from_HTML(`<div>${get_transparent_space_text(`${name}⦑reset⦒ - ${contribution}`)}</div>`);
-				room_data.div1.appendChild(get_br());
-				room_data.div1.appendChild(room_data.contribution[i]);
+			overlay.appendChild(save.room.data.scrollable);
+			save.room.data.scrollable.appendChild(save.room.data.div1);
+			save.room.data.contribution.forEach(([name,contribution],i)=>{
+				save.room.data.contribution[i]=create_element_from_HTML(`<div>${get_transparent_space_text(`${name}⦑reset⦒ - ${contribution}`)}</div>`);
+				save.room.data.div1.appendChild(get_br());
+				save.room.data.div1.appendChild(save.room.data.contribution[i]);
 			});
-			overlay.appendChild(room_data.div2);
-			room_data.div2.appendChild(room_data.buttons.back);
-			room_data.buttons.back.addEventListener('click',()=>{
+			overlay.appendChild(save.room.data.div2);
+			save.room.data.div2.appendChild(save.room.data.buttons.back);
+			save.room.data.buttons.back.addEventListener('click',()=>{
 				change_room('main_menu');
 			});
-			preparation=false;
+			finish_preparation();
 		}
-		set_sky_rotation((mouse.y-wrapper.clientHeight/2)/1000,room_data.y_sky_rotation+(mouse.x-wrapper.clientWidth/2)/1000,0);
-		if(room_data.y_sky_rotation==Math.PI){
-			room_data.y_sky_rotation=0;
+		set_sky_rotation((mouse.y-wrapper.clientHeight/2)/1000,save.room.data.y_sky_rotation+(mouse.x-wrapper.clientWidth/2)/1000,0);
+		if(save.room.data.y_sky_rotation==Math.PI){
+			save.room.data.y_sky_rotation=0;
 		}
-		room_data.y_sky_rotation+=0.005;
+		save.room.data.y_sky_rotation+=0.005;
 	}
-	if(room=='settings'){
-		if(preparation){
+	if(save.room.id=='settings'){
+		if(save.room.preparation){
 			set_sky('images/skies/glitch','png');
 			set_music('music/main_menu.mp3');
 			set_interface_visibility(false);
-			room_data={
+			save.room.data={
 				scrollable:create_element_from_HTML(`<div class='scrollable'/>`),
 				div1:create_element_from_HTML(`<div class="center column"/>`),
-				drop_zone:wrap_in_frame(create_element_from_HTML(`<div class='drop_zone center'><div style='text-align:center;'>${get_transparent_space_text(window.language.rooms[room].drop_zone)}</div></div>`)),
+				drop_zone:wrap_in_frame(create_element_from_HTML(`<div class='drop_zone center'><div style='text-align:center;'>${get_transparent_space_text(window.language.rooms[save.room.id].drop_zone)}</div></div>`)),
 				div2:create_element_from_HTML(`<div class="center wrap"/>`),
-				buttons:dict_to_buttons(window.language.rooms[room].buttons),
+				buttons:dict_to_buttons(window.language.rooms[save.room.id].buttons),
 				settings_divs:{},
 			};
 			/*предсоздание разметки*/
-			overlay.appendChild(room_data.scrollable);
-			room_data.scrollable.appendChild(room_data.div1);
-			room_data.div1.appendChild(room_data.drop_zone);
-			room_data.div1.appendChild(get_br());
+			overlay.appendChild(save.room.data.scrollable);
+			save.room.data.scrollable.appendChild(save.room.data.div1);
+			save.room.data.div1.appendChild(save.room.data.drop_zone);
+			save.room.data.div1.appendChild(get_br());
 			Object.entries(window.language.settings).forEach(([section_id,section])=>{
-				room_data.div1.appendChild(get_symbolic_hr());
-				room_data.div1.appendChild(create_element_from_HTML(`<div>${get_transparent_space_text(section.name)}</div>`));
-				room_data.div1.appendChild(get_symbolic_hr());
-				room_data.div1.appendChild(get_br());
-				room_data.settings_divs[section_id]={};
+				save.room.data.div1.appendChild(get_symbolic_hr());
+				save.room.data.div1.appendChild(create_element_from_HTML(`<div>${get_transparent_space_text(section.name)}</div>`));
+				save.room.data.div1.appendChild(get_symbolic_hr());
+				save.room.data.div1.appendChild(get_br());
+				save.room.data.settings_divs[section_id]={};
 				Object.entries(section.options).forEach(([option_id,option])=>{
-					room_data.settings_divs[section_id][option_id]=create_element_from_HTML(`<div class='center'></div>`);
-					room_data.settings_divs[section_id][option_id].appendChild(create_element_from_HTML(`<div>${get_transparent_space_text(`${option.name}: `)}</div>`));
+					save.room.data.settings_divs[section_id][option_id]=create_element_from_HTML(`<div class='center'></div>`);
+					save.room.data.settings_divs[section_id][option_id].appendChild(create_element_from_HTML(`<div>${get_transparent_space_text(`${option.name}: `)}</div>`));
 					/*заполнение текущими значениями и необходимыми элементами интерфейса в зависимости от типа настройки*/
 					let values=create_element_from_HTML(`<div id='values'></div>`);
-					room_data.settings_divs[section_id][option_id].appendChild(values);
+					save.room.data.settings_divs[section_id][option_id].appendChild(values);
 					if(section_id=='interface'){
 						if(option_id=='language'){
-							let add_button=create_button_from_text(window.language.rooms[room].button_add);
+							let add_button=create_button_from_text(window.language.rooms[save.room.id].button_add);
 							change_button_text_color(add_button,'#0f0');
 							values.appendChild(add_button);
 							let create_select=()=>{
@@ -279,7 +269,7 @@ L n L q L q H  U n U n L q U n
 							});
 							values.appendChild(checkbox);
 						}else{
-							let add_button=create_button_from_text(window.language.rooms[room].button_add);
+							let add_button=create_button_from_text(window.language.rooms[save.room.id].button_add);
 							change_button_text_color(add_button,'#0f0');
 							values.appendChild(add_button);
 							let create_button=(text)=>{
@@ -293,7 +283,7 @@ L n L q L q H  U n U n L q U n
 									change_button_border_color(button,'#fff');
 								});
 								button.addEventListener('click',()=>{
-									change_button_text(button,window.language.rooms[room].messages.input);
+									change_button_text(button,window.language.rooms[save.room.id].messages.input);
 									setTimeout(()=>{
 										wait_user_input().then((result)=>{
 											change_button_text(button,result);
@@ -318,35 +308,35 @@ L n L q L q H  U n U n L q U n
 						}
 					}
 					/**/
-					room_data.div1.appendChild(room_data.settings_divs[section_id][option_id]);
-					room_data.div1.appendChild(get_br());
+					save.room.data.div1.appendChild(save.room.data.settings_divs[section_id][option_id]);
+					save.room.data.div1.appendChild(get_br());
 				});
 			});
 			/*завершение предсоздания интерфейса*/
-			overlay.appendChild(room_data.div2);
-			room_data.div2.appendChild(room_data.buttons.apply);
-			room_data.div2.appendChild(get_space());
-			room_data.div2.appendChild(room_data.buttons.back);
-			room_data.div2.appendChild(get_space());
-			room_data.div2.appendChild(room_data.buttons.save);
-			add_event_listener('get_json',room_data.drop_zone,(data)=>{
+			overlay.appendChild(save.room.data.div2);
+			save.room.data.div2.appendChild(save.room.data.buttons.apply);
+			save.room.data.div2.appendChild(get_space());
+			save.room.data.div2.appendChild(save.room.data.buttons.back);
+			save.room.data.div2.appendChild(get_space());
+			save.room.data.div2.appendChild(save.room.data.buttons.save);
+			add_event_listener('get_json',save.room.data.drop_zone,(data)=>{
 				window.settings=smart_merge([window.settings,data],9);
 				apply_settings();
 			});
-			room_data.buttons.back.addEventListener('click',()=>{
+			save.room.data.buttons.back.addEventListener('click',()=>{
 				change_room('main_menu');
 			});
-			room_data.buttons.save.addEventListener('click',()=>{
+			save.room.data.buttons.save.addEventListener('click',()=>{
 				save_as_json(window.settings,'settings.json');
 			});
-			room_data.buttons.apply.addEventListener('click',()=>{
+			save.room.data.buttons.apply.addEventListener('click',()=>{
 				let language_list=[];
-				for(let select of room_data.settings_divs.interface.language.querySelectorAll('select')){
+				for(let select of save.room.data.settings_divs.interface.language.querySelectorAll('select')){
 					language_list.push(select.value);
 				}
 				language_list=remove_duplicates(language_list);
 				window.settings.interface.language=language_list;
-				for(let[option_id,option]of Object.entries(room_data.settings_divs.control)){
+				for(let[option_id,option]of Object.entries(save.room.data.settings_divs.control)){
 					if(option_id!='bind_to_layout'){
 						let control_list=[];
 						for(button of option.querySelectorAll('button')){
@@ -359,19 +349,48 @@ L n L q L q H  U n U n L q U n
 				}
 				apply_settings();
 			});
-			preparation=false;
+			finish_preparation();
 		}
 		rotate_sky(0.005,0.01,0);
 	}
-	if(room=='room_editor'){
-		if(preparation){
+	if(save.room.id=='continue'){
+		if(save.room.preparation){
+			set_sky('images/skies/glitch','png');
+			set_music('music/main_menu.mp3');
+			set_interface_visibility(false);
+			save.room.data={
+				scrollable:create_element_from_HTML(`<div class='scrollable'/>`),
+				div1:create_element_from_HTML(`<div class="center column"/>`),
+				drop_zone:wrap_in_frame(create_element_from_HTML(`<div class='drop_zone center'><div style='text-align:center;'>${get_transparent_space_text(window.language.rooms[save.room.id].drop_zone)}</div></div>`)),
+				div2:create_element_from_HTML(`<div class="center wrap"/>`),
+				buttons:dict_to_buttons(window.language.rooms[save.room.id].buttons),
+				settings_divs:{},
+			};
+			overlay.appendChild(save.room.data.scrollable);
+			save.room.data.scrollable.appendChild(save.room.data.div1);
+			save.room.data.div1.appendChild(save.room.data.drop_zone);
+			save.room.data.div1.appendChild(get_br());
+			overlay.appendChild(save.room.data.div2);
+			save.room.data.div2.appendChild(save.room.data.buttons.back);
+			add_event_listener('get_json',save.room.data.drop_zone,(data)=>{
+				load_save(data);
+			});
+			save.room.data.buttons.back.addEventListener('click',()=>{
+				change_room('main_menu');
+			});
+			finish_preparation();
+		}
+		rotate_sky(0.005,0.01,0);
+	}
+	if(save.room.id=='room_editor'){
+		if(save.room.preparation){
 			set_interface_visibility(true);
 			clear_symbols_grid();
-			preparation=false;
+			finish_preparation();
 		}
 	}
-	if(room=='intro0'){
-		if(preparation){
+	if(save.room.id=='intro0'){
+		if(save.room.preparation){
 			set_music('music/Errorscape.mp3');
 			set_interface_visibility(false);
 			clear_pixijs();
@@ -394,21 +413,21 @@ L n L q L q H  U n U n L q U n
 				init_three_scene();
 				change_room('recycle_bin');
 			});
-			preparation=false;
+			finish_preparation();
 		}
 	}
-	if(room=='recycle_bin'){
-		if(preparation){
+	if(save.room.id=='recycle_bin'){
+		if(save.room.preparation){
 			set_sky('images/skies/glitch','png');
 			set_music('music/Errorscape.mp3');
 			set_interface_visibility(true);
-			room_data={
+			save.room.data={
 				ground:{
 					text:'   ░▒▓*#-~\n ░▒▓~~-~#=\\\n    ░▒▓#=*-\\__\n              \\^\n                \\\n                 \\\n                 |\n                 |\n                 |\n                  \\\n                  <_\n                    \\\n                     \\\n                      \\\n                       7\n                       \\\n                        \\_\n                          L\n                           \\__\n                              \\\n                               7\n                              /\n                              \\\n                               |\n                               |\n                               |\n                               |\n                              /\n                             |\n                             |\n                             /\n                            /\n                           /\n                        __/\n                       /  \n                      <\n                       \\\n                        7\n                       /         ____\n                      F         /    \\_ \n                      ]         L      \\___\n                     /          /          l\n                     |         F           |\n                     |         L           `\n                     |         /            L____\n                     |         \\______           L\n                     )          \\     \\____       \\_\n                     )          <____      \\_       L_____\n                     \\          /    \\       \\            L_\n                     Г         F    , \\_     |              \\__\n                     \\         \\ /`< , _|    |                /\n                      Y         Y   Z,/     _/               <______\n                      |         `  `  |    |_\n                      /         /     |      \\\n                     /         Г      \\_\n                     |         L       _|\n                     /          \\       \n                     >          <\n                     >          <\n                     >          <\n                     \\          /\n                     Y          Y\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I__________I_____',
 					collider:[]},
 				camera:[0,0]
 			};
-			Object.assign(player,
+			Object.assign(save.player,
 				{
 					coordinates:[35*logical_symbol_size,-25*logical_symbol_size],
 					collider:[],
@@ -416,31 +435,31 @@ L n L q L q H  U n U n L q U n
 					max_walk_delay:2,
 				}
 			);
-			room_data.ground.collider=text_to_collider(room_data.ground.text);
-			preparation=false;
+			save.room.data.ground.collider=text_to_collider(save.room.data.ground.text);
+			finish_preparation();
 		}
 		rotate_sky(0.005,0.01,0);
 		update_collision();
 		/*обработка движения*/
-		if(player.walk_delay<=0){
+		if(save.player.walk_delay<=0){
 			if(nothing_right&&activated_actions.has('right')){
-				player.coordinates[0]=Math.round(player.coordinates[0]+0.5*logical_symbol_size);
-				player.walk_delay=player.max_walk_delay;
+				save.player.coordinates[0]=Math.round(save.player.coordinates[0]+0.5*logical_symbol_size);
+				save.player.walk_delay=save.player.max_walk_delay;
 				update_collision();
 			}
 			if(nothing_left&&activated_actions.has('left')){
-				player.coordinates[0]=Math.round(player.coordinates[0]-0.5*logical_symbol_size);
-				player.walk_delay=player.max_walk_delay;
+				save.player.coordinates[0]=Math.round(save.player.coordinates[0]-0.5*logical_symbol_size);
+				save.player.walk_delay=save.player.max_walk_delay;
 				update_collision();
 			}
 		}else{
-			player.walk_delay--;
+			save.player.walk_delay--;
 		}
 		if(nothing_higher&&activated_actions.has('jump')){
-			player.coordinates[1]=Math.round(player.coordinates[1]-0.5*logical_symbol_size);
+			save.player.coordinates[1]=Math.round(save.player.coordinates[1]-0.5*logical_symbol_size);
 			update_collision();
 		}else if(nothing_below){
-			player.coordinates[1]=Math.round(player.coordinates[1]+0.5*logical_symbol_size);
+			save.player.coordinates[1]=Math.round(save.player.coordinates[1]+0.5*logical_symbol_size);
 			update_collision();
 		}
 	}

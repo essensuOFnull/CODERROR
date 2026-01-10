@@ -309,10 +309,28 @@ if(!window.location.search.includes('child=1')){
 			/*начальные скрипты загружены*/
 			let app=new PIXI.Application({});
 			app.init().then(()=>{
-				let room_data,player;
+				let save={
+					room:{
+						id:'',
+						preparation:true,
+						data:{}
+					},
+					player:{
+						interface:{
+							hotbar:{
+								active_slot_index:0,
+								slot_count:10,
+							},
+						},
+						coordinates:[],
+						collider:[],
+						walk_delay:0,
+						max_walk_delay:0,
+					}
+				};
 				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.32.3';
+				window.version='(1)0.33.0';
 				/*инициализация сцены three*/
 				let three_scene=new THREE.Scene();
 				three_scene.background=null;
@@ -501,10 +519,9 @@ if(!window.location.search.includes('child=1')){
 						message_element.remove();
 					});
 				}
-				let room,preparation;
 				function change_room(room_,preparation_=true,reset_overlay_=true){
-					room=room_;
-					preparation=preparation_;
+					save.room.id=room_;
+					save.room.preparation=preparation_;
 					if(reset_overlay_){
 						overlay.innerHTML=``;
 					}
@@ -1193,7 +1210,7 @@ if(!window.location.search.includes('child=1')){
 					apply_random_splash();
 					/*set_font_size(window.settings.interface.font_size);*/
 					set_max_content_size(window.settings.interface.max_content_width,window.settings.interface.max_content_height);
-					change_room(room);
+					change_room(save.room.id);
 				}
 				/*создает textarea с рамкой*/
 				function create_textarea_with_frame(placeholder='',removable=false){
@@ -1404,22 +1421,22 @@ if(!window.location.search.includes('child=1')){
 				}
 				/*настройки камеры*/
 				function focus_camera_on_player(){
-					room_data.camera=[logical_to_screen(player.coordinates[0])-(Math.floor(columns/2)*symbol_size),logical_to_screen(player.coordinates[1])-(Math.floor(rows/2)*symbol_size)];
+					save.room.data.camera=[logical_to_screen(save.player.coordinates[0])-(Math.floor(columns/2)*symbol_size),logical_to_screen(save.player.coordinates[1])-(Math.floor(rows/2)*symbol_size)];
 				}
 				/*расчет коллайдеров*/
 				function update_player_collider(){
-					player.collider=[[player.coordinates[0],player.coordinates[1]],[player.coordinates[0]+logical_symbol_size,player.coordinates[1]+logical_symbol_size]];
+					save.player.collider=[[save.player.coordinates[0],save.player.coordinates[1]],[save.player.coordinates[0]+logical_symbol_size,save.player.coordinates[1]+logical_symbol_size]];
 				}
 				/*расчет коллизии*/
 				let nothing_below,nothing_left,nothing_right,nothing_higher;
-				function update_collision(ground_collider=room_data.ground.collider){
+				function update_collision(ground_collider=save.room.data.ground.collider){
 					update_player_collider();
 					nothing_below=true;
 					nothing_left=true;
 					nothing_right=true;
 					nothing_higher=true;
-					for(let y=player.collider[0][1];y<player.collider[1][1];y++){
-						for(let x=player.collider[0][0];x<player.collider[1][0];x++){
+					for(let y=save.player.collider[0][1];y<save.player.collider[1][1];y++){
+						for(let x=save.player.collider[0][0];x<save.player.collider[1][0];x++){
 							let coordinates=[x,y+1];
 							if(coordinates.every(num=>num>=0)){
 								try{
@@ -1461,17 +1478,17 @@ if(!window.location.search.includes('child=1')){
 					if(!active_hotbar_slot_frame){
 						active_hotbar_slot_frame=create_element_from_HTML(`<img id="active_hotbar_slot_frame" src="images/interface/inventory/active_slot_frame.png"/>`);
 					}
-					document.querySelector(`.hotbar_slot[data-index="${player.interface.hotbar.active_slot_index}"]`).appendChild(active_hotbar_slot_frame);
+					document.querySelector(`.hotbar_slot[data-index="${save.player.interface.hotbar.active_slot_index}"]`).appendChild(active_hotbar_slot_frame);
 				}
 				/*генерирует хотбар*/
 				function generate_hotbar(){
 					let hotbar=create_element_from_HTML(`<div id="hotbar" class="row"></div>`);
-					for(let i=0;i<player.interface.hotbar.slot_count;i++){
+					for(let i=0;i<save.player.interface.hotbar.slot_count;i++){
 						let slot=document.createElement('div');
 						slot.dataset.index=i;
 						slot.classList.add('hotbar_slot');
 						slot.addEventListener('click',function(e){
-							player.interface.hotbar.active_slot_index=this.dataset.index;
+							save.player.interface.hotbar.active_slot_index=this.dataset.index;
 							update_active_hotbar_slot_frame();
 						});
 						hotbar.appendChild(slot);
@@ -1482,6 +1499,9 @@ if(!window.location.search.includes('child=1')){
 					let esc_menu=create_element_from_HTML(`<div id="esc_menu"></div>`);
 					let button_to_main_menu=create_button_from_text(window.language.interface.buttons.to_main_menu);
 					button_to_main_menu.addEventListener('click',()=>{
+						if(confirm(language.confirms.is_need_save)){
+							save_as_json(save,`${1e16-Date.now()} - CODERROR ${window.version} save.json`);
+						}
 						change_room('main_menu');
 					});
 					button_to_main_menu.id='button_to_main_menu';
@@ -1505,19 +1525,33 @@ if(!window.location.search.includes('child=1')){
 				}
 				/*активирует прошлый слот хотбара*/
 				function activate_previous_hotbar_slot(){
-					player.interface.hotbar.active_slot_index--;
-					if(player.interface.hotbar.active_slot_index<0){
-						player.interface.hotbar.active_slot_index=player.interface.hotbar.slot_count-1;
+					save.player.interface.hotbar.active_slot_index--;
+					if(save.player.interface.hotbar.active_slot_index<0){
+						save.player.interface.hotbar.active_slot_index=save.player.interface.hotbar.slot_count-1;
 					}
 					update_active_hotbar_slot_frame();
 				}
 				/*активирует следующий слот хотбара*/
 				function activate_next_hotbar_slot(){
-					player.interface.hotbar.active_slot_index++;
-					if(player.interface.hotbar.active_slot_index>=player.interface.hotbar.slot_count){
-						player.interface.hotbar.active_slot_index=0;
+					save.player.interface.hotbar.active_slot_index++;
+					if(save.player.interface.hotbar.active_slot_index>=save.player.interface.hotbar.slot_count){
+						save.player.interface.hotbar.active_slot_index=0;
 					}
 					update_active_hotbar_slot_frame();
+				}
+				/*завершить подготовку комнаты*/
+				let loadable_save_data=null;
+				function finish_preparation(){
+					save.room.preparation=false;
+					if(loadable_save_data){
+						save=loadable_save_data;
+						loadable_save_data=null;
+					}
+				}
+				/*загружает сохранение*/
+				function load_save(data){
+					loadable_save_data=data;
+					change_room(data.room.id);
 				}
 				/*финальная настройка*/
 				document.addEventListener('contextmenu',(e)=>{
