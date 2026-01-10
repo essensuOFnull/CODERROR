@@ -178,7 +178,7 @@ if(!window.location.search.includes('child=1')){
 			app.init().then(()=>{
 				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.18.2';
+				window.version='(1)0.18.3';
 				/*добавление в разметку canvas-а pixijs*/
 				wrapper.appendChild(app.view);
 				/*добавление в разметку html-overlay*/
@@ -470,6 +470,7 @@ if(!window.location.search.includes('child=1')){
 					elements.c.appendChild(content);
 					elements.c.style.gridArea='c';
 					elements.c.style.whiteSpace='nowrap';
+					elements.c.id='frame_content';
 					// Привязка всех элементов к grid-areas
 					Object.entries(elements).forEach(([area,el])=>{
 						el.style.gridArea=area;
@@ -511,17 +512,12 @@ if(!window.location.search.includes('child=1')){
 				}
 				/*меняет цвет текста кнопки*/
 				function change_button_text_color(button,color){
-					const elements=button.querySelectorAll('[style*="grid-area: c;"]');
-					if(elements.length>0){
-						const targetElement=elements[0];
-						const firstChild=targetElement.firstElementChild;
-						if(firstChild){
-							firstChild.style.color=color;
-						}else{
-							console.log('У элемента нет дочерних элементов.');
-						}
+					const targetElement=button.querySelector('#frame_content');
+					const firstChild=targetElement.firstElementChild;
+					if(firstChild){
+						firstChild.style.color=color;
 					}else{
-						console.log('Элемент с grid-area: c; не найден.');
+						console.log('У элемента нет дочерних элементов.');
 					}
 				}
 				/*меняет цвет рамки и текста кнопки*/
