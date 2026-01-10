@@ -52,11 +52,11 @@ default:{
 		},
 		settings:{
 			drop_zone:`зона\nзагрузки\nфайлов`,
+			button_add:`+`,
 			buttons:{
 				back:`назад`,
 				apply:`применить`,
-				save:`сохранить в файл`,
-				add:`+`
+				save:`сохранить в файл`
 			}
 		}
 	}
@@ -126,11 +126,11 @@ default:{
         },
         settings:{
             drop_zone:`file\ndrop\nzone`,
+			button_add:`+`,
             buttons:{
                 back:`back`,
                 apply:`apply`,
-                save:`save to file`,
-                add:`+`
+                save:`save to file`
             }
         }
     }

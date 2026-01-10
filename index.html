@@ -178,7 +178,7 @@ if(!window.location.search.includes('child=1')){
 			app.init().then(()=>{
 				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.18.1';
+				window.version='(1)0.18.2';
 				/*добавление в разметку canvas-а pixijs*/
 				wrapper.appendChild(app.view);
 				/*добавление в разметку html-overlay*/
@@ -797,6 +797,11 @@ if(!window.location.search.includes('child=1')){
 					// Перевернем результат, чтобы вернуть его в правильном порядке
 					return result.reverse();
 				}
+				/*применяет к игре настройки из window.settings*/
+				function apply_settings(){
+					apply_language(window.settings.interface.language);
+					change_room(room);
+				}
 				/*финальная настройка*/
 				let room_data;
 				apply_language(window.settings.interface.language);
@@ -930,10 +935,10 @@ L n L q L q H  U n U n L q U n
 									room_data.settings_divs[section_id][option_id].appendChild(values);
 									if(section_id=='interface'){
 										if(option_id=='language'){
-											let add_button=create_button_from_text(window.language.rooms[room].buttons.add);
+											let add_button=create_button_from_text(window.language.rooms[room].button_add);
 											change_button_text_color(add_button,'#0f0');
 											values.appendChild(add_button);
-											add_button.addEventListener('click',()=>{
+											const create_select=()=>{
 												let[select_button,select]=create_select_with_frame(Object.keys(window.languages).filter(name=>name!=='default'),true);
 												values.insertBefore(select_button,add_button);
 												select_button.addEventListener('mouseover',()=>{
@@ -942,6 +947,13 @@ L n L q L q H  U n U n L q U n
 												select_button.addEventListener('mouseout',()=>{
 													change_button_border_color(select_button,'#fff');
 												});
+												return select;
+											}
+											for(let language of window.settings.interface.language){
+												create_select().value=language;
+											}
+											add_button.addEventListener('click',()=>{
+												create_select();
 											});
 											add_button.addEventListener('mouseover',()=>{
 												change_button_border_color(add_button,'#f0f');
@@ -963,7 +975,10 @@ L n L q L q H  U n U n L q U n
 							room_data.div2.appendChild(room_data.buttons.back);
 							room_data.div2.appendChild(get_space());
 							room_data.div2.appendChild(room_data.buttons.save);
-							add_event_listener('get_json',room_data.drop_zone,(data)=>{console.log(data);});
+							add_event_listener('get_json',room_data.drop_zone,(data)=>{
+								window.settings=smart_merge([window.settings,data],9);
+								apply_settings();
+							});
 							room_data.buttons.back.addEventListener('click',()=>{
 								change_room('main_menu');
 							});
@@ -977,8 +992,7 @@ L n L q L q H  U n U n L q U n
 								}
 								language_list=remove_duplicates(language_list);
 								window.settings.interface.language=language_list;
-								apply_language(language_list);
-								change_room(room);
+								apply_settings();
 							});
 							preparation=false;
 						}
