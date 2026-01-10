@@ -80,6 +80,13 @@
             border-radius:var(--symbol_size);*/
             background:#00000066;
         }
+        .scrollable{
+            overflow-y:scroll;
+            overflow-x:scroll;
+            width:100%;
+            height:100%;
+            scrollbar-color:#fff #000;
+        }
     </style>
     <link rel="icon" type="image/png">
 </head>
@@ -137,7 +144,7 @@
                 });
                 app.init().then(()=>{
                     /*версия CODERROR'а*/
-                    window.version='(1)0.12.2';
+                    window.version='(1)0.13.0';
                     /*добавление в разметку canvas-а pixijs*/
                     document.body.appendChild(app.view);
                     /*добавление в разметку html-overlay*/
@@ -756,25 +763,27 @@ L n L q L q H  U n U n L q U n
                         if(room=='authors'){
                             if(preparation){
                                 room_data={
-                                    div:create_element_from_HTML(`<div class="center column"/>`),
+                                    scrollable:create_element_from_HTML(`<div class="scrollable"/>`),
+                                    div1:create_element_from_HTML(`<div class="center column"/>`),
                                     authors:[
                                         `⦑color:#f0f⦒essensuOFnull⦑reset⦒ - инициатор, автор идей, программист.`,
-                                        `⦑color:#3c0055⦒Skayjf⦑reset⦒ - возможно нарисует текстуры в будущем.`,
+                                        `⦑color:#909⦒仨与与仨刀仁仨・口千・力仨与户升工艮⦑reset⦒ - возможно нарисует текстуры в будущем.`,
                                         `⦑color:#00f⦒Theb.ai⦑reset⦒, ⦑color:#00f⦒DeepSeek⦑reset⦒ - помощь в программировании.`
                                     ],
+                                    div2:create_element_from_HTML(`<div class="center column"/>`),
                                     buttons:{
                                         back:create_button_from_text(`назад`)
                                     },
                                 };
-                                overlay.appendChild(room_data.div);
+                                overlay.appendChild(room_data.scrollable);
+                                room_data.scrollable.appendChild(room_data.div1);
                                 for(let i=0;i<room_data.authors.length;i++){
                                     room_data.authors[i]=create_element_from_HTML(`<div>${get_transparent_space_text(room_data.authors[i])}</div>`);
-                                    room_data.div.appendChild(get_br());
-                                    room_data.div.appendChild(room_data.authors[i]);
+                                    room_data.div1.appendChild(get_br());
+                                    room_data.div1.appendChild(room_data.authors[i]);
                                 }
-                                room_data.div.appendChild(room_data.buttons.back);
-                                room_data.buttons.back.style.marginTop='auto';
-                                room_data.buttons.back.style.marginBottom='var(--symbol_size)';
+                                overlay.appendChild(room_data.div2);
+                                room_data.div2.appendChild(room_data.buttons.back);
                                 room_data.buttons.back.addEventListener('click',()=>{
                                     change_room('main_menu');
                                 });
@@ -792,12 +801,23 @@ L n L q L q H  U n U n L q U n
                         if(room=='settings'){
                             if(preparation){
                                 room_data={
-                                    div:create_element_from_HTML(`<div class="center-horizontal column"/>`),
+                                    scrollable:create_element_from_HTML(`<div class='scrollable'/>`),
+                                    div1:create_element_from_HTML(`<div class="center-horizontal column"/>`),
                                     drop_zone:wrap_in_button(create_element_from_HTML(`<div class='drop_zone center'><div style='text-align:center;'>${get_transparent_space_text(`зона\nзагрузки\nфайлов`)}</div></div>`)),
+                                    div2:create_element_from_HTML(`<div class="center column"/>`),
+                                    buttons:{
+                                        back:create_button_from_text(`назад`)
+                                    },
                                 };
-                                overlay.appendChild(room_data.div);
-                                room_data.div.appendChild(room_data.drop_zone);
+                                overlay.appendChild(room_data.scrollable);
+                                room_data.scrollable.appendChild(room_data.div1);
+                                room_data.div1.appendChild(room_data.drop_zone);
+                                overlay.appendChild(room_data.div2);
+                                room_data.div2.appendChild(room_data.buttons.back);
                                 add_event_listener('get_json',room_data.drop_zone,(data)=>{console.log(data);});
+                                room_data.buttons.back.addEventListener('click',()=>{
+                                    change_room('main_menu');
+                                });
                                 preparation=false;
                             }
                             visual_effect(0);
@@ -807,6 +827,14 @@ L n L q L q H  U n U n L q U n
                             else{
                                 change_button_border_color(room_data.drop_zone,'#fff');
                             }
+                            Object.entries(room_data.buttons).forEach(([name,el])=>{
+                                if(check_hover(el)){
+                                    change_button_color(el,get_random_true_str_color());
+                                }
+                                else{
+                                    change_button_color(el,'#fff');
+                                }
+                            });
                         }
                         window.PERMITTED={ 
                             set_font_size
