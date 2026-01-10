@@ -201,7 +201,7 @@ if(!window.location.search.includes('child=1')){
 			app.init().then(()=>{
 				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.24.0';
+				window.version='(1)0.24.2';
 				/*добавление в разметку canvas-а pixijs*/
 				wrapper.appendChild(app.view);
 				/*добавление в разметку html-overlay*/
@@ -941,14 +941,16 @@ if(!window.location.search.includes('child=1')){
 						return`mouse${e.button}`;
 					};
 					const handleEvent=(e)=>{
-						if(!window.ignored_keys.includes(e.code)){
-							const key=getKey(e);
-							if(e.type==='keydown'||e.type==='mousedown'){
-								window.pressed.add(key);
-							}else{
-								window.pressed.delete(key);
+						if(!e.repeat){/*Отключаем автоповтор*/
+							if(!window.ignored_keys.includes(e.code)){
+								const key=getKey(e);
+								if(e.type==='keydown'||e.type==='mousedown'){
+									window.pressed.add(key);
+								}else{
+									window.pressed.delete(key);
+								}
+								update_activated_actions();
 							}
-							update_activated_actions();
 						}
 					};
 					document.addEventListener('keydown',handleEvent);
