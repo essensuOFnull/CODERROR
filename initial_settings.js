@@ -2,9 +2,9 @@ window.settings={
 /*эти настройки используются как начальные при каждом запуске игры, желательно сделать копию на всякий случай, если хотите заменить*/
 interface:{
 	language:[/*'default' добавляется автоматически*/],
-	font_size:10,
-	max_content_width:`800px`,
-	max_content_height:`600px`
+	font_size:16,
+	max_content_width:`100%`,
+	max_content_height:`100%`
 },
 audio:{
 	music_volume:0.5,

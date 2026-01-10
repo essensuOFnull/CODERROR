@@ -4,20 +4,19 @@
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<style>
-@font-face{
+/*основной шрифт*/
+@font-face {
 	font-family:'CODERROR';
-	src:url('fonts/CODERROR.ttf')format('truetype');
-	font-weight:normal;
-	font-style:normal;
-	font-display:block;
+	src:url('fonts/CODERROR16x16GNUUnifont.ttf') format('truetype');
 }
 *{
 	margin:0;
 	padding:0;
-	font-family:'CODERROR',monospace;
+	font-family:'CODERROR';
 	letter-spacing:0;
 	user-select:none;
 	font-size:var(--symbol_size);
+	line-height:1em;
 	pointer-events:auto; /* Разрешить взаимодействие с HTML-элементами */
 }
 html,body{
@@ -165,8 +164,8 @@ input[type="checkbox"]{
 //Проверяем, является ли это окно основным
 if(!window.location.search.includes('child=1')){
 	//Параметры для нового окна
-	const width=800;
-	const height=600;
+	const width=screen.width;
+	const height=screen.height;
 	const features=`width=${width},height=${height},left=${(screen.width-width)/2},top=${(screen.height-height)/2}`;
 	//Пытаемся открыть новое окно
 	const new_window=window.open(`${window.location.href}?child=1`,'_blank',features);
@@ -207,7 +206,7 @@ if(!window.location.search.includes('child=1')){
 		});
 	}
 	//Предзагрузка шрифта
-	const font=new FontFace('CODERROR','url(fonts/CODERROR.ttf)');
+	const font=new FontFace('CODERROR','url(fonts/CODERROR16x16GNUUnifont.ttf)');
 	font.load().then(function(loadedFont){
 		document.fonts.add(loadedFont);
 		/*загрузка скриптов*/
@@ -265,11 +264,11 @@ if(!window.location.search.includes('child=1')){
 				}
 				/*настройки шрифтов*/
 				const styleSheet=document.styleSheets[0];
-				let symbol_size,font_size,text_style,pixel_in_pt=0.675;
+				let symbol_size,font_size,text_style/*,pixel_in_pt=0.675 рудимент*/;
 				function set_font_size(size_in_pixels){
 					symbol_size=size_in_pixels;
-					font_size=symbol_size*pixel_in_pt;
-					styleSheet.insertRule(":root{--symbol_size:"+font_size+"pt !important;}",styleSheet.cssRules.length);
+					font_size=symbol_size/**pixel_in_pt рудимент*/;
+					styleSheet.insertRule(":root{--symbol_size:"+font_size+"px !important;}",styleSheet.cssRules.length);
 					text_style=new PIXI.TextStyle({
 						fontFamily:'CODERROR',
 						fontSize:symbol_size,
@@ -278,7 +277,7 @@ if(!window.location.search.includes('child=1')){
 					});
 					update_symbols_grid();
 				}
-				set_font_size(10);
+				set_font_size(16);
 				/**/
 				const update_size=()=>{
 					app.renderer.resize(wrapper.clientWidth,wrapper.clientHeight);
@@ -1154,7 +1153,7 @@ if(!window.location.search.includes('child=1')){
 				room='main_menu'
 				apply_settings();
 				let input_tracker=setup_input_tracker();
-				let logical_symbol_size=10;
+				let logical_symbol_size=16;
 				/*загрузка циклов физики и отрисовки*/
 				eval_script('core/logic.js');
 				eval_script('core/rendering.js');
