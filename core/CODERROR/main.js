@@ -17,6 +17,11 @@ f.fetch_json('manifest.json').then(manifest=>{
 });
 /**получение данных о системе*/
 f.get_system_info();
+/*определяем стоит ли использовать GPU*/
+let rendering_info = f.get_rendering_method(d.system_info);
+d.gpu_enabled=(rendering_info.method=='gpu');
+console.log('GPU enabled:', d.gpu_enabled);
+d.gpu_initialized=false;
 /**дожидаемся загрузки шрифта*/
 f.check_font_loaded('CODERROR').then(() => {
 	/**приложение PIXI.js*/

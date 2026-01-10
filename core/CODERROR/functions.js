@@ -190,128 +190,148 @@ async init_symbols_grid() {
 },
 /** Обновляет размеры матрицы символов */
 update_symbols_grid() {
+    if(!d.symbols_grid){
+        return;
+    }
+    
     let newColumns = Math.ceil(d.app.renderer.width / d.symbol_size);
     let newRows = Math.ceil(d.app.renderer.height / d.symbol_size);
     
     if (newColumns === d.columns && newRows === d.rows) return;
     
-    // Удаляем старую сетку
-    if (d.symbols_grid) {
-        for (let y = 0; y < d.rows; y++) {
-            for (let x = 0; x < d.columns; x++) {
+    // Убедимся, что массивы инициализированы правильно
+    if (!Array.isArray(d.symbols_grid)) d.symbols_grid = [];
+    if (!Array.isArray(d.symbols_grid_data)) d.symbols_grid_data = [];
+    
+    // Удаляем ненужные ячейки
+    for (let y = 0; y < d.rows; y++) {
+        for (let x = 0; x < d.columns; x++) {
+            // Если ячейка выходит за новые границы - удаляем
+            if (y >= newRows || x >= newColumns) {
                 if (d.symbols_grid[y] && d.symbols_grid[y][x]) {
                     d.app.stage.removeChild(d.symbols_grid[y][x]);
-                    d.symbols_grid[y][x].destroy({ children: true });
+                    d.symbols_grid[y][x].destroy({children: true});
+                    d.symbols_grid[y][x] = null;
+                    
+                    if (d.symbols_grid_data[y]) {
+                        d.symbols_grid_data[y][x] = null;
+                    }
                 }
+            }
+        }
+        
+        // Обрезаем массивы если нужно
+        if (d.symbols_grid[y] && d.symbols_grid[y].length > newColumns) {
+            d.symbols_grid[y].length = newColumns;
+        }
+        if (d.symbols_grid_data[y] && d.symbols_grid_data[y].length > newColumns) {
+            d.symbols_grid_data[y].length = newColumns;
+        }
+    }
+    
+    // Обрезаем количество строк если нужно
+    if (d.symbols_grid.length > newRows) {
+        d.symbols_grid.length = newRows;
+        d.symbols_grid_data.length = newRows;
+    }
+    
+    // Создаем новые ячейки
+    for (let y = 0; y < newRows; y++) {
+        // Инициализируем строки если их нет
+        if (!d.symbols_grid[y]) {
+            d.symbols_grid[y] = [];
+            d.symbols_grid_data[y] = [];
+        }
+        
+        for (let x = 0; x < newColumns; x++) {
+            // Создаем ячейку только если ее нет
+            if (!d.symbols_grid[y][x]) {
+                // Контейнер для ячейки
+                let container = new PIXI.Container();
+                container.x = x * d.symbol_size;
+                container.y = y * d.symbol_size;
+                
+                // Спрайт для фона
+                let background = new PIXI.Sprite(d.white_texture);
+                background.width = d.symbol_size;
+                background.height = d.symbol_size;
+                background.alpha = 0;
+                container.addChild(background);
+                
+                // Спрайт для символа
+                let symbol = new PIXI.Sprite();
+                symbol.width = d.symbol_size;
+                symbol.height = d.symbol_size;
+                container.addChild(symbol);
+                
+                d.app.stage.addChild(container);
+                
+                // Прямое присваивание для массивов
+                d.symbols_grid[y][x] = container;
+                d.symbols_grid_data[y][x] = {
+                    char: '',
+                    textColor: 0xFFFFFF,
+                    bgColor: 0x000000,
+                    bgAlpha: 0
+                };
             }
         }
     }
     
-    // Создаем новую сетку
-    d.symbols_grid = [];
-    d.symbols_grid_data = [];
     d.columns = newColumns;
     d.rows = newRows;
     
-    for (let y = 0; y < d.rows; y++) {
-        d.symbols_grid[y] = [];
-        d.symbols_grid_data[y] = [];
-        
-        for (let x = 0; x < d.columns; x++) {
-            // Контейнер для ячейки
-            let container = new PIXI.Container();
-            container.x = x * d.symbol_size;
-            container.y = y * d.symbol_size;
-            
-            // Спрайт для фона
-            let background = new PIXI.Sprite(d.white_texture);
-            background.width = d.symbol_size;
-            background.height = d.symbol_size;
-            background.alpha = 0;
-            container.addChild(background);
-            
-            // Спрайт для символа
-            let symbol = new PIXI.Sprite();
-            symbol.width = d.symbol_size;
-            symbol.height = d.symbol_size;
-            container.addChild(symbol);
-            
-            d.app.stage.addChild(container);
-            d.symbols_grid[y][x] = container;
-            d.symbols_grid_data[y][x] = {
-                char: '',
-                textColor: 0xFFFFFF,
-                bgColor: 0x000000,
-                bgAlpha: 0
-            };
-        }
-    }
+    console.log(`Grid updated: ${d.columns}x${d.rows}, cell size: ${d.symbol_size}px`);
 },
-/** Обновляет отображение символов на основе данных (высокооптимизированная версия) */
+/** Обновляет отображение символов */
 render_symbols_grid(){
-	// Если GPU-рендерер включён — обновляем GPU-текстуры и выходим
-	if(d.gpu_enabled){
-		// metrics: frames and dirty sample
-		if(d.metrics){
-			d.metrics.frames = (d.metrics.frames||0) + 1;
-			const dirtyNow = d.symbols_dirty_cells?d.symbols_dirty_cells.size:0;
-			d.metrics.dirtySamples = (d.metrics.dirtySamples||0) + dirtyNow;
-			d.metrics.dirtySamplesCount = (d.metrics.dirtySamplesCount||0) + 1;
-		}
-		if(d.gpu_dirty && f.gpu_update_textures){
-			try{ f.gpu_update_textures(); }catch(e){ console.warn('gpu_update_textures failed',e); }
-		}
-		// очищаем список изменений — GPU нарисует всё по буферам
-		if(d.symbols_dirty_cells) d.symbols_dirty_cells.clear();
-		return;
-	}
-	// Используем dirty-флаг систему для отслеживания изменённых ячеек
-	let dirtyCount = 0;
-	const dirtyMax = d.rows * d.columns;
-	
-	// Максимально эффективный вариант: обновляем только если есть грязные ячейки
-	if(d.symbols_dirty_cells && d.symbols_dirty_cells.size > 0){
-		for(let cellKey of d.symbols_dirty_cells){
-			const [y, x] = cellKey.split(',').map(Number);
-			if(y < 0 || y >= d.rows || x < 0 || x >= d.columns) continue;
-			
-			let container = d.symbols_grid[y][x];
-			let data = d.symbols_grid_data[y][x];
-			
-			if(!container || !data) continue;
-			
-			let textElement = container.children[1];
-			let background = container.children[0];
-			
-			// Обновляем только изменённые свойства
-			if(textElement.text !== data.char) textElement.text = data.char;
-			if(textElement.tint !== data.textColor) textElement.tint = data.textColor;
-			
-			// Оптимизация фона: проверяем оба параметра одновременно
-			if(background.alpha !== data.bgAlpha || background._bgColor !== data.bgColor){
-				// Пропускаем clear() если оба значения 0
-				if(data.bgAlpha === 0 && background.alpha === 0) {
-					background._bgColor = data.bgColor;
-				} else {
-					background.clear();
-					if(data.bgAlpha > 0){
-						background.beginFill(data.bgColor, data.bgAlpha);
-						background.drawRect(0, 0, d.symbol_size, d.symbol_size);
-						background.endFill();
-					}
-					background._bgColor = data.bgColor;
-					background.alpha = data.bgAlpha;
-				}
-			}
-		}
-		d.symbols_dirty_cells.clear();
-	}
+    // CPU режим - используем оптимизированный рендеринг с атласами
+    if(d.symbols_dirty_cells && d.symbols_dirty_cells.size > 0){
+        for(let cellKey of d.symbols_dirty_cells){
+            const [y, x] = cellKey.split(',').map(Number);
+            if(y < 0 || y >= d.rows || x < 0 || x >= d.columns) continue;
+            
+            let container = d.symbols_grid[y][x];
+            let data = d.symbols_grid_data[y][x];
+            
+            if(!container || !data) continue;
+            
+            let textElement = container.children[1];
+            let background = container.children[0];
+            
+            // Обновляем только изменённые свойства символа
+            if(textElement._lastChar !== data.char) {
+                textElement._lastChar = data.char;
+                if(data.char && data.char !== '') {
+                    const texture = f.get_symbol_texture(data.char);
+                    if(texture) {
+                        textElement.texture = texture;
+                        textElement.alpha = 1;
+                    } else {
+                        textElement.alpha = 0;
+                    }
+                } else {
+                    textElement.alpha = 0;
+                }
+            }
+            
+            if(textElement.tint !== data.textColor) {
+                textElement.tint = data.textColor;
+            }
+            
+            // Обновляем фон (просто меняем tint и alpha спрайта)
+            if(background.tint !== data.bgColor || background.alpha !== data.bgAlpha) {
+                background.tint = data.bgColor;
+                background.alpha = data.bgAlpha;
+            }
+        }
+        d.symbols_dirty_cells.clear();
+    }
 },
 /**отмечает ячейку как изменённую для обновления в следующем кадре*/
 mark_symbol_dirty(x, y){
 	if(!d.symbols_dirty_cells) d.symbols_dirty_cells = new Set();
 	d.symbols_dirty_cells.add(`${y},${x}`);
-	if(d.gpu_enabled) d.gpu_dirty = true;
 },
 /** Получает текстуру символа из соответствующего атласа */
 get_symbol_texture(char) {
@@ -346,44 +366,41 @@ get_symbol_texture(char) {
     
     return subTexture;
 },
-/** Устанавливает символ в ячейку (высокооптимизированная версия) */
+/** Устанавливает символ в ячейку */
 set_symbol_data(x, y, char, textColor = 0xFFFFFF, bgColor = 0x000000, bgAlpha = 0) {
-	let container = _.get(d, ['symbols_grid', y, x]),
+    let container = _.get(d, ['symbols_grid', y, x]),
     data = _.get(d, ['symbols_grid_data', y, x]);
-	if(!container||!data)return;
-	
+    if(!container||!data) return;
+    
+    // Сохраняем данные
+    data.char = char;
+    data.textColor = textColor;
+    data.bgColor = bgColor;
+    data.bgAlpha = bgAlpha;
+    
+	// CPU режим - обновляем спрайты напрямую
 	let background = container.children[0];
 	let symbol = container.children[1];
 	
 	// Обновляем фон
-	if (background.alpha !== bgAlpha || background.tint !== bgColor) {
-		background.tint = bgColor;
-		background.alpha = bgAlpha;
-	}
+	background.tint = bgColor;
+	background.alpha = bgAlpha;
 	
 	// Обновляем символ
-	if (data.char !== char || data.textColor !== textColor) {
-		data.char = char;
-		data.textColor = textColor;
-		
-		if (char && char !== '') {
-			// Получаем текстуру символа из атласа
-			const texture = f.get_symbol_texture(char);
-			if (texture) {
-				symbol.texture = texture;
-				symbol.tint = textColor;
-				symbol.alpha = 1;
-			} else {
-				symbol.alpha = 0; // Скрываем если символ не найден
-			}
+	if(char && char !== '') {
+		const texture = f.get_symbol_texture(char);
+		if(texture) {
+			symbol.texture = texture;
+			symbol.tint = textColor;
+			symbol.alpha = 1;
 		} else {
-			symbol.alpha = 0; // Пустой символ
+			symbol.alpha = 0;
 		}
+	} else {
+		symbol.alpha = 0;
 	}
-	
-	// Сохраняем данные
-	data.bgColor = bgColor;
-	data.bgAlpha = bgAlpha;
+    
+    f.mark_symbol_dirty(x, y);
 },
 /** Устанавливает текст в ячейку (только данные) */
 set_text_data(x, y, text, textColor = 0xFFFFFF, bgColor = 0x000000, bgAlpha = 0){
@@ -413,51 +430,27 @@ set_font_size(size_in_pixels,first_init=false) {
 	}
 },
 update_size() {
-	/*Получаем актуальные размеры контейнера*/
-	let width=d.wrapper.clientWidth;
-	let height=d.wrapper.clientHeight;
-	/*Обновляем размеры рендерера PixiJS*/
-	d.app.renderer.resize(width,height);
-	f.update_symbols_grid();
-	/*Обновляем способ масштабирования изображений*/
-	d.styleSheet.insertRule(`:root{--image_rendering:${window.devicePixelRatio>=1?'pixelated':'auto'} !important;}`,d.styleSheet.cssRules.length);
-	/*Обновляем Three.js камеру и рендерер*/
-	d.three_camera.aspect=width/height;
-	d.three_camera.updateProjectionMatrix();
-	d.three_renderer.setSize(width,height);
-	/*Обновляем размер спрайта PixiJS*/
-	if(d.background_sprite){
-		d.background_sprite.width=width;
-		d.background_sprite.height=height;
-	}
-	/* Обновляем GPU-grid sprite и фильтр, если включено */
-	if(d.gpu_enabled && d.gpu_grid_sprite){
-		d.gpu_grid_sprite.width = width;
-		d.gpu_grid_sprite.height = height;
-		if(d.gpu_filter){
-			d.gpu_filter.uniforms.uResolution = [width, height];
-			d.gpu_filter.uniforms.uCellSize = d.symbol_size;
-		}
-	}
-	/* Обновляем particle-пулы если включено */
-	if(d.gpu_enabled === 'particles'){
-		// update container sizes and each sprite positions/size
-		if(d.gpu_particle_bg_sprites && d.gpu_particle_glyph_sprites){
-			for(let y=0;y<d.rows;y++){
-				for(let x=0;x<d.columns;x++){
-					const idx = y*d.columns + x;
-					const bg = d.gpu_particle_bg_sprites[idx];
-					const g = d.gpu_particle_glyph_sprites[idx];
-					if(bg){ bg.x = x * d.symbol_size; bg.y = y * d.symbol_size; bg.width = d.symbol_size; bg.height = d.symbol_size; }
-					if(g){ g.x = x * d.symbol_size; g.y = y * d.symbol_size; g.width = d.symbol_size; g.height = d.symbol_size; }
-				}
-			}
-		}
-	}
-	/*Принудительно обновляем текстуру*/
-	f.update_three_scene();
-	d.app.stage.removeChild(d.background_sprite);
-	f.init_three_scene();
+    /*Получаем актуальные размеры контейнера*/
+    let width=d.wrapper.clientWidth;
+    let height=d.wrapper.clientHeight;
+    /*Обновляем размеры рендерера PixiJS*/
+    d.app.renderer.resize(width,height);
+    f.update_symbols_grid();
+    /*Обновляем способ масштабирования изображений*/
+    d.styleSheet.insertRule(`:root{--image_rendering:${window.devicePixelRatio>=1?'pixelated':'auto'} !important;}`,d.styleSheet.cssRules.length);
+    /*Обновляем Three.js камеру и рендерер*/
+    d.three_camera.aspect=width/height;
+    d.three_camera.updateProjectionMatrix();
+    d.three_renderer.setSize(width,height);
+    /*Обновляем размер спрайта PixiJS*/
+    if(d.background_sprite){
+        d.background_sprite.width=width;
+        d.background_sprite.height=height;
+    }
+    /*Принудительно обновляем текстуру*/
+    f.update_three_scene();
+    d.app.stage.removeChild(d.background_sprite);
+    f.init_three_scene();
 },
 visual_effect(number){
 	/*заполняет случайными символами*/
@@ -833,400 +826,6 @@ save_atlas_as_PNG(canvas, index, fileName = null) {
             reject(error);
         }
     });
-},
-/** Инициализация GPU-рендера символов (atlas + data-текстуры + шейдер) */
-init_gpu_symbols_renderer(){
-	// Проверки
-	if(typeof PIXI==='undefined' || !PIXI.Filter || !d.app || !d.app.renderer) {
-		d.gpu_enabled = false;
-		throw new Error('PIXI.Filter or renderer not available');
-	}
-
-	// ensure printable symbols available
-	if(!d.printable_symbols || d.printable_symbols.length===0){
-		try{ f.init_printable_symbols(); }catch(e){}
-	}
-	// базовые параметры atlas
-	const atlasCols = 32; // 32*32 = 1024 глифов
-	const atlasRows = 32;
-	const glyphSize = Math.max(8, Math.ceil(d.symbol_size || 16));
-
-	// создаём canvas для atlas
-	const atlasCanvas = document.createElement('canvas');
-	atlasCanvas.width = atlasCols * glyphSize;
-	atlasCanvas.height = atlasRows * glyphSize;
-	const actx = atlasCanvas.getContext('2d');
-	actx.clearRect(0,0,atlasCanvas.width,atlasCanvas.height);
-	actx.fillStyle = '#ffffff';
-	actx.textAlign = 'center';
-	actx.textBaseline = 'middle';
-	actx.font = `${glyphSize}px CODERROR, monospace`;
-
-	// Заполним атлас первыми символами printable_symbols
-	d.gpu_atlas_cols = atlasCols;
-	d.gpu_atlas_rows = atlasRows;
-	d.gpu_atlas_count = atlasCols * atlasRows;
-	d.gpu_atlas_canvas = atlasCanvas;
-	d.gpu_atlas_ctx = actx;
-
-	// Map characters to atlas indices (try to map printable_symbols)
-	d.gpu_char_map = Object.create(null);
-	for(let i=0;i<Math.min(d.printable_symbols.length, d.gpu_atlas_count); i++){
-		const ch = d.printable_symbols[i];
-		d.gpu_char_map[ch] = i;
-		// draw onto atlas
-		const ax = i % atlasCols;
-		const ay = Math.floor(i / atlasCols);
-		const cx = ax * glyphSize + glyphSize/2;
-		const cy = ay * glyphSize + glyphSize/2 + Math.round(glyphSize*0.05);
-		actx.fillText(ch, cx, cy);
-	}
-
-	d.gpu_next_char_index = Math.min(d.printable_symbols.length, d.gpu_atlas_count);
-
-	// Исправлено: используем PIXI.Texture.from вместо создания через BaseTexture
-	d.gpu_atlas_texture = PIXI.Texture.from(atlasCanvas);
-
-	// остальной код без изменений...
-	// Инициализация data buffers
-	const w = Math.max(1, d.columns || 1);
-	const h = Math.max(1, d.rows || 1);
-	d.gpu_data_width = w;
-	d.gpu_data_height = h;
-	d.gpu_data0_buffer = new Uint8Array(w * h * 4);
-	d.gpu_data1_buffer = new Uint8Array(w * h * 4);
-	// Заполним нулями
-	for(let i=0;i<d.gpu_data0_buffer.length;i++) d.gpu_data0_buffer[i]=0;
-	for(let i=0;i<d.gpu_data1_buffer.length;i++) d.gpu_data1_buffer[i]=0;
-
-	// Исправлено: используем PIXI.Texture.fromBuffer
-	d.gpu_data0_texture = PIXI.Texture.fromBuffer(d.gpu_data0_buffer, w, h);
-	d.gpu_data1_texture = PIXI.Texture.fromBuffer(d.gpu_data1_buffer, w, h);
-
-	// Cache baseTextures/resources for incremental updates
-	try{
-		d.gpu_data0_base = d.gpu_data0_texture.baseTexture;
-		d.gpu_data1_base = d.gpu_data1_texture.baseTexture;
-	}catch(e){
-		d.gpu_data0_base = null;
-		d.gpu_data1_base = null;
-	}
-
-	// Шейдер фрагмента
-	const frag = `
-		precision mediump float;
-		varying vec2 vTextureCoord;
-		uniform sampler2D uAtlas;
-		uniform sampler2D uData0; // R: idxLo, G: idxHi, B: textR, A: textG
-		uniform sampler2D uData1; // R: textB, G: bgAlpha
-		uniform vec2 uGridSize; // cols, rows
-		uniform vec2 uAtlasGrid; // atlasCols, atlasRows
-		uniform vec2 uResolution; // px
-		uniform float uCellSize; // px
-
-		void main(){
-			vec2 uv = vTextureCoord;
-			vec2 px = uv * uResolution;
-			vec2 cell = floor(px / uCellSize);
-			// clamp
-			if(cell.x < 0.0 || cell.y < 0.0 || cell.x >= uGridSize.x || cell.y >= uGridSize.y){
-				gl_FragColor = vec4(0.0);
-				return;
-			}
-			vec2 dataUV = (cell + 0.5) / uGridSize;
-			vec4 meta0 = texture2D(uData0, dataUV);
-			vec4 meta1 = texture2D(uData1, dataUV);
-			float idx = meta0.r * 255.0 + meta0.g * 255.0 * 256.0;
-			if(idx < 1.0){
-				// empty cell -> transparent
-				gl_FragColor = vec4(0.0);
-				return;
-			}
-			float glyphIndex = idx - 1.0;
-			float ax = mod(glyphIndex, uAtlasGrid.x);
-			float ay = floor(glyphIndex / uAtlasGrid.x);
-			vec2 glyphOffset = vec2(ax, ay) / uAtlasGrid;
-			// local uv inside cell
-			vec2 local = fract(px / uCellSize);
-			vec2 atlasUV = glyphOffset + local / uAtlasGrid;
-			vec4 glyph = texture2D(uAtlas, atlasUV);
-			// text color
-			vec3 textColor = vec3(meta0.b, meta0.a, meta1.r) / 255.0;
-			float bgAlpha = meta1.g / 255.0;
-			vec3 bgColor = vec3(0.0); // currently black background
-
-			// glyph.rgb is assumed white mask, glyph.a mask
-			vec3 outColor = glyph.rgb * textColor;
-			float outAlpha = glyph.a;
-			// mix with background if bgAlpha > 0
-			if(bgAlpha > 0.0){
-				outColor = mix(bgColor, outColor, outAlpha);
-				outAlpha = max(outAlpha, bgAlpha);
-			}
-			gl_FragColor = vec4(outColor, outAlpha);
-		}
-	`;
-
-	// Filter
-	d.gpu_filter = new PIXI.Filter(undefined, frag, {
-		uAtlas: d.gpu_atlas_texture,
-		uData0: d.gpu_data0_texture,
-		uData1: d.gpu_data1_texture,
-		uGridSize: [d.gpu_data_width, d.gpu_data_height],
-		uAtlasGrid: [atlasCols, atlasRows],
-		uResolution: [d.app.renderer.width, d.app.renderer.height],
-		uCellSize: d.symbol_size
-	});
-
-	// full-screen sprite
-	const bg = new PIXI.Sprite(PIXI.Texture.WHITE);
-	bg.width = d.app.renderer.width;
-	bg.height = d.app.renderer.height;
-	bg.filters = [d.gpu_filter];
-	bg.zIndex = -1000;
-	// Добавляем над фоном Pixi, но под UI
-	try{
-		d.app.stage.addChildAt(bg, 1);
-	}catch(e){
-		d.app.stage.addChild(bg);
-	}
-	d.gpu_grid_sprite = bg;
-	d.gpu_enabled = true;
-	d.gpu_dirty = true;
-	d.gpu_atlas_dirty = false;
-
-},
-
-/** Перерисовка/обновление atlas для одного глифа (по индексу) */
-gpu_draw_glyph_to_atlas(char, index){
-	if(!d.gpu_atlas_ctx) return;
-	const glyphSize = Math.max(8, Math.ceil(d.symbol_size || 16));
-	const ax = index % d.gpu_atlas_cols;
-	const ay = Math.floor(index / d.gpu_atlas_cols);
-	const cx = ax * glyphSize + glyphSize/2;
-	const cy = ay * glyphSize + glyphSize/2 + Math.round(glyphSize*0.05);
-	d.gpu_atlas_ctx.clearRect(ax*glyphSize, ay*glyphSize, glyphSize, glyphSize);
-	d.gpu_atlas_ctx.fillStyle = '#ffffff';
-	d.gpu_atlas_ctx.fillText(char, cx, cy);
-	d.gpu_atlas_dirty = true;
-},
-
-/** Инициализация GPU-рендера символов через батчинг спрайтов (используем стандартные Container) */
-init_gpu_symbols_renderer_particles(){
-	if(typeof PIXI==='undefined' || !d.app) {
-		d.gpu_enabled = false;
-		throw new Error('PIXI or app not available');
-	}
-
-	// Ensure printable symbols
-	if(!d.printable_symbols || d.printable_symbols.length===0) try{ f.init_printable_symbols(); }catch(e){}
-
-	const atlasCols = 32;
-	const atlasRows = 32;
-	const glyphSize = Math.max(8, Math.ceil(d.symbol_size || 16));
-
-	// create atlas canvas
-	const atlasCanvas = document.createElement('canvas');
-	atlasCanvas.width = atlasCols * glyphSize;
-	atlasCanvas.height = atlasRows * glyphSize;
-	const actx = atlasCanvas.getContext('2d');
-	actx.clearRect(0,0,atlasCanvas.width,atlasCanvas.height);
-	actx.fillStyle = '#ffffff';
-	actx.textAlign = 'center';
-	actx.textBaseline = 'middle';
-	actx.font = `${glyphSize}px CODERROR, monospace`;
-
-	// draw glyphs into atlas and prepare textures
-	const chars = d.printable_symbols.slice(0, atlasCols*atlasRows);
-	for(let i=0;i<chars.length;i++){
-		const ch = chars[i];
-		const ax = i % atlasCols;
-		const ay = Math.floor(i/atlasCols);
-		const cx = ax * glyphSize + glyphSize/2;
-		const cy = ay * glyphSize + glyphSize/2 + Math.round(glyphSize*0.05);
-		actx.fillText(ch, cx, cy);
-	}
-
-	// Исправлено: используем стандартные контейнеры вместо ParticleContainer
-	const baseTexture = PIXI.Texture.from(atlasCanvas).baseTexture;
-	d.gpu_particle_atlas = baseTexture;
-	d.gpu_particle_glyph_textures = [];
-	for(let i=0;i<atlasCols*atlasRows;i++){
-		const frame = new PIXI.Rectangle((i%atlasCols)*glyphSize, Math.floor(i/atlasCols)*glyphSize, glyphSize, glyphSize);
-		d.gpu_particle_glyph_textures[i] = new PIXI.Texture(baseTexture, frame);
-	}
-
-	// background 1x1 white texture
-	const bgCanvas = document.createElement('canvas'); 
-	bgCanvas.width=1; 
-	bgCanvas.height=1; 
-	bgCanvas.getContext('2d').fillStyle='#ffffff'; 
-	bgCanvas.getContext('2d').fillRect(0,0,1,1);
-	d.gpu_particle_bg_texture = PIXI.Texture.from(bgCanvas);
-
-	// Исправлено: используем стандартные Container вместо ParticleContainer
-	const bgContainer = new PIXI.Container();
-	const glyphContainer = new PIXI.Container();
-	bgContainer.zIndex = 0;
-	glyphContainer.zIndex = 1;
-	d.app.stage.addChild(bgContainer);
-	d.app.stage.addChild(glyphContainer);
-
-	// create pools
-	d.gpu_particle_bg_sprites = [];
-	d.gpu_particle_glyph_sprites = [];
-	const cols = d.columns || 1;
-	const rows = d.rows || 1;
-	
-	for(let y=0;y<rows;y++){
-		for(let x=0;x<cols;x++){
-			const bg = new PIXI.Sprite(d.gpu_particle_bg_texture);
-			bg.x = x * d.symbol_size;
-			bg.y = y * d.symbol_size;
-			bg.width = d.symbol_size;
-			bg.height = d.symbol_size;
-			bg.alpha = 0;
-			bgContainer.addChild(bg);
-			d.gpu_particle_bg_sprites.push(bg);
-
-			const glyph = new PIXI.Sprite(d.gpu_particle_glyph_textures[0]);
-			glyph.x = x * d.symbol_size;
-			glyph.y = y * d.symbol_size;
-			glyph.width = d.symbol_size;
-			glyph.height = d.symbol_size;
-			glyph.tint = 0xFFFFFF;
-			glyph.alpha = 1;
-			glyphContainer.addChild(glyph);
-			d.gpu_particle_glyph_sprites.push(glyph);
-		}
-	}
-
-	d.gpu_particle_bg_container = bgContainer;
-	d.gpu_particle_glyph_container = glyphContainer;
-	d.gpu_particle_atlas_cols = atlasCols;
-	d.gpu_particle_atlas_rows = atlasRows;
-	d.gpu_particle_glyphSize = glyphSize;
-	d.gpu_enabled = 'particles';
-},
-
-/** Resize particle pools when grid changes */
-gpu_particle_resize(newCols, newRows){
-	if(!d.gpu_enabled || d.gpu_enabled!=='particles') return;
-	
-	// Исправлено: используем стандартные методы удаления дочерних элементов
-	if(d.gpu_particle_bg_container) {
-		d.gpu_particle_bg_container.removeChildren();
-	}
-	if(d.gpu_particle_glyph_container) {
-		d.gpu_particle_glyph_container.removeChildren();
-	}
-	
-	d.gpu_particle_bg_sprites = [];
-	d.gpu_particle_glyph_sprites = [];
-	const cols = newCols || 1;
-	const rows = newRows || 1;
-	
-	for(let y=0;y<rows;y++){
-		for(let x=0;x<cols;x++){
-			const bg = new PIXI.Sprite(d.gpu_particle_bg_texture);
-			bg.x = x * d.symbol_size;
-			bg.y = y * d.symbol_size;
-			bg.width = d.symbol_size;
-			bg.height = d.symbol_size;
-			bg.alpha = 0;
-			d.gpu_particle_bg_container.addChild(bg);
-			d.gpu_particle_bg_sprites.push(bg);
-
-			const glyph = new PIXI.Sprite(d.gpu_particle_glyph_textures[0]);
-			glyph.x = x * d.symbol_size;
-			glyph.y = y * d.symbol_size;
-			glyph.width = d.symbol_size;
-			glyph.height = d.symbol_size;
-			glyph.tint = 0xFFFFFF;
-			glyph.alpha = 1;
-			d.gpu_particle_glyph_container.addChild(glyph);
-			d.gpu_particle_glyph_sprites.push(glyph);
-		}
-	}
-},
-
-/** Update single cell in particle mode */
-gpu_particle_update_cell(x,y,data){
-	if(!d.gpu_enabled || d.gpu_enabled!=='particles') return;
-	if(x<0||y<0||x>=d.columns||y>=d.rows) return;
-	const idx = y * d.columns + x;
-	const glyphSprite = d.gpu_particle_glyph_sprites[idx];
-	const bgSprite = d.gpu_particle_bg_sprites[idx];
-	if(!glyphSprite || !bgSprite) return;
-	// set glyph texture
-	if(data.char && data.char.length>0){
-		const mapIndex = (d.gpu_char_map && d.gpu_char_map[data.char]!==undefined) ? d.gpu_char_map[data.char] : 0;
-		if(d.gpu_particle_glyph_textures[mapIndex]) glyphSprite.texture = d.gpu_particle_glyph_textures[mapIndex];
-		glyphSprite.tint = data.textColor || 0xFFFFFF;
-		glyphSprite.alpha = 1;
-	} else {
-		// hide glyph
-		glyphSprite.alpha = 0;
-	}
-	// background
-	if(data.bgAlpha && data.bgAlpha>0){
-		bgSprite.alpha = data.bgAlpha;
-		bgSprite.tint = data.bgColor || 0x000000;
-	} else {
-		bgSprite.alpha = 0;
-	}
-}
-	,
-/** Пересоздать/изменить размеры data-текстур */
-gpu_resize_data_texture(newCols, newRows){
-	const w = Math.max(1, newCols || 1);
-	const h = Math.max(1, newRows || 1);
-	d.gpu_data_width = w;
-	d.gpu_data_height = h;
-	d.gpu_data0_buffer = new Uint8Array(w * h * 4);
-	d.gpu_data1_buffer = new Uint8Array(w * h * 4);
-	d.gpu_data0_buffer.fill(0);
-	d.gpu_data1_buffer.fill(0);
-
-	// Create persistent BufferResource + BaseTexture for in-place updates (PixiJS v8+)
-	d.gpu_data0_resource = new PIXI.resources.BufferResource(d.gpu_data0_buffer, {width: w, height: h});
-	d.gpu_data1_resource = new PIXI.resources.BufferResource(d.gpu_data1_buffer, {width: w, height: h});
-	if(!d.gpu_data0_base) d.gpu_data0_base = new PIXI.BaseTexture(d.gpu_data0_resource, {scaleMode: PIXI.SCALE_MODES.NEAREST});
-	else d.gpu_data0_base.resource = d.gpu_data0_resource;
-	if(!d.gpu_data1_base) d.gpu_data1_base = new PIXI.BaseTexture(d.gpu_data1_resource, {scaleMode: PIXI.SCALE_MODES.NEAREST});
-	else d.gpu_data1_base.resource = d.gpu_data1_resource;
-	d.gpu_data0_texture = new PIXI.Texture(d.gpu_data0_base);
-	d.gpu_data1_texture = new PIXI.Texture(d.gpu_data1_base);
-
-	if(d.gpu_filter){
-		d.gpu_filter.uniforms.uData0 = d.gpu_data0_texture;
-		d.gpu_filter.uniforms.uData1 = d.gpu_data1_texture;
-		d.gpu_filter.uniforms.uGridSize = [w, h];
-	}
-
-	d.gpu_dirty = true;
-}
-,
-/** Обновить GPU-текстуры (вызывать один раз перед рендером, если d.gpu_dirty) */
-gpu_update_textures(){
-	// обновляем atlas если нужно
-	if(d.gpu_atlas_dirty){
-		d.gpu_atlas_texture = PIXI.Texture.from(d.gpu_atlas_canvas);
-		if(d.gpu_filter) d.gpu_filter.uniforms.uAtlas = d.gpu_atlas_texture;
-		d.gpu_atlas_dirty = false;
-	}
-	// обновляем data textures in-place через BufferResource (PixiJS v8+)
-	if(d.gpu_data0_buffer && d.gpu_data1_buffer){
-		d.gpu_data0_resource.data = d.gpu_data0_buffer;
-		d.gpu_data0_resource.update();
-		d.gpu_data1_resource.data = d.gpu_data1_buffer;
-		d.gpu_data1_resource.update();
-		if(d.gpu_filter){
-			d.gpu_filter.uniforms.uResolution = [d.app.renderer.width, d.app.renderer.height];
-			d.gpu_filter.uniforms.uCellSize = d.symbol_size;
-		}
-	}
-	d.gpu_dirty = false;
 },
 /**функция генерации кода разметки pre с отсутствием фона у пробелов*/
 get_transparent_space_text(text,color='#fff',background='#000'){
@@ -2297,17 +1896,6 @@ render_player(player=_.get(d,['save','player'])){
 		container._paddingX = paddingX;
 		container._paddingY = paddingY;
 
-		// Cache as bitmap: text and background are mostly static -> rasterize once
-		// This reduces per-frame GPU/text texture updates significantly
-		try{
-			text.cacheAsBitmap = true;
-			bg.cacheAsBitmap = true;
-			container.cacheAsBitmap = true;
-		}catch(e){
-			// Some PIXI builds/environments may not support this property — ignore failures
-			console.warn('cacheAsBitmap not available for nickname label', e);
-		}
-
 		d.app.stage.addChild(container);
 		d.nickname_labels.set(player_nickname, container);
 		label = container;
@@ -2509,6 +2097,183 @@ get_system_info(){
 	window.message_bus.send('get_system_info',{}).then(system_info=>{
 		d.system_info=system_info;
 	});
+},
+/** Определяет тип GPU с улучшенной логикой */
+determine_GPU_type(systemInfo) {
+    try {
+        const gpu = systemInfo?.hardware?.gpu;
+        
+        if (!gpu || !gpu.renderer) {
+            console.warn('GPU information not available');
+            return 'unknown';
+        }
+
+        const renderer = gpu.renderer.toLowerCase();
+        const vendor = gpu.vendor?.toLowerCase() || '';
+
+        console.log('GPU Renderer:', gpu.renderer);
+        console.log('GPU Vendor:', gpu.vendor);
+
+        // Ключевые слова для дискретных видеокарт
+        const discreteKeywords = [
+            'nvidia', 'geforce', 'gtx', 'rtx', 'quadro', 'tesla', 
+            'amd', 'radeon', 'rx', 'vega', 'radeon pro', 'radeon rx',
+            'intel arc', 'arc a', 'arc',
+            // Дополнительные паттерны
+            'gpu', 'graphics', 'video card', 'dGPU'
+        ];
+
+        // Ключевые слова для интегрированной графики
+        const integratedKeywords = [
+            'intel', 'hd graphics', 'uhd graphics', 'iris', 'iris pro', 'iris plus',
+            'amd radeon', 'vega', 'graphics', 'apu', 
+            'microsoft basic render', 'basic display',
+            'llvmpipe', 'softpipe', 'software renderer', 'cpu',
+            'core i3', 'core i5', 'core i7', 'core i9', 'pentium', 'celeron'
+        ];
+
+        // Проверяем WebGL рендерер для дополнительной информации
+        const canvas = document.createElement('canvas');
+        const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+        let webglRenderer = '';
+        if (gl) {
+            const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+            if (debugInfo) {
+                webglRenderer = (gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) || '').toLowerCase();
+            }
+        }
+
+        // Объединяем всю информацию для анализа
+        const allInfo = (renderer + ' ' + vendor + ' ' + webglRenderer).toLowerCase();
+
+        // Проверяем интегрированную графику в первую очередь (более безопасно)
+        const isIntegrated = integratedKeywords.some(keyword => 
+            allInfo.includes(keyword.toLowerCase())
+        );
+
+        // Проверяем дискретные карты
+        const isDiscrete = discreteKeywords.some(keyword => 
+            allInfo.includes(keyword.toLowerCase())
+        );
+
+        // Эвристика на основе типичных паттернов
+        if (allInfo.includes('nvidia') && !allInfo.includes('integrated')) {
+            return 'discrete';
+        }
+        if (allInfo.includes('amd') && !allInfo.includes('integrated') && !allInfo.includes('radeon graphics')) {
+            return 'discrete';
+        }
+        if (allInfo.includes('intel arc')) {
+            return 'discrete';
+        }
+
+        // Если явно интегрированная
+        if (isIntegrated) {
+            return 'integrated';
+        }
+
+        // Если явно дискретная
+        if (isDiscrete) {
+            return 'discrete';
+        }
+
+        // Дополнительные проверки по WebGL
+        if (webglRenderer) {
+            if (webglRenderer.includes('nvidia') || webglRenderer.includes('amd') || webglRenderer.includes('radeon')) {
+                if (!webglRenderer.includes('integrated') && !webglRenderer.includes('intel')) {
+                    return 'discrete';
+                }
+            }
+        }
+
+        // Если ничего не определили, но есть информация о рендерере
+        if (renderer && renderer !== 'unknown') {
+            // Если рендерер содержит упоминания о GPU, но не интегрированный
+            if ((renderer.includes('nvidia') || renderer.includes('amd') || renderer.includes('radeon')) &&
+                !renderer.includes('integrated') && !renderer.includes('intel')) {
+                return 'discrete';
+            }
+        }
+
+        return 'unknown';
+    } catch (error) {
+        console.error('Error determining GPU type:', error);
+        return 'unknown';
+    }
+},
+
+/** Функция для принятия решения о методе рендеринга (улучшенная) */
+get_rendering_method(systemInfo) {
+    try {
+        const gpuType = this.determine_GPU_type(systemInfo);
+        
+        console.log('Detected GPU type:', gpuType);
+        
+        // Тестируем производительность WebGL
+        const canvas = document.createElement('canvas');
+        const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+        
+        if (!gl) {
+            return {
+                method: 'cpu',
+                reason: 'WebGL не поддерживается - используем программный рендеринг',
+                confidence: 'high'
+            };
+        }
+
+        // Проверяем возможности WebGL
+        const maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+        console.log('Max texture size:', maxTextureSize);
+
+        switch (gpuType) {
+            case 'discrete':
+                return {
+                    method: 'gpu',
+                    reason: 'Обнаружена дискретная видеокарта - используем аппаратное ускорение',
+                    confidence: 'high'
+                };
+                
+            case 'integrated':
+                // Для интегрированной графики проверяем производительность
+                if (maxTextureSize >= 4096) {
+                    return {
+                        method: 'gpu', 
+                        reason: 'Интегрированная графика с хорошей поддержкой WebGL - используем аппаратное ускорение',
+                        confidence: 'medium'
+                    };
+                } else {
+                    return {
+                        method: 'cpu',
+                        reason: 'Интегрированная графика с ограниченными возможностями - используем программный рендеринг',
+                        confidence: 'medium'
+                    };
+                }
+                
+            case 'unknown':
+            default:
+                // Для неизвестных GPU тестируем производительность
+                if (maxTextureSize >= 2048) {
+                    return {
+                        method: 'gpu',
+                        reason: 'Неизвестный GPU с хорошими характеристиками - пробуем аппаратное ускорение',
+                        confidence: 'low'
+                    };
+                } else {
+                    return {
+                        method: 'cpu',
+                        reason: 'Неизвестный GPU с ограниченными возможностями - используем безопасный режим (CPU)',
+                        confidence: 'medium'
+                    };
+                }
+        }
+    } catch (error) {
+        console.error('Error determining rendering method:', error);
+        return {
+            method: 'cpu',
+            reason: 'Ошибка определения метода рендеринга - используем безопасный режим',
+            confidence: 'high'
+        };
+    }
 }
 };
 
