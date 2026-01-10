@@ -289,7 +289,7 @@ L n L q L q H  U n U n L q U n
 			});
 			video.addEventListener('ended',()=>{
 				clear_pixijs();
-				update_symbols_grid();
+				init_sumbols_grid();
 				change_room('recycle_bin');
 			});
 			preparation=false;

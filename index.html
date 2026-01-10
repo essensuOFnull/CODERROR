@@ -9,12 +9,6 @@
 	font-family:'CODERROR';
 	src:url('fonts/CODERROR16x16GNUUnifont.ttf') format('truetype');
 }
-.pixel-rendering *{
-	image-rendering:pixelated;
-}
-.smooth-rendering *{
-	image-rendering:auto;
-}
 *{
 	margin:0;
 	padding:0;
@@ -230,7 +224,7 @@ if(!window.location.search.includes('child=1')){
 			app.init().then(()=>{
 				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.29.1';
+				window.version='(1)0.29.2';
 				/*добавление в разметку canvas-а pixijs*/
 				wrapper.appendChild(app.view);
 				/*добавление в разметку html-overlay*/
@@ -246,27 +240,71 @@ if(!window.location.search.includes('child=1')){
 						overlay.innerHTML=``;
 					}
 				}
-				let symbols_grid=[];//двумерный массив для символов
-				let columns=0;
-				let rows=0;
+				/*инициализирует матрицу символов*/
+				let symbols_grid,columns,rows;
+				function init_sumbols_grid(){
+					symbols_grid=[];
+					columns=0;
+					rows=0;
+					update_symbols_grid();
+				}
+				/*обновляет размеры матрицы символов*/
 				function update_symbols_grid(){
-					columns=Math.ceil(app.renderer.width/symbol_size);
-					rows=Math.ceil(app.renderer.height/symbol_size);
-					// Удаляем старые символы
-					symbols_grid.forEach(row=>{
-						row.forEach(symbol=>symbol.destroy());
-					});
-					symbols_grid=[];// Сбрасываем массив
-					// Создаем новую сетку
-					for(let y=0;y<rows;y++){
-						symbols_grid[y]=[];
-						for(let x=0;x<columns;x++){
-							const symbol=new PIXI.Text('',text_style);
-							symbol.resolution=20;
-							symbol.position.set(x*symbol_size,y*symbol_size);
-							app.stage.addChild(symbol);
-							symbols_grid[y][x]=symbol;
+					const newColumns = Math.ceil(app.renderer.width / symbol_size);
+					const newRows = Math.ceil(app.renderer.height / symbol_size);
+					
+					// Ресайз существующей сетки
+					if(newColumns !== columns || newRows !== rows) {
+						// Удаляем лишние строки
+						if(newRows < rows) {
+							for(let y = newRows; y < rows; y++) {
+								for(let x = 0; x < columns; x++) {
+									symbols_grid[y][x].destroy({ children: true });
+								}
+							}
+							symbols_grid.length = newRows;
 						}
+						
+						// Добавляем новые строки
+						if(newRows > rows) {
+							for(let y = rows; y < newRows; y++) {
+								symbols_grid[y] = [];
+								for(let x = 0; x < Math.max(columns, newColumns); x++) {
+									const symbol = new PIXI.Text('', text_style);
+									symbol.resolution=20;
+									symbol.position.set(x * symbol_size, y * symbol_size);
+									app.stage.addChild(symbol);
+									symbols_grid[y][x] = symbol;
+								}
+							}
+						}
+						
+						// Обновляем колонки в каждой строке
+						for(let y = 0; y < newRows; y++) {
+							// Удаляем лишние колонки
+							if(newColumns < columns) {
+								for(let x = newColumns; x < columns; x++) {
+									if(symbols_grid[y][x]) {
+										symbols_grid[y][x].destroy({ children: true });
+									}
+								}
+								symbols_grid[y].length = newColumns;
+							}
+							
+							// Добавляем новые колонки
+							if(newColumns > columns) {
+								for(let x = columns; x < newColumns; x++) {
+									const symbol = new PIXI.Text('', text_style);
+									symbol.resolution=20;
+									symbol.position.set(x * symbol_size, y * symbol_size);
+									app.stage.addChild(symbol);
+									symbols_grid[y][x] = symbol;
+								}
+							}
+						}
+						
+						columns = newColumns;
+						rows = newRows;
 					}
 				}
 				/*настройки шрифтов*/
@@ -282,7 +320,7 @@ if(!window.location.search.includes('child=1')){
 						trim:false,
 						fill:0xFFFFFF,
 					});
-					update_symbols_grid();
+					init_sumbols_grid();
 				}
 				set_font_size(16);
 				/**/
@@ -324,8 +362,31 @@ if(!window.location.search.includes('child=1')){
 						}
 					}
 				}
+				function init_printable_symbols(){
+					window.printable_symbols='';
+					let ranges = [
+						[0x0020, 0x007F],   // Basic Latin (ASCII)
+						[0x00A0, 0x00FF],   // Latin-1 Supplement
+						[0x0400, 0x04FF],   // Cyrillic
+						[0x0370, 0x03FF],   // Greek
+						[0x3040, 0x309F],   // Hiragana
+						[0x30A0, 0x30FF],   // Katakana
+						[0x4E00, 0x9FFF],   // CJK Unified Ideographs (кандзи)
+						[0x0600, 0x06FF],   // Arabic
+						[0x0900, 0x097F],   // Devanagari
+						[0x0E00, 0x0E7F],   // Thai
+						[0xAC00, 0xD7AF],   // Hangul Syllables (корейский)
+						[0x1F600, 0x1F64F]  // Emoji
+					];
+					for(let range of ranges){
+						for(let codePoint=range[0];codePoint<=range[1];codePoint++){
+							window.printable_symbols+=String.fromCodePoint(codePoint);
+						}
+					}
+				}
+				init_printable_symbols();
 				function get_random_char(){
-					return String.fromCharCode(Math.floor(Math.random()*(126-33+1))+33);
+    				return window.printable_symbols[Math.floor(Math.random()*99)];
 				}
 				function get_random_color(){
 					return Math.floor(Math.random()*0xFFFFFF);
