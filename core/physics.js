@@ -114,31 +114,39 @@ L n L q L q H  U n U n L q U n
                 };
                 d.overlay.appendChild(d.save.room.data.info);
                 d.overlay.appendChild(d.save.room.data.logo);
-                f.change_button_color(d.save.room.data.buttons.exit,'#f00');
                 Object.entries(d.save.room.data.buttons).forEach(([name,el])=>{
                     d.save.room.data.buttons_div.appendChild(el);
                     d.save.room.data.buttons_div.appendChild(f.get_br());
                 });
                 d.save.room.data.scrollable.appendChild(d.save.room.data.buttons_div);
                 d.overlay.appendChild(d.save.room.data.scrollable);
-                d.save.room.data.buttons.exit.addEventListener('click',()=>{
-                    alert("⚠️ ERROR 400: Bad Request");
-                    self.close();
+                d.save.room.data.buttons.new_game.addEventListener('click',()=>{
+                    f.change_room('intro0');
                 });
-                d.save.room.data.buttons.authors.addEventListener('click',()=>{
-                    f.change_room('authors');
+                d.save.room.data.buttons.continue.addEventListener('click',()=>{
+                    f.change_room('continue');
                 });
                 d.save.room.data.buttons.settings.addEventListener('click',()=>{
                     f.change_room('settings');
                 });
-                d.save.room.data.buttons.new_game.addEventListener('click',()=>{
-                    f.change_room('intro0');
+                d.save.room.data.buttons.authors.addEventListener('click',()=>{
+                    f.change_room('authors');
                 });
                 d.save.room.data.buttons.room_editor.addEventListener('click',()=>{
                     f.change_room('room_editor');
                 });
-                d.save.room.data.buttons.continue.addEventListener('click',()=>{
-                    f.change_room('continue');
+                f.change_button_border_color(d.save.room.data.buttons.donation,'#ffd700');
+                // Сделать кнопку пожертвования "эпичной": добавить класс для пульсации
+                if(d.save.room.data.buttons.donation && !d.save.room.data.buttons.donation.classList.contains('epic-donation-button')){
+                    d.save.room.data.buttons.donation.classList.add('epic-donation-button');
+                }
+                d.save.room.data.buttons.donation.addEventListener('click',()=>{
+                    window.open('https://tbank.ru/cf/4yH9fggd9e9','_blank');
+                });
+                f.change_button_color(d.save.room.data.buttons.exit,'#f00');
+                d.save.room.data.buttons.exit.addEventListener('click',()=>{
+                    alert("⚠️ ERROR 400: Bad Request");
+                    self.close();
                 });
             }
             f.rotate_sky(0.005,0.01,0);

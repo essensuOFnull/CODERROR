@@ -37,17 +37,20 @@ d.app.ticker.add(()=>{
 						else{
 							if(d.save.room.data.bug_counter<=0){
 								f.visual_effect(2);
-							}
-							else{
+							}else{
 								d.save.room.data.bug_counter--;
 							}
 						}
-					}
-					else{
+					}else if(name=='donation'){
+						if(f.check_hover(el)){
+							f.change_button_text_color(el,f.get_random_true_str_color());
+						}else{
+							f.change_button_text_color(el,'#fff');
+						}
+					}else{
 						if(f.check_hover(el)){
 							f.change_button_color(el,f.get_random_true_str_color());
-						}
-						else{
+						}else{
 							f.change_button_color(el,'#fff');
 						}
 					}
