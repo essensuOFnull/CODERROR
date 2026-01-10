@@ -201,7 +201,7 @@ if(!window.location.search.includes('child=1')){
 			app.init().then(()=>{
 				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.22.1';
+				window.version='(1)0.23.0';
 				/*добавление в разметку canvas-а pixijs*/
 				wrapper.appendChild(app.view);
 				/*добавление в разметку html-overlay*/
@@ -910,6 +910,10 @@ if(!window.location.search.includes('child=1')){
 				function apply_random_splash(){
 					window.splash=get_random_element(window.language.splashes);
 				}
+				/*очищает сцену pixijs*/
+				function clear_pixijs(stage=app.stage){
+					stage.removeChildren();
+				}
 				/*финальная настройка*/
 				let room_data;
 				room='main_menu'
@@ -949,6 +953,9 @@ L n L q L q H  U n U n L q U n
 							});
 							room_data.buttons.settings.addEventListener('click',()=>{
 								change_room('settings');
+							});
+							room_data.buttons.new_game.addEventListener('click',()=>{
+								change_room('intro0');
 							});
 							preparation=false;
 						}
@@ -1203,10 +1210,36 @@ L n L q L q H  U n U n L q U n
 							}
 						});
 					}
+					if(room=='intro0'){
+						if(preparation){
+							clear_pixijs();
+							const video=document.createElement('video');
+							//video.crossOrigin="anonymous";
+							video.src='videos/intro/0.mp4';
+							video.muted=true;// Часто требуется для автовоспроизведения
+							video.autoplay=true;
+							video.addEventListener('loadeddata',()=>{
+								const texture=PIXI.Texture.from(video);
+								const sprite=new PIXI.Sprite(texture);
+								sprite.anchor.set(0.5);
+								sprite.x=app.screen.width/2;
+								sprite.y=app.screen.height/2;
+								app.stage.addChild(sprite);
+							});
+							video.addEventListener('ended',()=>{
+								clear_pixijs();
+								update_symbols_grid();
+							    change_room('main_menu');
+							});
+							preparation=false;
+						}
+					}
 					window.PERMITTED={ 
 						set_font_size,
 						apply_language,
-						set_max_content_size
+						set_max_content_size,
+						apply_random_splash,
+						apply_settings
 					};
 				});
 				app.ticker.maxFPS=60;
