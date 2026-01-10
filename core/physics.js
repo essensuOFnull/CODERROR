@@ -91,12 +91,17 @@ function update_game_logic(){
                     /*получение доступа к своей же папке*/
                     f.init_file_access().then(()=>{
                         try{
-                            f.read_file('YOUR_DATA/settings.json').then((text)=>{
-                                if(text){
-                                    d.settings=JSON.parse(text);
-                                    f.apply_settings();
-                                    f.print_to_chat(d.language.notifications.settings_loaded);
-                                }
+                            /*используя полученные возможности, продолжаем загрузку игры*/
+                            /*загружаем языки*/
+                            f.load_languages().then(()=>{
+                                /*загружаем и применяем настройки*/
+                                f.read_file('YOUR_DATA/settings.json').then((text)=>{
+                                    if(text){
+                                        d.settings=JSON.parse(text);
+                                        f.apply_settings();
+                                        f.print_to_chat(d.language.notifications.settings_loaded);
+                                    }
+                                });
                             });
                         }catch(e){
                             f.print_to_chat(d.language.errors.common(e));

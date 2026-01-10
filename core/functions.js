@@ -1463,6 +1463,92 @@ remove_directory: function(relPath) {
 		};
 		next(0);
 	});
+},
+/**возвращает список названий файлов в указанной директории (папки игнорируются)*/
+list_files: function(relPath = "") {
+    return new Promise((resolve, reject) => {
+        if (!d.directory_handle) return reject(new Error('Directory handle is not available'));
+        
+        const parts = relPath.split('/').filter(Boolean);
+        let dir = d.directory_handle;
+        
+        const next = (i) => {
+            if (i >= parts.length) {
+                // Достигли целевой директории - читаем её содержимое
+                const files = [];
+                const readFiles = async () => {
+                    try {
+                        for await (const [name, handle] of dir.entries()) {
+                            // Добавляем только файлы, игнорируем папки
+                            if (handle.kind === 'file') {
+                                files.push(name);
+                            }
+                        }
+                        resolve(files.sort());
+                    } catch (error) {
+                        reject(error);
+                    }
+                };
+                readFiles();
+                return;
+            }
+            
+            dir.getDirectoryHandle(parts[i])
+                .then(newDir => {
+                    dir = newDir;
+                    next(i + 1);
+                })
+                .catch(error => {
+                    if (error.name === 'NotFoundError') {
+                        // Директория не существует - возвращаем пустой массив
+                        resolve([]);
+                    } else {
+                        reject(error);
+                    }
+                });
+        };
+        
+        next(0);
+    });
+},
+fetch_json:function(path){
+	fetch(path).then(response=>{
+		if(!response.ok){
+			throw new Error('Ошибка сети');
+		}
+		return response.json();// Парсим JSON в JS-объект
+	}).then(data=>{
+		return data;
+	}).catch(error=>{
+		console.error('Ошибка загрузки файла:',error);
+	});
+},
+/**загружает языки из папки languages*/
+load_languages: function(){
+    return f.list_files('languages').then(files => {
+        let languages_div = document.getElementById('languages_div');
+        languages_div.innerHTML = '';
+        
+        // Создаем массив промисов для каждого скрипта
+        const promises = [];
+        
+        for(const file of files){
+            const promise = new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = `languages/${file}`;
+                
+                script.onload = resolve;
+                script.onerror = reject;
+                
+                languages_div.appendChild(script);
+            });
+            
+            promises.push(promise);
+        }
+        
+        // Ждем загрузки всех скриптов
+        return Promise.all(promises);
+    });
 }
 };
 
