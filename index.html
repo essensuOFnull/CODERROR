@@ -312,17 +312,15 @@ if(!window.location.search.includes('child=1')){
 				let room_data,player;
 				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.32.1';
-				/*добавление в разметку сцены three*/
-				let three_container=document.createElement('div');
-				three_container.id='three_container';
+				window.version='(1)0.32.2';
+				/*инициализация сцены three*/
 				let three_scene=new THREE.Scene();
 				three_scene.background=null;
 				/*инициализирует камеру three*/
 				let three_camera;
 				function init_three_camera(){
 					three_camera=new THREE.PerspectiveCamera(
-						75,
+						50,
 						wrapper.clientWidth/wrapper.clientHeight,
 						0.1,
 						1000
@@ -334,29 +332,81 @@ if(!window.location.search.includes('child=1')){
 				three_renderer.shadowMap.enabled=false;/*отключаем тени*/
 				/*Загрузчик для текстур*/
 				let texture_loader=new THREE.TextureLoader();
-				/*инициализирует коробку, на которую можно натянуть текстуру неба*/
+				/*коробка, на которую можно натянуть текстуру неба*/
 				let skybox;
 				/*функция создания материалов*/
-				function create_skybox_materials(path_part,extension) {
-					let sides=['right','left','top','bottom','front','back'];
-					return sides.map(side=>{
-						let texture=texture_loader.load(
-							`${path_part}/${side}.${extension}`,
-							undefined,/*onLoad*/
-							undefined,/*onProgress*/
-							(error)=>{
-								console.error('Error loading texture:',error);
-							}
-						);
-						return new THREE.MeshBasicMaterial({
-							map:texture,
-							side:THREE.BackSide,
+				function create_skybox_materials(path_part,extension,is_sphere) {
+					let sides = ['right','left','top','bottom','front','back'];
+					if(is_sphere){
+						return sides.map(side => {
+							let texture=texture_loader.load(
+								`${path_part}/${side}.${extension}`,
+								undefined,/*onLoad*/
+								undefined,/*onProgress*/
+								(error)=>{
+									console.error('Error loading texture:',error);
+								}
+							);
+							
+							// Кастомный шейдерный материал
+							return new THREE.ShaderMaterial({
+								uniforms: {
+									map: { value: texture }
+								},
+								vertexShader: `
+									varying vec2 vUv;
+									void main() {
+										vUv = uv;
+										gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+									}
+								`,
+								fragmentShader: `
+									uniform sampler2D map;
+									varying vec2 vUv;
+									
+									void main() {
+										// Сдвигаем координаты в центр [-1, 1]
+										vec2 centeredUV = (vUv - 0.5) * 2.0;
+										
+										// Рассчитываем расстояние от центра
+										float dist = length(centeredUV);
+										
+										// Коэффициент искажения на основе угла (используем PI)
+										float stretchFactor = cos(dist * 0.5 * 3.1415926535);
+										
+										// Применяем нелинейное растяжение
+										vec2 distortedUV = centeredUV * (1.0 + stretchFactor * 0.333333);
+										
+										// Возвращаем координаты в исходный диапазон [0, 1]
+										vec2 finalUV = (distortedUV * 0.5) + 0.5;
+										
+										gl_FragColor = texture2D(map, finalUV);
+									}
+								`,
+								side: THREE.BackSide,
+								depthWrite: false
+							});
 						});
-					});
+					}else{
+						return sides.map(side=>{
+							let texture=texture_loader.load(
+								`${path_part}/${side}.${extension}`,
+								undefined,/*onLoad*/
+								undefined,/*onProgress*/
+								(error)=>{
+									console.error('Error loading texture:',error);
+								}
+							);
+							return new THREE.MeshBasicMaterial({
+								map:texture,
+								side:THREE.BackSide,
+							});
+						});
+					}
 				}
 				/*функция установки неба*/
 				let current_sky_path;
-				function set_sky(path_part,extension) {
+				function set_sky(path_part,extension,is_sphere=false) {
 					let new_sky_path=`${path_part}/.${extension}`;
 					if(new_sky_path!=current_sky_path){
 						/*Удаляем старый skybox с освобождением ресурсов*/
@@ -380,7 +430,7 @@ if(!window.location.search.includes('child=1')){
 						/*Создаем новые материалы с обработкой ошибок*/
 						try{
 							let geometry=new THREE.BoxGeometry(5, 5, 5);
-							let materials=create_skybox_materials(path_part,extension);
+							let materials=create_skybox_materials(path_part,extension,is_sphere);
 							skybox=new THREE.Mesh(geometry, materials);
 							three_scene.add(skybox);
 						}catch(error){
@@ -413,10 +463,21 @@ if(!window.location.search.includes('child=1')){
 				}
 				update_three_scene();
 				function rotate_sky(x,y,z){
+					if(!skybox)return;
 					skybox.rotation.x+=x;
 					skybox.rotation.y+=y;
 					skybox.rotation.z+=z;
 				}
+				function set_sky_rotation(x,y,z){
+					if(!skybox)return;
+					skybox.rotation.set(x,y,z);
+				}
+				/*отслеживание координат мыши*/
+				let mouse={x:0,y:0};
+				wrapper.addEventListener('mousemove',(event)=>{
+					mouse.x=event.clientX-wrapper.getBoundingClientRect().left;
+					mouse.y=event.clientY-wrapper.getBoundingClientRect().top;
+				});
 				/*добавление в разметку canvas-а pixijs*/
 				wrapper.appendChild(app.view);
 				/*добавление в разметку html-overlay*/

@@ -121,7 +121,7 @@ L n L q L q H  U n U n L q U n
 	}
 	if(room=='authors'){
 		if(preparation){
-			set_sky('images/skies/glitch','png');
+			set_sky('images/skies/glitch_anime_girls','png',false);
 			set_music('music/main_menu.mp3');
 			set_interface_visibility(false);
 			room_data={
@@ -132,6 +132,7 @@ L n L q L q H  U n U n L q U n
 				buttons:{
 					back:create_button_from_text(`назад`)
 				},
+				y_sky_rotation:0,
 			};
 			overlay.appendChild(room_data.scrollable);
 			room_data.scrollable.appendChild(room_data.div1);
@@ -147,7 +148,11 @@ L n L q L q H  U n U n L q U n
 			});
 			preparation=false;
 		}
-		rotate_sky(0.005,0.01,0);
+		set_sky_rotation((mouse.y-wrapper.clientHeight/2)/1000,room_data.y_sky_rotation+(mouse.x-wrapper.clientWidth/2)/1000,0);
+		if(room_data.y_sky_rotation==Math.PI){
+			room_data.y_sky_rotation=0;
+		}
+		room_data.y_sky_rotation+=0.005;
 	}
 	if(room=='settings'){
 		if(preparation){
