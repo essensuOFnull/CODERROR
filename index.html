@@ -97,7 +97,7 @@ button{
 	position:relative;
 }
 select{
-	background:#00000000;
+	background:#000;
 	color:#fff;
 	outline:none;
 	border:none;
@@ -109,6 +109,23 @@ select option{
 }
 .wrap{
 	flex-wrap:wrap;
+}
+textarea{
+	background-color:#000;
+	color:#fff;
+	border:0px solid #fff;
+	border-radius:0;
+	white-space:normal;
+	overflow-wrap:break-word;
+	outline:none;
+	::placeholder{
+		color:#c8c8c8;
+		opacity:1;
+	}
+	&:focus {
+		border-color:#f0f;
+		box-shadow:none;
+	}
 }
 	</style>
 	<link rel="icon" type="image/png">
@@ -178,7 +195,7 @@ if(!window.location.search.includes('child=1')){
 			app.init().then(()=>{
 				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.18.3';
+				window.version='(1)0.19.0';
 				/*добавление в разметку canvas-а pixijs*/
 				wrapper.appendChild(app.view);
 				/*добавление в разметку html-overlay*/
@@ -748,6 +765,7 @@ if(!window.location.search.includes('child=1')){
 					select.style.padding='var(--symbol_size)';
 					select.style.marginRight='0';
 					select.style.cursor='pointer';
+					select.style.background='#00000000';
 					let frame=wrap_in_frame(select,`<button style='background:#000;'/>`,removable);
 					frame.style.pointerEvents='none';
 					return[frame,select];
@@ -796,7 +814,20 @@ if(!window.location.search.includes('child=1')){
 				/*применяет к игре настройки из window.settings*/
 				function apply_settings(){
 					apply_language(window.settings.interface.language);
+					set_font_size(window.settings.interface.font_size);
 					change_room(room);
+				}
+				/*создает textarea с рамкой*/
+				function create_textarea_with_frame(placeholder='',removable=false){
+					let textarea=create_element_from_HTML('<textarea/>');
+					textarea.style.cursor='pointer';
+					textarea.style.background='#00000000';
+					textarea.placeholder=placeholder;
+					let frame=wrap_in_frame(textarea,`<button style='background:#000;'/>`,removable);
+					frame.addEventListener('click',(e)=>{
+						textarea.focus();
+					})
+					return[frame,textarea];
 				}
 				/*финальная настройка*/
 				let room_data;
@@ -923,9 +954,9 @@ L n L q L q H  U n U n L q U n
 								room_data.div1.appendChild(get_symbolic_hr());
 								room_data.div1.appendChild(get_br());
 								room_data.settings_divs[section_id]={};
-								Object.entries(section.options).forEach(([option_id,option_name])=>{
+								Object.entries(section.options).forEach(([option_id,option])=>{
 									room_data.settings_divs[section_id][option_id]=create_element_from_HTML(`<div class='center'></div>`);
-									room_data.settings_divs[section_id][option_id].appendChild(create_element_from_HTML(`<div>${get_transparent_space_text(`${option_name}: `)}</div>`));
+									room_data.settings_divs[section_id][option_id].appendChild(create_element_from_HTML(`<div>${get_transparent_space_text(`${option.name}: `)}</div>`));
 									/*заполнение текущими значениями и необходимыми элементами интерфейса в зависимости от типа настройки*/
 									let values=create_element_from_HTML(`<div id='values'></div>`);
 									room_data.settings_divs[section_id][option_id].appendChild(values);
@@ -956,6 +987,20 @@ L n L q L q H  U n U n L q U n
 											});
 											add_button.addEventListener('mouseout',()=>{
 												change_button_border_color(add_button,'#fff');
+											});
+										}
+										if(option_id=='font_size'){
+											let[frame,textarea]=create_textarea_with_frame(option.placeholder);
+											textarea.value=window.settings.interface.font_size;
+											textarea.addEventListener('input',(e)=>{
+												window.settings.interface.font_size=e.target.value;
+											});
+											values.appendChild(frame);
+											frame.addEventListener('mouseover',()=>{
+												change_button_border_color(frame,'#f0f');
+											});
+											frame.addEventListener('mouseout',()=>{
+												change_button_border_color(frame,'#fff');
 											});
 										}
 									}
