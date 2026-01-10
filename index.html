@@ -84,7 +84,6 @@
     <link rel="icon" type="image/png">
 </head>
 <body>
-    <input type="file" id="json_input" hidden multiple/>
     <script>
         //Проверяем, является ли это окно основным
         if(!window.location.search.includes('child=1')){
@@ -138,7 +137,7 @@
                 });
                 app.init().then(()=>{
                     /*версия CODERROR'а*/
-                    window.version='(1)0.12.1';
+                    window.version='(1)0.12.2';
                     /*добавление в разметку canvas-а pixijs*/
                     document.body.appendChild(app.view);
                     /*добавление в разметку html-overlay*/
@@ -601,29 +600,80 @@
                         }
                         return result;
                     }
-                    /*принимает json файлы, объединяет в 1 объект и вызывает функцию обработки этого объекта*/
-                    let json_handler;
-                    let json_input=document.getElementById('json_input');
-                    async function jsons_to_object(files){
-                        try{
-                            const dicts=await jsons_to_dict_list(files);
-                            const merged=smart_merge(dicts);
-                            json_handler(merged);
-                        }catch(error){
-                            console.error('Ошибка:',error);
+                    /*создаёт кастомные обработчики событий*/
+                    const eventHandlers=new WeakMap();
+                    function add_event_listener(name,element,function_part){
+                        /*Удаляем старые обработчики перед добавлением новых*/
+                        remove_event_listener(name,element);
+                        const handlers={
+                            drop:null,
+                            click:null,
+                            change:null
+                        };
+                        if(name==='get_json'){
+                            const jsonInput=document.createElement('input');
+                            jsonInput.type='file';
+                            jsonInput.multiple=true;
+                            jsonInput.accept='.json';
+                            jsonInput.style.display='none';
+                            /*Обработчик для drag-and-drop*/
+                            const dropHandler=async(e)=>{
+                                e.preventDefault();
+                                try{
+                                    const dicts=await jsons_to_dict_list(e.dataTransfer.files);
+                                    const merged=smart_merge(dicts);
+                                    function_part(merged);
+                                }catch(error){
+                                    console.error('Ошибка:',error);
+                                }
+                            };
+                            /*Обработчик для клика (открытие проводника)*/
+                            const clickHandler=()=>{
+                                jsonInput.click();
+                            };
+                            /*Обработчик выбора файлов (общий для всех вызовов)*/
+                            const changeHandler=async(e)=>{
+                                try{
+                                    const files=Array.from(e.target.files);
+                                    const dicts=await jsons_to_dict_list(files);
+                                    const merged=smart_merge(dicts);
+                                    function_part(merged);
+                                    jsonInput.value='';
+                                }catch(error){
+                                    console.error('Ошибка:',error);
+                                }
+                            };
+                            /*Сохраняем ссылки на обработчики*/
+                            handlers.drop=dropHandler;
+                            handlers.click=clickHandler;
+                            handlers.change=changeHandler;
+                            /*Навешиваем обработчики*/
+                            element.addEventListener('drop',dropHandler);
+                            element.addEventListener('click',clickHandler);
+                            jsonInput.addEventListener('change',changeHandler);
+                            /*Сохраняем созданный input и обработчики*/
+                            eventHandlers.set(element,{
+                                name,
+                                handlers,
+                                elements:{jsonInput}
+                            });
                         }
                     }
-                    /*для возможности принимать файлы через проводник*/
-                    json_input.addEventListener('change',async(e)=>{
-                        try{
-                            const files=Array.from(e.target.files);
-                            await jsons_to_object(files);
-                            // Сбрасываем значение для повторного выбора
-                            json_input.value='';
-                        }catch(error){
-                            console.error('Ошибка:',error);
+                    /*удаляет кастомные обработчики событий*/
+                    function remove_event_listener(name,element) {
+                        const stored=eventHandlers.get(element);
+                        if(stored&&stored.name===name){
+                            /*Удаляем все обработчики событий*/
+                            element.removeEventListener('drop',stored.handlers.drop);
+                            element.removeEventListener('click',stored.handlers.click);
+                            stored.elements.jsonInput.removeEventListener('change',stored.handlers.change);
+                            /*Удаляем созданный input из DOM если был добавлен*/
+                            if(document.body.contains(stored.elements.jsonInput)){
+                                document.body.removeChild(stored.elements.jsonInput);
+                            }
+                            eventHandlers.delete(element);
                         }
-                    });
+                    }
                     /*финальная настройка*/
                     let room_data;
                     let logo_text=String.raw`
@@ -747,14 +797,7 @@ L n L q L q H  U n U n L q U n
                                 };
                                 overlay.appendChild(room_data.div);
                                 room_data.div.appendChild(room_data.drop_zone);
-                                json_handler=(object)=>{
-                                    console.log(object);/*то что будет происходить с обработанными файлами*/
-                                };
-                                room_data.drop_zone.addEventListener('drop',(e)=>{
-                                    e.preventDefault();
-                                    jsons_to_object(e.dataTransfer.files);/*обработка файлов через перетаскивание*/
-                                });
-                                room_data.drop_zone.addEventListener('click',()=>json_input.click());/*обработка файлов через проводник*/
+                                add_event_listener('get_json',room_data.drop_zone,(data)=>{console.log(data);});
                                 preparation=false;
                             }
                             visual_effect(0);
