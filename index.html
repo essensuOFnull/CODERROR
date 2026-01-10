@@ -4,9 +4,18 @@
     <meta charset="UTF-8">
     <title>CODERROR</title>
     <style>
+        @font-face{
+            font-family:'CODERROR';
+            src:url('fonts/CODERROR.ttf')format('truetype');
+            font-weight:normal;
+            font-style:normal;
+            font-display:block;
+        }
         *{
             margin:0;
             padding:0;
+            font-family:'CODERROR',monospace;
+            letter-spacing:0;
         }
         html,body{
             width:100%;
@@ -19,18 +28,15 @@
         canvas{
             display:block;
         }
-        @font-face{
-            font-family:'CODERROR';
-            src:url('fonts/CODERROR.ttf')format('truetype');
-            font-weight:normal;
-            font-style:normal;
-            font-display:block;
-        }
         #html-overlay{
             position:absolute;
             top:0;
             left:0;
             pointer-events:auto; /* Разрешить взаимодействие с HTML-элементами */
+        }
+        pre{
+            color:#fff;
+            background:#000;
         }
     </style>
     <link rel="icon" type="image/png">
@@ -94,22 +100,15 @@
                     const overlay=document.createElement('div');
                     overlay.id='html-overlay';
                     document.body.appendChild(overlay);
-                    /*настройки*/
-                    const symbol_size=10;
+                    /**/
                     let room,preparation;
                     function change_room(room_,preparation_=true){
                         room=room_;
                         preparation=preparation_;
                     }
-                    const text_style=new PIXI.TextStyle({
-                        fontFamily:'CODERROR',
-                        fontSize:symbol_size,
-                        fill:0xFFFFFF,
-                    });
                     let symbols_grid=[];//двумерный массив для символов
                     let columns=0;
                     let rows=0;
-
                     function update_symbols_grid(){
                         columns=Math.ceil(app.renderer.width/symbol_size);
                         rows=Math.ceil(app.renderer.height/symbol_size);
@@ -130,6 +129,22 @@
                             }
                         }
                     }
+                    /*настройки шрифтов*/
+                    const styleSheet=document.styleSheets[0];
+                    let symbol_size,font_size,text_style,pixel_in_pt=0.675;
+                    function set_font_size(size_in_pixels){
+                        symbol_size=size_in_pixels;
+                        font_size=symbol_size*pixel_in_pt;
+                        styleSheet.insertRule("*{font-size:"+font_size+"pt !important;}",styleSheet.cssRules.length);
+                        text_style=new PIXI.TextStyle({
+                            fontFamily:'CODERROR',
+                            fontSize:symbol_size,
+                            fill:0xFFFFFF,
+                        });
+                        update_symbols_grid();
+                    }
+                    set_font_size(10);
+                    /**/
                     const update_size=()=>{
                         app.renderer.resize(window.innerWidth,window.innerHeight);
                         update_symbols_grid();
@@ -175,7 +190,6 @@
                             link.href=URL.createObjectURL(blob);
                         },'image/png');
                     }
-                    update_size();
                     window.addEventListener('resize',update_size);
                     /*обновление favicon*/
                     const faviconInterval=setInterval(()=>{
@@ -187,8 +201,16 @@
                     app.ticker.add(()=>{
                         document.title=`CODERROR FPS: ${app.ticker.FPS.toFixed(2)}`;
                         if(room==0){
+                            if(preparation){
+                                overlay.innerHTML=`
+<pre style="color:#c8c8c8;">by essensuOFnull</pre>`;
+                                preparation=false;
+                            }
                             visual_effect(0);
                         }
+                        window.PERMITTED={ 
+                            set_font_size
+                        };
                     });
                     app.ticker.maxFPS=60;
                 }).catch(console.error);
