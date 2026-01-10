@@ -16,6 +16,7 @@
             padding:0;
             font-family:'CODERROR',monospace;
             letter-spacing:0;
+            user-select:none;
         }
         html,body{
             width:100%;
@@ -23,7 +24,6 @@
             margin:0;
             padding:0;
             overflow:hidden;
-            background-color:#000;
         }
         canvas{
             display:block;
@@ -32,11 +32,20 @@
             position:absolute;
             top:0;
             left:0;
+            width:100vw;
+            height:100vh;
             pointer-events:auto; /* Разрешить взаимодействие с HTML-элементами */
         }
         pre{
             color:#fff;
             background:#000;
+            width:min-content;
+            height:min-content;
+        }
+        .center-horizontal{
+            width:max-content;
+            margin-left:auto;
+            margin-right:auto;
         }
     </style>
     <link rel="icon" type="image/png">
@@ -195,6 +204,28 @@
                     const faviconInterval=setInterval(()=>{
                         generate_favicon();
                     },1000/5);
+                    /*функция генерации кода разметки pre с отсутствием фона у пробелов*/
+                    function get_transparent_space_text(text, color='#fff', background='#000') {
+                        // Экранирование специальных символов для безопасного вывода
+                        const escapeHtml=(char)=>{
+                            const escapes={
+                                '<':'&lt;',
+                                '>':'&gt;',
+                                '&':'&amp;',
+                                '"':'&quot;',
+                                "'":'&#39;'
+                            };
+                            return escapes[char]||char;
+                        };
+                        return text.split('').map(char=>{
+                            if(char==='\n'){
+                                return'<br>';
+                            }
+                            const isSpace=char===' ';
+                            const bgColor=isSpace?'transparent':background;
+                            return`<pre style="display:inline-block;color:${color};background:${bgColor};">${escapeHtml(char)}</pre>`;
+                        }).join('');
+                    }
                     /*финальная настройка*/
                     change_room(0);
                     /*главный цикл*/
@@ -202,8 +233,12 @@
                         document.title=`CODERROR FPS: ${app.ticker.FPS.toFixed(2)}`;
                         if(room==0){
                             if(preparation){
-                                overlay.innerHTML=`
-<pre style="color:#c8c8c8;">by essensuOFnull</pre>`;
+                                overlay.innerHTML=get_transparent_space_text(`by essensuOFnull`,color='#c8c8c8')+`<div class="center-horizontal">`+get_transparent_space_text(String.raw`
+/T\ /T\ PT\ P] PT\ PT\ /T\ PT\
+L U L q L q H  L q L q L q L q
+L   L q L q H] L_/ L_/ L q L_/
+L n L q L q H  U n U n L q U n
+\_/ \_/ L_/ L] U U U U \_/ U U`.trim())+`</div>`;
                                 preparation=false;
                             }
                             visual_effect(0);
