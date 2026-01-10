@@ -224,7 +224,7 @@ if(!window.location.search.includes('child=1')){
 			app.init().then(()=>{
 				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.27.0';
+				window.version='(1)0.28.0';
 				/*добавление в разметку canvas-а pixijs*/
 				wrapper.appendChild(app.view);
 				/*добавление в разметку html-overlay*/
@@ -913,19 +913,23 @@ if(!window.location.search.includes('child=1')){
 								e.preventDefault();
 								document.removeEventListener('keydown',handler);
 								document.removeEventListener('mousedown',handler);
+								document.removeEventListener('wheel',handler);
 								if(e.type==='keydown'){
 									if(window.settings.control.bind_to_layout){
 										resolve(e.key);
 									}else{
 										resolve(e.code);
 									}
-								}else{
+								}else if(e.type==='mousedown'){
 									resolve(`mouse${e.button}`);
+								}else if(e.type==='wheel') {
+									resolve(e.deltaY<0?'WheelUp':'WheelDown');
 								}
 							}
 						};
 					document.addEventListener('keydown',handler);
 					document.addEventListener('mousedown',handler);
+					document.addEventListener('wheel',handler);
 					});
 				}
 				/*принимает список и возвращает случайный элемент*/
@@ -943,31 +947,34 @@ if(!window.location.search.includes('child=1')){
 				/*отслеживает нажатия и отжатия клавиш*/
 				window.pressed=new Set();
 				window.activated_actions=new Set();
-				function setup_input_tracker(){
-					function update_activated_actions(){
-						window.activated_actions.clear();
-						Object.entries(window.settings.control).forEach(([control_id,control])=>{
-							if(control_id!='bind_to_layout'){
-								for(let key of control){
-									if(window.pressed.has(key)){
-										window.activated_actions.add(control_id);
-										break;
-									}
+				function update_activated_actions(){
+					window.activated_actions.clear();
+					Object.entries(window.settings.control).forEach(([control_id,control])=>{
+						if(control_id!='bind_to_layout'){
+							for(let key of control){
+								if(window.pressed.has(key)){
+									window.activated_actions.add(control_id);
+									break;
 								}
 							}
-						});
-					}
+						}
+					});
+				}
+				function setup_input_tracker(){
 					const getKey=(e)=>{
 						if(e.type.startsWith('key')){
 							return window.settings.control.bind_to_layout?e.key:e.code;
+						}else if(e.type.startsWith('mouse')&&e.type!=='wheel'){
+							return`mouse${e.button}`;
+						}else if(e.type==='wheel'){
+							return e.deltaY<0?'WheelUp':'WheelDown';
 						}
-						return`mouse${e.button}`;
 					};
 					const handleEvent=(e)=>{
 						if(!e.repeat){/*Отключаем автоповтор*/
 							if(!window.ignored_keys.includes(e.code)){
 								const key=getKey(e);
-								if(e.type==='keydown'||e.type==='mousedown'){
+								if(e.type==='keydown'||e.type==='mousedown'||e.type==='wheel'){
 									window.pressed.add(key);
 								}else{
 									window.pressed.delete(key);
@@ -980,12 +987,14 @@ if(!window.location.search.includes('child=1')){
 					document.addEventListener('keyup',handleEvent);
 					document.addEventListener('mousedown',handleEvent);
 					document.addEventListener('mouseup',handleEvent);
+					document.addEventListener('wheel', handleEvent);
 					return{
 						stop_tracking:()=>{
 							document.removeEventListener('keydown',handleEvent);
 							document.removeEventListener('keyup',handleEvent);
 							document.removeEventListener('mousedown',handleEvent);
 							document.removeEventListener('mouseup',handleEvent);
+							document.removeEventListener('wheel', handleEvent);
 						}
 					};
 				}
@@ -1106,9 +1115,10 @@ if(!window.location.search.includes('child=1')){
 					document.querySelector(`.hotbar_slot[data-index="${active_hotbar_slot_index}"]`).appendChild(active_hotbar_slot_frame);
 				}
 				/*генерирует хотбар*/
-				function generate_hotbar(slot_count=10){
+				let hotbar_slot_count=10;
+				function generate_hotbar(){
 					let hotbar=create_element_from_HTML(`<div id="hotbar" class="row"></div>`);
-					for(let i=0;i<slot_count;i++){
+					for(let i=0;i<hotbar_slot_count;i++){
 						let slot=document.createElement('div');
 						slot.dataset.index=i;
 						slot.classList.add('hotbar_slot');
@@ -1119,6 +1129,22 @@ if(!window.location.search.includes('child=1')){
 						hotbar.appendChild(slot);
 					}
 					return hotbar;
+				}
+				/*активирует прошлый слот хотбара*/
+				function activate_previous_hotbar_slot(){
+					active_hotbar_slot_index--;
+					if(active_hotbar_slot_index<0){
+						active_hotbar_slot_index=hotbar_slot_count-1;
+					}
+					update_active_hotbar_slot_frame();
+				}
+				/*активирует следующий слот хотбара*/
+				function activate_next_hotbar_slot(){
+					active_hotbar_slot_index++;
+					if(active_hotbar_slot_index>=hotbar_slot_count){
+						active_hotbar_slot_index=0;
+					}
+					update_active_hotbar_slot_frame();
 				}
 				/*финальная настройка*/
 				document.addEventListener('contextmenu',(e)=>{

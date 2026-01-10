@@ -264,6 +264,12 @@ L n L q L q H  U n U n L q U n
 			update_active_hotbar_slot_frame();
 			preparation=false;
 		}
+		if(window.activated_actions.has('previous_hotbar_slot')){
+			activate_previous_hotbar_slot();
+		}
+		if(window.activated_actions.has('next_hotbar_slot')){
+			activate_next_hotbar_slot();
+		}
 	}
 	if(room=='intro0'){
 		if(preparation){
@@ -338,6 +344,10 @@ L n L q L q H  U n U n L q U n
 		apply_random_splash,
 		apply_settings
 	};
+	/*деактивируем прокрутку колесика мыши*/
+	window.pressed.delete(`WheelUp`);
+	window.pressed.delete(`WheelDown`);
+	update_activated_actions();
 }
 
 const fixed_update=()=>{

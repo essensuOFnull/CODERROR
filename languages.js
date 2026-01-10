@@ -53,6 +53,12 @@ default:{
 				},
 				jump:{
 					name:`прыжок`
+				},
+				previous_hotbar_slot:{
+					name:`предыдущий слот хотбара`
+				},
+				next_hotbar_slot:{
+					name:`следующий слот хотбара`
 				}
 			}
 		}

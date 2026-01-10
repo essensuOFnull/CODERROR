@@ -14,6 +14,8 @@ control:{
 	bind_to_layout:false,
 	left:["a","A","ф","Ф","ArrowLeft","KeyA"],
 	right:["d","D","в","В","ArrowRight","KeyD"],
-	jump:[" ","w","W","ц","Ц","ArrowUp","KeyW","Space"]
+	jump:[" ","w","W","ц","Ц","ArrowUp","KeyW","Space"],
+	previous_hotbar_slot:['WheelUp'],
+	next_hotbar_slot:['WheelDown']
 }
 }
