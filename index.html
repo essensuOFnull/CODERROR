@@ -121,6 +121,7 @@
                     ctx.textAlign='center';
                     ctx.textBaseline='middle';
                     const link=document.querySelector('link[rel="icon"]');
+                    
                     function generateFavicon(){
                         // Очищаем холст
                         ctx.clearRect(0,0,physicalSize,physicalSize);
@@ -129,8 +130,9 @@
                         // Рисуем символ
                         ctx.fillText(getRandomChar(),physicalSize/2,physicalSize/2);
                         // Обновляем иконку
-                        const dataURL=canvas.toDataURL('image/png');
-                        link.href=dataURL;
+                        canvas.toBlob(blob => {
+                            link.href = URL.createObjectURL(blob);
+                        }, 'image/png');
                     }
                     function updatePool(){
                         const required=columns*rows;
@@ -158,16 +160,13 @@
                     }
                     updateSize();
                     window.addEventListener('resize',updateSize);
-                    let faviconCounter=0;
+                    /*обновление favicon*/
+                    const faviconInterval=setInterval(()=>{
+                        generateFavicon();
+                    },1000/5);
+                    /*главный цикл*/
                     app.ticker.add(()=>{
                         updatePool();
-                        if(faviconCounter>20){
-                            generateFavicon();
-                            faviconCounter=0;
-                        }
-                        else{
-                            faviconCounter++;
-                        }
                         document.title=`CODERROR FPS: ${app.ticker.FPS.toFixed(2)}`;
                     });
                     app.ticker.maxFPS=60;
