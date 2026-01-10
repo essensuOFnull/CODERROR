@@ -74,8 +74,8 @@ function update_game_logic(){
 	/*комнаты*/
 	if(room=='main_menu'){
 		if(preparation){
+			set_music('music/main_menu.mp3');
 			set_interface_visibility(false);
-			set_music('music/main_menu.ogg');
 			room_data={
 				info:create_element_from_HTML(`<div>${get_transparent_space_text(`CODERROR ${window.version} by essensuOFnull`,'#c8c8c8')}</div>`),
 				logo:create_element_from_HTML(`<div class="center-horizontal">${get_transparent_space_text(String.raw`
@@ -119,6 +119,7 @@ L n L q L q H  U n U n L q U n
 	}
 	if(room=='authors'){
 		if(preparation){
+			set_music('music/main_menu.mp3');
 			set_interface_visibility(false);
 			room_data={
 				scrollable:create_element_from_HTML(`<div class="scrollable"/>`),
@@ -146,6 +147,7 @@ L n L q L q H  U n U n L q U n
 	}
 	if(room=='settings'){
 		if(preparation){
+			set_music('music/main_menu.mp3');
 			set_interface_visibility(false);
 			room_data={
 				scrollable:create_element_from_HTML(`<div class='scrollable'/>`),
@@ -328,6 +330,7 @@ L n L q L q H  U n U n L q U n
 	}
 	if(room=='intro0'){
 		if(preparation){
+			set_music('music/Errorscape.mp3');
 			set_interface_visibility(false);
 			clear_pixijs();
 			const video=document.createElement('video');
@@ -353,6 +356,7 @@ L n L q L q H  U n U n L q U n
 	}
 	if(room=='recycle_bin'){
 		if(preparation){
+			set_music('music/Errorscape.mp3');
 			set_interface_visibility(true);
 			room_data={
 				ground:{

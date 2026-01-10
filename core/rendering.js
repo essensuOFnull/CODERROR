@@ -1,4 +1,6 @@
 app.ticker.add(()=>{
+	/*обновление канваса three*/
+	update_three_scene();
 	/*кнопки интекрфейса игрока*/
 	let button_to_main_menu=document.getElementById('button_to_main_menu');
 	if(check_hover(button_to_main_menu)){
@@ -10,6 +12,7 @@ app.ticker.add(()=>{
 	/*комнаты*/
 	if(room=='main_menu'){
 		if(!preparation){
+			//console.log(app.renderer.gl.getContextAttributes());//удалить
 			visual_effect(0);
 			room_data.logo.firstChild.style.color=get_random_true_str_color();
 			Object.entries(room_data.buttons).forEach(([name,el])=>{

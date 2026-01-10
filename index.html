@@ -39,9 +39,14 @@ body {
 	align-items: center;
 }
 canvas{
-	display:block;
+	position:absolute;
+	top:0;
+	left:0;
 	width:inherit;
 	height:inherit;
+	pointer-events:none;
+	background: transparent !important;
+	mix-blend-mode:normal;
 }
 #html-overlay{
 	position:absolute;
@@ -296,21 +301,141 @@ if(!window.location.search.includes('child=1')){
 		/*загрузка скриптов*/
 		Promise.all([
 			load_script('scripts/pixi.min.js'),
+			load_script('scripts/three.min.js'),
 			load_script('initial_settings.js'),
 			load_script('languages.js')
 		])
 		.then((loaded_scripts)=>{
 			/*начальные скрипты загружены*/
 			const app=new PIXI.Application({
-				backgroundColor:0x000000
+				backgroundAlpha: 0, // Явно указываем полную прозрачность фона
+				useContextAlpha: true,
+				transparent:true,
+				premultipliedAlpha: false, // Критически важно для корректной прозрачности
+				preserveDrawingBuffer: true, // Для совместимости с Three.js
 			});
 			app.init().then(()=>{
 				let room_data,player;
 				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.31.0';
+				window.version='(1)0.32.0';
+				/*добавление в разметку сцены three*/
+				let three_container=document.createElement('div');
+				three_container.id='three_container';
+				let three_scene=new THREE.Scene();
+				three_scene.background = null;
+				let three_camera=new THREE.PerspectiveCamera(
+					75, 
+					window.innerWidth/window.innerHeight,
+					0.1,
+					1000
+				);
+				three_camera.position.z=1; // Камера внутри куба
+				let three_renderer=new THREE.WebGLRenderer({alpha:true});
+				three_renderer.setSize(window.innerWidth,window.innerHeight);
+				three_renderer.shadowMap.enabled=false;//отключаем тени
+				// Загрузчик для текстур
+				let texture_loader=new THREE.TextureLoader();
+				/*инициализирует коробку, на которую можно натянуть текстуру неба*/
+				let skybox;
+
+				// Исправленная функция создания материалов
+				function create_skybox_materials(path_part, extension) {
+					const sides = ['right', 'left', 'top', 'bottom', 'front', 'back'];
+					return sides.map(side => {
+						const texture = texture_loader.load(
+							`${path_part}/${side}.${extension}`,
+							undefined, // onLoad
+							undefined, // onProgress
+							(error) => {
+								console.error('Error loading texture:', error);
+							}
+						);
+						
+						// Используем BasicMaterial вместо StandardMaterial
+						return new THREE.MeshBasicMaterial({
+							map:texture,
+							side: THREE.BackSide,
+						});
+					});
+				}
+
+				// Исправленная функция инициализации неба
+				function init_sky() {
+					// Создаем временный куб с базовым материалом
+					const geometry = new THREE.BoxGeometry(5, 5, 5);
+					const material = new THREE.MeshBasicMaterial({ 
+						color: 0x0000FF, // Синий вместо фиолетового
+						side: THREE.BackSide
+					});
+					
+					skybox = new THREE.Mesh(geometry, material);
+					three_scene.add(skybox);
+				}
+
+				// Исправленная функция установки неба
+				function set_sky(path_part, extension) {
+					// Удаляем старый skybox с освобождением ресурсов
+					if (skybox) {
+						three_scene.remove(skybox);
+						
+						// Освобождаем геометрию
+						if (skybox.geometry) {
+							skybox.geometry.dispose();
+						}
+						
+						// Освобождаем материалы
+						if (Array.isArray(skybox.material)) {
+							skybox.material.forEach(material => {
+								if (material.map) material.map.dispose();
+								material.dispose();
+							});
+						} else if (skybox.material) {
+							if (skybox.material.map) skybox.material.map.dispose();
+							skybox.material.dispose();
+						}
+					}
+
+					// Создаем новые материалы с обработкой ошибок
+					try {
+						const geometry = new THREE.BoxGeometry(5, 5, 5);
+						const materials = create_skybox_materials(path_part, extension);
+						skybox = new THREE.Mesh(geometry, materials);
+						three_scene.add(skybox);
+					} catch (error) {
+						console.error('Error creating skybox:', error);
+						// Создаем fallback-небо
+						init_sky();
+					}
+				}
+
+				// Инициализация
+				init_sky();
+				set_sky('images/skies/glitch', 'png');
+				/*добавление в основной canvas canvas-а three*/
+				let background_texture,background_sprite
+				// Инициализация текстуры и спрайта (выполняется один раз)
+				function init_three_scene() {
+					background_texture = PIXI.Texture.from(three_renderer.domElement);
+					background_texture.baseTexture.autoUpdate = false; // Отключаем авто-обновление
+					background_sprite = new PIXI.Sprite(background_texture);
+					app.stage.addChildAt(background_sprite, 0);
+				}
+				init_three_scene();
+				// Функция обновления
+				function update_three_scene() {
+					// Обновляем Three.js сцену
+					skybox.rotation.y += 0.01;
+					skybox.rotation.x += 0.005;
+					three_renderer.render(three_scene, three_camera);
+
+					// Принудительное обновление текстуры в PixiJS
+					background_texture.baseTexture.update();
+				}
+				update_three_scene();
 				/*добавление в разметку canvas-а pixijs*/
 				wrapper.appendChild(app.view);
+				//wrapper.appendChild(three_renderer.domElement);//удалить
 				/*добавление в разметку html-overlay*/
 				const overlay=document.createElement('div');
 				overlay.id='html-overlay';
@@ -429,6 +554,10 @@ if(!window.location.search.includes('child=1')){
 					update_symbols_grid();
 					/*меняем способ масштабирования в зависимости от масштаба: если больше нормы - пиксельный, меньше - размытый*/
 					styleSheet.insertRule(`:root{--image_rendering:${window.devicePixelRatio>=1?'pixelated':'auto'} !important;}`,styleSheet.cssRules.length);
+					/*Обновляем three*/
+					three_camera.aspect=window.innerWidth/window.innerHeight;
+					three_camera.updateProjectionMatrix();
+					three_renderer.setSize(window.innerWidth,window.innerHeight);
 				};
 				function visual_effect(number){
 					/*заполняет случайными символами*/
@@ -1206,6 +1335,7 @@ if(!window.location.search.includes('child=1')){
 					for(let y=0;y<symbols_grid.length;y++){
 						for(let x=0;x<symbols_grid[y].length;x++){
 							symbols_grid[y][x].text='';
+							symbols_grid[y][x].backgroundColor=0x00000000;
 						}
 					}
 				}
