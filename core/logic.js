@@ -11,12 +11,67 @@ setInterval(()=>{
 	tps_count=0;
 	last_measure=now;
 },1000);
-
+/*инициализация всех возможных параметров игрока*/
+player={
+	interface:{
+		hotbar:{
+			active_slot_index:0,
+			slot_count:10,
+		},
+	},
+	coordinates:[],
+	collider:[],
+	walk_delay:0,
+	max_walk_delay:0,
+};
+/*инициализация интерфейса*/
+update_interface();
+/**/
+let lock_inventory=false;
+/*функция главного цикла*/
 function update_game_logic(){
 	tps_count++;
 	document.title=`CODERROR ${window.version} TPS: ${real_TPS} FPS: ${app.ticker.FPS.toFixed(2)} - ${window.splash}`;
+	/*перекчение слотов хотбара*/
+	if(document.getElementById('hotbar')){
+		if(window.activated_actions.has('previous_hotbar_slot')){
+			activate_previous_hotbar_slot();
+		}
+		if(window.activated_actions.has('next_hotbar_slot')){
+			activate_next_hotbar_slot();
+		}
+	}
+	/*открытие/закрытие инвентаря*/
+	let open_inventory=false,close_inventory=false;
+	if(activated_actions.has('open_inventory')){
+		open_inventory=true;
+	}
+	if(activated_actions.has('close_inventory')){
+		close_inventory=true;
+	}
+	if(open_inventory||close_inventory){
+		if(!lock_inventory){
+			let esc_menu=document.getElementById('esc_menu');
+			if(open_inventory&&close_inventory){
+				if(esc_menu.style.visibility=='inherit'){
+					esc_menu.style.visibility='collapse';
+				}else{
+					esc_menu.style.visibility='inherit';
+				}
+			}else if(open_inventory){
+				esc_menu.style.visibility='inherit';
+			}else{
+				esc_menu.style.visibility='collapse';
+			}
+		}
+		lock_inventory=true;
+	}else{
+		lock_inventory=false;
+	}
+	/*комнаты*/
 	if(room=='main_menu'){
 		if(preparation){
+			set_interface_visibility(false);
 			set_music('music/main_menu.ogg');
 			room_data={
 				info:create_element_from_HTML(`<div>${get_transparent_space_text(`CODERROR ${window.version} by essensuOFnull`,'#c8c8c8')}</div>`),
@@ -61,6 +116,7 @@ L n L q L q H  U n U n L q U n
 	}
 	if(room=='authors'){
 		if(preparation){
+			set_interface_visibility(false);
 			room_data={
 				scrollable:create_element_from_HTML(`<div class="scrollable"/>`),
 				div1:create_element_from_HTML(`<div class="center column"/>`),
@@ -87,6 +143,7 @@ L n L q L q H  U n U n L q U n
 	}
 	if(room=='settings'){
 		if(preparation){
+			set_interface_visibility(false);
 			room_data={
 				scrollable:create_element_from_HTML(`<div class='scrollable'/>`),
 				div1:create_element_from_HTML(`<div class="center column"/>`),
@@ -261,21 +318,14 @@ L n L q L q H  U n U n L q U n
 	}
 	if(room=='room_editor'){
 		if(preparation){
-			overlay.appendChild(get_br());
-			overlay.appendChild(generate_hotbar());
-			update_active_hotbar_slot_frame();
+			set_interface_visibility(true);
 			clear_symbols_grid();
 			preparation=false;
-		}
-		if(window.activated_actions.has('previous_hotbar_slot')){
-			activate_previous_hotbar_slot();
-		}
-		if(window.activated_actions.has('next_hotbar_slot')){
-			activate_next_hotbar_slot();
 		}
 	}
 	if(room=='intro0'){
 		if(preparation){
+			set_interface_visibility(false);
 			clear_pixijs();
 			const video=document.createElement('video');
 			//video.crossOrigin="anonymous";
@@ -300,18 +350,21 @@ L n L q L q H  U n U n L q U n
 	}
 	if(room=='recycle_bin'){
 		if(preparation){
+			set_interface_visibility(true);
 			room_data={
 				ground:{
 					text:'   ░▒▓*#-~\n ░▒▓~~-~#=\\\n    ░▒▓#=*-\\__\n              \\^\n                \\\n                 \\\n                 |\n                 |\n                 |\n                  \\\n                  <_\n                    \\\n                     \\\n                      \\\n                       7\n                       \\\n                        \\_\n                          L\n                           \\__\n                              \\\n                               7\n                              /\n                              \\\n                               |\n                               |\n                               |\n                               |\n                              /\n                             |\n                             |\n                             /\n                            /\n                           /\n                        __/\n                       /  \n                      <\n                       \\\n                        7\n                       /         ____\n                      F         /    \\_ \n                      ]         L      \\___\n                     /          /          l\n                     |         F           |\n                     |         L           `\n                     |         /            L____\n                     |         \\______           L\n                     )          \\     \\____       \\_\n                     )          <____      \\_       L_____\n                     \\          /    \\       \\            L_\n                     Г         F    , \\_     |              \\__\n                     \\         \\ /`< , _|    |                /\n                      Y         Y   Z,/     _/               <______\n                      |         `  `  |    |_\n                      /         /     |      \\\n                     /         Г      \\_\n                     |         L       _|\n                     /          \\       \n                     >          <\n                     >          <\n                     >          <\n                     \\          /\n                     Y          Y\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I__________I_____',
 					collider:[]},
 				camera:[0,0]
 			};
-			player={
-				coordinates:[35*logical_symbol_size,-25*logical_symbol_size],
-				collider:[],
-				walk_delay:0,
-				max_walk_delay:2,
-			};
+			Object.assign(player,
+				{
+					coordinates:[35*logical_symbol_size,-25*logical_symbol_size],
+					collider:[],
+					walk_delay:0,
+					max_walk_delay:2,
+				}
+			);
 			room_data.ground.collider=text_to_collider(room_data.ground.text);
 			console.log(room_data.ground.collider);
 			preparation=false;

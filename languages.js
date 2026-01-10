@@ -45,6 +45,12 @@ default:{
 				bind_to_layout:{
 					name:`учитывать раскладку клавиатуры`
 				},
+				open_inventory:{
+					name:`открыть инвентарь`
+				},
+				close_inventory:{
+					name:`закрыть инвентарь`
+				},
 				left:{
 					name:`влево`
 				},
@@ -93,6 +99,11 @@ default:{
 			messages:{
 				input:`ткни клаву`
 			}
+		}
+	},
+	interface:{
+		buttons:{
+			to_main_menu:`в главное меню`,
 		}
 	}
 },

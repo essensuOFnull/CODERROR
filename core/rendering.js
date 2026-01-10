@@ -1,4 +1,13 @@
 app.ticker.add(()=>{
+	/*кнопки интекрфейса игрока*/
+	let button_to_main_menu=document.getElementById('button_to_main_menu');
+	if(check_hover(button_to_main_menu)){
+		change_button_color(button_to_main_menu,get_random_true_str_color());
+	}
+	else{
+		change_button_color(button_to_main_menu,'#fff');
+	}
+	/*комнаты*/
 	if(room=='main_menu'){
 		if(!preparation){
 			visual_effect(0);

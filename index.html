@@ -154,6 +154,21 @@ input[type="range"]{
 input[type="checkbox"]{
 	accent-color:#f0f;
 }
+#interface{
+	visibility:collapse;
+	position:absolute;
+	top:0;
+	left:0;
+	width:inherit;
+	height:inherit;
+	padding:var(--symbol_size);
+	pointer-events:none;
+}
+#hotbar{
+	position:absolute;
+	left:50cqw;/* Смещаем левый край к центру родителя */
+	transform:translateX(-50%);/* Сдвигаем элемент назад на половину его ширины */
+}
 .hotbar_slot{
 	background-image:url('images/interface/inventory/slot.png');
 	background-size:contain;
@@ -176,6 +191,20 @@ input[type="checkbox"]{
 	width:32px;
 	height:32px;
 	z-index:5;
+}
+#esc_menu{
+	visibility:collapse;
+	position:absolute;
+	top:0;
+	left:0;
+	width:100cqw;
+	height:100cqh;
+	pointer-events:none;
+}
+#button_to_main_menu{
+	position:absolute !important;
+	bottom:var(--symbol_size);
+	right:var(--symbol_size);
 }
 	</style>
 	<link rel="icon" type="image/png">
@@ -243,15 +272,20 @@ if(!window.location.search.includes('child=1')){
 				backgroundColor:0x000000
 			});
 			app.init().then(()=>{
+				let room_data,player;
 				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.29.3';
+				window.version='(1)0.30.0';
 				/*добавление в разметку canvas-а pixijs*/
 				wrapper.appendChild(app.view);
 				/*добавление в разметку html-overlay*/
 				const overlay=document.createElement('div');
 				overlay.id='html-overlay';
 				wrapper.appendChild(overlay);
+				/*добавление в разметку interface*/
+				let interface=document.createElement('div');
+				interface.id='interface';
+				wrapper.appendChild(interface);
 				/**/
 				let room,preparation;
 				function change_room(room_,preparation_=true,reset_overlay_=true){
@@ -1196,43 +1230,66 @@ if(!window.location.search.includes('child=1')){
 					}
 				}
 				/*устанавливает рамку на активный слот хотбара*/
-				let active_hotbar_slot_index=0;
 				function update_active_hotbar_slot_frame(){
 					let active_hotbar_slot_frame=document.getElementById('active_hotbar_slot_frame');
 					if(!active_hotbar_slot_frame){
 						active_hotbar_slot_frame=create_element_from_HTML(`<img id="active_hotbar_slot_frame" src="images/interface/inventory/active_slot_frame.png"/>`);
 					}
-					document.querySelector(`.hotbar_slot[data-index="${active_hotbar_slot_index}"]`).appendChild(active_hotbar_slot_frame);
+					document.querySelector(`.hotbar_slot[data-index="${player.interface.hotbar.active_slot_index}"]`).appendChild(active_hotbar_slot_frame);
 				}
 				/*генерирует хотбар*/
-				let hotbar_slot_count=10;
 				function generate_hotbar(){
 					let hotbar=create_element_from_HTML(`<div id="hotbar" class="row"></div>`);
-					for(let i=0;i<hotbar_slot_count;i++){
+					for(let i=0;i<player.interface.hotbar.slot_count;i++){
 						let slot=document.createElement('div');
 						slot.dataset.index=i;
 						slot.classList.add('hotbar_slot');
 						slot.addEventListener('click',function(e){
-							active_hotbar_slot_index=this.dataset.index;
+							player.interface.hotbar.active_slot_index=this.dataset.index;
 							update_active_hotbar_slot_frame();
 						});
 						hotbar.appendChild(slot);
 					}
 					return hotbar;
 				}
+				function generate_esc_menu(){
+					let esc_menu=create_element_from_HTML(`<div id="esc_menu"></div>`);
+					let button_to_main_menu=create_button_from_text(window.language.interface.buttons.to_main_menu);
+					button_to_main_menu.addEventListener('click',()=>{
+						change_room('main_menu');
+					});
+					button_to_main_menu.id='button_to_main_menu';
+					esc_menu.appendChild(button_to_main_menu);
+					return esc_menu;
+				}
+				/*генерирует интерфейс*/
+				function update_interface(){
+					interface.innerHTML='';
+					interface.appendChild(generate_hotbar());
+					update_active_hotbar_slot_frame();
+					interface.appendChild(generate_esc_menu());
+				}
+				/*включает/отключает интерфейс*/
+				function set_interface_visibility(is_visible){
+					if(is_visible){
+						interface.style.visibility='visible';
+					}else{
+						interface.style.visibility='collapse';
+					}
+				}
 				/*активирует прошлый слот хотбара*/
 				function activate_previous_hotbar_slot(){
-					active_hotbar_slot_index--;
-					if(active_hotbar_slot_index<0){
-						active_hotbar_slot_index=hotbar_slot_count-1;
+					player.interface.hotbar.active_slot_index--;
+					if(player.interface.hotbar.active_slot_index<0){
+						player.interface.hotbar.active_slot_index=player.interface.hotbar.slot_count-1;
 					}
 					update_active_hotbar_slot_frame();
 				}
 				/*активирует следующий слот хотбара*/
 				function activate_next_hotbar_slot(){
-					active_hotbar_slot_index++;
-					if(active_hotbar_slot_index>=hotbar_slot_count){
-						active_hotbar_slot_index=0;
+					player.interface.hotbar.active_slot_index++;
+					if(player.interface.hotbar.active_slot_index>=player.interface.hotbar.slot_count){
+						player.interface.hotbar.active_slot_index=0;
 					}
 					update_active_hotbar_slot_frame();
 				}
@@ -1240,7 +1297,6 @@ if(!window.location.search.includes('child=1')){
 				document.addEventListener('contextmenu',(e)=>{
 					e.preventDefault();/*отключаем контекстные меню глобально. я сам ими пользовался для вызова консоли, но они могут помешать игре, если что-то забинжено на правую кнопку мыши*/
 				});
-				let room_data,player;
 				room='main_menu'
 				apply_settings();
 				let input_tracker=setup_input_tracker();

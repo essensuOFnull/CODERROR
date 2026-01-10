@@ -12,6 +12,8 @@ audio:{
 },
 control:{
 	bind_to_layout:false,
+	open_inventory:["Escape"],
+	close_inventory:["Escape"],
 	left:["a","A","ф","Ф","ArrowLeft","KeyA"],
 	right:["d","D","в","В","ArrowRight","KeyD"],
 	jump:[" ","w","W","ц","Ц","ArrowUp","KeyW","Space"],
