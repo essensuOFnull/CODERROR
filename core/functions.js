@@ -159,6 +159,8 @@ change_room(room,preparation=true,reset_overlay=true){
 /**инициализирует матрицу символов*/
 init_symbols_grid(){
 	d.symbols_grid=[];
+	d.symbols_grid_data=[]; // Данные для каждой ячейки {char, textColor, bgColor, bgAlpha}
+	d.symbols_dirty_cells = new Set(); // Отслеживание изменённых ячеек
 	d.columns=0;
 	d.rows=0;
 	f.set_font_size(d.symbol_size||16);
@@ -169,52 +171,194 @@ update_symbols_grid(){
 	let newRows=Math.ceil(d.app.renderer.height/d.symbol_size);
 	/*Ресайз существующей сетки*/
 	if(newColumns===d.columns&&newRows===d.rows)return
-	/*Удаляем лишние строки*/
-	if(newRows<d.rows){
+	
+	// Если сетка ещё не инициализирована, создаём её с нуля
+	if(!d.symbols_grid || d.symbols_grid.length === 0){
+		d.symbols_grid = [];
+		d.symbols_grid_data = [];
+		d.columns = 0;
+		d.rows = 0;
+	}
+	
+	// Удаляем лишние строки снизу (ПЕРЕД изменением столбцов)
+	if(newRows < d.rows){
 		for(let y=newRows;y<d.rows;y++){
 			for(let x=0;x<d.columns;x++){
-				d.symbols_grid[y][x].destroy({children:true});
-			}
-		}
-		d.symbols_grid.length=newRows;
-	}
-	/*Добавляем новые строки*/
-	if(newRows>d.rows){
-		for(let y=d.rows;y<newRows;y++){
-			d.symbols_grid[y]=[];
-			for(let x=0;x<Math.max(d.columns,newColumns);x++){
-				let symbol=new PIXI.Text('',d.pixi_text_style);
-				symbol.resolution=20;
-				symbol.position.set(x*d.symbol_size,y*d.symbol_size);
-				d.app.stage.addChild(symbol);
-				d.symbols_grid[y][x]=symbol;
-			}
-		}
-	}
-	/*Обновляем колонки в каждой строке*/
-	for(let y=0;y<newRows;y++){
-		/*Удаляем лишние колонки*/
-		if(newColumns<d.columns) {
-			for(let x=newColumns;x<d.columns;x++){
-				if(d.symbols_grid[y][x]){
-					d.symbols_grid[y][x].destroy({children:true});
+				if(d.symbols_grid[y] && d.symbols_grid[y][x]){
+					d.app.stage.removeChild(d.symbols_grid[y][x]);
+					d.symbols_grid[y][x].destroy({children: true});
 				}
 			}
-			d.symbols_grid[y].length=newColumns;
 		}
-		/*Добавляем новые колонки*/
-		if(newColumns>d.columns){
+		d.symbols_grid.length = newRows;
+		d.symbols_grid_data.length = newRows;
+		d.rows = newRows;
+	}
+	
+	// Удаляем лишние столбцы справа
+	if(newColumns < d.columns){
+		for(let y=0;y<d.rows;y++){
+			for(let x=newColumns;x<d.columns;x++){
+				if(d.symbols_grid[y] && d.symbols_grid[y][x]){
+					d.app.stage.removeChild(d.symbols_grid[y][x]);
+					d.symbols_grid[y][x].destroy({children: true});
+				}
+			}
+			d.symbols_grid[y].length = newColumns;
+			d.symbols_grid_data[y].length = newColumns;
+		}
+		d.columns = newColumns;
+	}
+	
+	// Добавляем новые столбцы справа
+	if(newColumns > d.columns){
+		for(let y=0;y<d.rows;y++){
 			for(let x=d.columns;x<newColumns;x++){
-				let symbol=new PIXI.Text('',d.pixi_text_style);
-				symbol.resolution=20;
-				symbol.position.set(x*d.symbol_size,y*d.symbol_size);
-				d.app.stage.addChild(symbol);
-				d.symbols_grid[y][x]=symbol;
+				// Создаём данные для новой ячейки
+				d.symbols_grid_data[y][x] = {
+					char: '',
+					textColor: 0xFFFFFF,
+					bgColor: 0x000000,
+					bgAlpha: 0
+				};
+				
+				// Создаём контейнер для ячейки
+				let container = new PIXI.Container();
+				container.x = x * d.symbol_size;
+				container.y = y * d.symbol_size;
+				
+				// Создаём фон
+				let background = new PIXI.Graphics();
+				background.alpha = 0;
+				container.addChild(background);
+				
+				// Создаём текст
+				let symbol = new PIXI.Text('', d.pixi_text_style);
+				symbol.resolution = 20;
+				container.addChild(symbol);
+				
+				d.app.stage.addChild(container);
+				d.symbols_grid[y][x] = container;
+				
+				f.mark_symbol_dirty(x, y);
 			}
 		}
+		d.columns = newColumns;
 	}
-	d.columns=newColumns;
-	d.rows=newRows;
+	
+	// Добавляем новые строки снизу
+	if(newRows > d.rows){
+		for(let y=d.rows;y<newRows;y++){
+			d.symbols_grid[y] = [];
+			d.symbols_grid_data[y] = [];
+			
+			for(let x=0;x<newColumns;x++){
+				// Создаём данные для новой ячейки
+				d.symbols_grid_data[y][x] = {
+					char: '',
+					textColor: 0xFFFFFF,
+					bgColor: 0x000000,
+					bgAlpha: 0
+				};
+				
+				// Создаём контейнер для ячейки
+				let container = new PIXI.Container();
+				container.x = x * d.symbol_size;
+				container.y = y * d.symbol_size;
+				
+				// Создаём фон
+				let background = new PIXI.Graphics();
+				background.alpha = 0;
+				container.addChild(background);
+				
+				// Создаём текст
+				let symbol = new PIXI.Text('', d.pixi_text_style);
+				symbol.resolution = 20;
+				container.addChild(symbol);
+				
+				d.app.stage.addChild(container);
+				d.symbols_grid[y][x] = container;
+				
+				f.mark_symbol_dirty(x, y);
+			}
+		}
+		d.rows = newRows;
+	}
+},
+/** Обновляет отображение символов на основе данных (высокооптимизированная версия) */
+update_symbols_display(){
+	// Используем dirty-флаг систему для отслеживания изменённых ячеек
+	let dirtyCount = 0;
+	const dirtyMax = d.rows * d.columns;
+	
+	// Максимально эффективный вариант: обновляем только если есть грязные ячейки
+	if(d.symbols_dirty_cells && d.symbols_dirty_cells.size > 0){
+		for(let cellKey of d.symbols_dirty_cells){
+			const [y, x] = cellKey.split(',').map(Number);
+			if(y < 0 || y >= d.rows || x < 0 || x >= d.columns) continue;
+			
+			let container = d.symbols_grid[y][x];
+			let data = d.symbols_grid_data[y][x];
+			
+			if(!container || !data) continue;
+			
+			let textElement = container.children[1];
+			let background = container.children[0];
+			
+			// Обновляем только изменённые свойства
+			if(textElement.text !== data.char) textElement.text = data.char;
+			if(textElement.tint !== data.textColor) textElement.tint = data.textColor;
+			
+			// Оптимизация фона: проверяем оба параметра одновременно
+			if(background.alpha !== data.bgAlpha || background._bgColor !== data.bgColor){
+				// Пропускаем clear() если оба значения 0
+				if(data.bgAlpha === 0 && background.alpha === 0) {
+					background._bgColor = data.bgColor;
+				} else {
+					background.clear();
+					if(data.bgAlpha > 0){
+						background.beginFill(data.bgColor, data.bgAlpha);
+						background.drawRect(0, 0, d.symbol_size, d.symbol_size);
+						background.endFill();
+					}
+					background._bgColor = data.bgColor;
+					background.alpha = data.bgAlpha;
+				}
+			}
+		}
+		d.symbols_dirty_cells.clear();
+	}
+},
+/**отмечает ячейку как изменённую для обновления в следующем кадре*/
+mark_symbol_dirty(x, y){
+	if(!d.symbols_dirty_cells) d.symbols_dirty_cells = new Set();
+	d.symbols_dirty_cells.add(`${y},${x}`);
+},
+/** Устанавливает символ в ячейку (только данные) */
+set_symbol_data(x, y, char, textColor = 0xFFFFFF, bgColor = 0x000000, bgAlpha = 0){
+	if(y >= 0 && y < d.rows && x >= 0 && x < d.columns){
+		let data = d.symbols_grid_data[y][x];
+		if(data){
+			data.char = char;
+			data.textColor = textColor;
+			data.bgColor = bgColor;
+			data.bgAlpha = bgAlpha;
+			f.mark_symbol_dirty(x, y);
+		}
+	}
+},
+/** Устанавливает текст в ячейку (только данные) */
+set_text_data(x, y, text, textColor = 0xFFFFFF, bgColor = 0x000000, bgAlpha = 0){
+	if(y >= 0 && y < d.rows && x >= 0 && x < d.columns){
+		let data = d.symbols_grid_data[y][x];
+		if(data && text.length > 0){
+			data.char = text[0];
+			data.textColor = textColor;
+			data.bgColor = bgColor;
+			data.bgAlpha = bgAlpha;
+			f.mark_symbol_dirty(x, y);
+		}
+	}
 },
 set_font_size(size_in_pixels){
 	d.symbol_size=size_in_pixels;
@@ -253,34 +397,44 @@ update_size() {
 visual_effect(number){
 	/*заполняет случайными символами*/
 	if(number==0){
-		for(let y=0;y<d.symbols_grid.length;y++){
-			for(let x=0;x<d.symbols_grid[y].length;x++){
-				let symbol=d.symbols_grid[y][x];
-				symbol.text=f.get_random_char();
-				symbol.tint=f.get_random_color();
+		for(let y=0;y<d.rows;y++){
+			for(let x=0;x<d.columns;x++){
+				f.set_symbol_data(x, y, f.get_random_char(), f.get_random_color(),f.get_random_color(),0.5);
 			}
 		}
 	}
 	/*случайно поворачивает символы*/
 	if(number==1){
-		for(let y=0;y<d.symbols_grid.length;y++){
-			for(let x=0;x<d.symbols_grid[y].length;x++){
-				let symbol=d.symbols_grid[y][x];
-				symbol.anchor.set(Math.random());
-				symbol.rotation=Math.random();
-			}
-		}
-	}
-	/*откатывает предыдущий*/
-	if(number==2){
-		for(let y=0;y<d.symbols_grid.length;y++){
-			for(let x=0;x<d.symbols_grid[y].length;x++){
-				let symbol=d.symbols_grid[y][x];
-				symbol.anchor.set(0);
-				symbol.rotation=0;
-			}
-		}
-	}
+        for(let y=0;y<d.rows;y++){
+            for(let x=0;x<d.columns;x++){
+                let container = d.symbols_grid[y][x];
+                if(container){
+                    // поворачиваем сам контейнер вокруг центра ячейки
+                    const center = d.symbol_size/2;
+                    container.pivot.set(center, center);
+                    container.x = x * d.symbol_size + center;
+                    container.y = y * d.symbol_size + center;
+                    // случайный угол (в радианах)
+                    container.rotation = (Math.random() - 0.5) * Math.PI * 2;
+                }
+            }
+        }
+    }
+    /*откатывает предыдущий*/
+    if(number==2){
+        for(let y=0;y<d.rows;y++){
+            for(let x=0;x<d.columns;x++){
+                let container = d.symbols_grid[y][x];
+                if(container){
+                    // сбрасываем поворот и возвращаем контейнер в позицию "top-left"
+                    container.rotation = 0;
+                    container.pivot.set(0,0);
+                    container.x = x * d.symbol_size;
+                    container.y = y * d.symbol_size;
+                }
+            }
+        }
+    }
 },
 init_printable_symbols(){
 	d.printable_symbols='';
@@ -925,15 +1079,13 @@ setup_input_tracker(){
 	};
 },
 /**отрисовывает текст в d.symbols_grid*/
-print_text_to_symbols_grid(text,x,y,color=0xFFFFFF){
+print_text_to_symbols_grid(text,x,y,color=0xFFFFFF,bgColor=0x000000,bgAlpha=0){
 	x=Math.floor(x);
 	y=Math.floor(y);
 	let current_x=x,current_y=y;
 	for(let symbol of text){
-		if(current_x>=0&&current_x<d.symbols_grid[0].length&&current_y>=0&&current_y<d.symbols_grid.length){
-			let pixi_symbol=d.symbols_grid[current_y][current_x];
-			pixi_symbol.text=symbol;
-			pixi_symbol.tint=color;
+		if(current_x>=0&&current_x<d.columns&&current_y>=0&&current_y<d.rows){
+			f.set_symbol_data(current_x, current_y, symbol, color, bgColor, bgAlpha);
 		}
 		if(symbol=='\n'){
 			current_x=x;
@@ -960,11 +1112,13 @@ text_to_collider(text,void_symbols=['',' ']){
 },
 /**очищает d.symbols_grid*/
 clear_symbols_grid(){
-	for(let y=0;y<d.symbols_grid.length;y++){
-		for(let x=0;x<d.symbols_grid[y].length;x++){
-			d.symbols_grid[y][x].text='';
+	for(let y=0;y<d.rows;y++){
+		for(let x=0;x<d.columns;x++){
+			f.set_symbol_data(x, y, '', 0xFFFFFF, 0x000000, 0);
 		}
 	}
+	// Все ячейки уже отмечены как грязные в set_symbol_data, но на всякий случай убедимся
+	f.update_symbols_display();
 },
 /**выполняет скрипт*/
 load_script:async function(path) {

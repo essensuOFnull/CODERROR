@@ -39,30 +39,54 @@ d.app.init().then(()=>{
 	/*отслеживание координат мыши*/
 	/**данные о курсоре мыши*/
 	d.mouse={x:0,y:0};
+
+	// Кешируем rect обёртки — не вызывать getBoundingClientRect на каждый mousemove
+	d._wrapperRect = d.wrapper.getBoundingClientRect();
+	const updateWrapperRect = ()=>{ d._wrapperRect = d.wrapper.getBoundingClientRect(); };
+	window.addEventListener('resize', updateWrapperRect);
+	// Если DOM внутри wrapper меняется, обновляем rect (на случай изменения размеров/сдвига)
+	if(typeof MutationObserver !== 'undefined'){
+		new MutationObserver(updateWrapperRect).observe(d.wrapper, {attributes:true, childList:true, subtree:true});
+	}
+
+	// Переменные для плавного и дешёвого обновления позиции курсора
+	d._cursorTargetX = 0;
+	d._cursorTargetY = 0;
+	// Флаг, что нужно применить позицию курсора в основном цикле рендера
+	d._cursorNeedsUpdate = false;
+
+	// Установим подсказку браузеру про ожидаемое изменение — помогает оптимизировать
+	const ensureCursorWillChange = ()=>{
+		try{ if(d.cursor) d.cursor.style.willChange = 'transform'; }catch(e){}
+	};
+
 	d.wrapper.addEventListener('mousemove',(event)=>{
-		if(!window.has_focus&&d.settings.interface.pause_on_blur)return;
-		
-		d.mouse.x=event.clientX-d.wrapper.getBoundingClientRect().left;
-		d.mouse.y=event.clientY-d.wrapper.getBoundingClientRect().top;
+		if(!window.has_focus&&d.settings.interface.pause_on_blur) return;
+
+		// Сохраняем клиентские координаты и вычисляем локальные относительно кешированного rect
+		d.mouse.x = event.clientX;
+		d.mouse.y = event.clientY;
+		const localX = event.clientX - d._wrapperRect.left;
+		const localY = event.clientY - d._wrapperRect.top;
+
 		/*для кастомного курсора*/
 		if(!d.cursor || !d.cursor_config) return;
 
 		let element = event.target;
-		// Используем data-атрибут вместо computedStyle
 		let cursor_type = f.get_cursor_from_element(element);
-		
-		// Если курсор не найден в конфиге, используем default
-		if(!d.cursor_config[cursor_type]){
-			cursor_type = 'default';
-		}
-		
-		let x=d.mouse.x-_.get(d, `cursor_config.${cursor_type}.hotspot_x`),
-		y=d.mouse.y-_.get(d, `cursor_config.${cursor_type}.hotspot_y`);
-		
-		d.cursor.style.transform = `translate(${x}px, ${y}px)`;
+		if(!d.cursor_config[cursor_type]) cursor_type = 'default';
 
+		// Вычисляем целевые координаты (без записи в layout)
+		const x = localX - _.get(d, `cursor_config.${cursor_type}.hotspot_x`);
+		const y = localY - _.get(d, `cursor_config.${cursor_type}.hotspot_y`);
+		d._cursorTargetX = Math.round(x);
+		d._cursorTargetY = Math.round(y);
+
+		// Помечаем, что позицию курсора надо применить на следующем кадре рендера
+		d._cursorNeedsUpdate = true;
+
+		// Обновление изображения курсора только при смене типа
 		if(d.cursor_type === cursor_type) return;
-
 		let cursor_file_path = _.get(d, `cursor_config.${cursor_type}.file`);
 		d.cursor.src = cursor_file_path ? `${d.cursor_folder_path}/${cursor_file_path}` : '';
 		d.cursor_type = cursor_type;
