@@ -107,6 +107,9 @@ select option{
 	background:#000;
 	color:#fff;
 }
+.wrap{
+	flex-wrap:wrap;
+}
 	</style>
 	<link rel="icon" type="image/png">
 </head>
@@ -175,7 +178,7 @@ if(!window.location.search.includes('child=1')){
 			app.init().then(()=>{
 				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.17.0';
+				window.version='(1)0.18.0';
 				/*добавление в разметку canvas-а pixijs*/
 				wrapper.appendChild(app.view);
 				/*добавление в разметку html-overlay*/
@@ -430,7 +433,7 @@ if(!window.location.search.includes('child=1')){
 					element.style.zIndex=parseInt(element.style.zIndex||0)+1+'';
 				}
 				/*оборачивает элемент в кнопку с символьной рамкой*/
-				function wrap_in_frame(content,container_type='<button/>') {
+				function wrap_in_frame(content,container_type='<button/>',removable=false) {
 					let button = create_element_from_HTML(container_type);
 					button.style.position='relative';
 					button.style.overflow='hidden';
@@ -445,9 +448,19 @@ if(!window.location.search.includes('child=1')){
 					grid.style.justifyItems='center';
 					grid.style.color='inherit';
 					// Создание элементов с правильными областями
+					let b;
+					if(removable){
+						b=create_element_from_HTML(`<pre><button style='color:inherit'>X</button></pre>`);/*костыль*/
+						b.addEventListener('click',()=>{
+							button.remove();
+						});
+					}
+					else{
+						b=create_element_from_HTML(`<pre>.</pre>`);
+					}
 					const elements={
 						a:create_element_from_HTML(`<pre>+</pre>`),
-						b:create_element_from_HTML(`<pre>.</pre>`),
+						b:b,
 						c:document.createElement('div'),
 						d:create_element_from_HTML(`<pre>\`</pre>`),
 						e:create_element_from_HTML(`<pre>'</pre>`)
@@ -462,6 +475,9 @@ if(!window.location.search.includes('child=1')){
 						el.style.color='inherit';
 						grid.appendChild(el);
 					});
+					if(removable){
+						b.style.color='#f00'
+					}
 					button.appendChild(grid);
 					increment_z_index(grid);
 					let horizontal=`<pre style="position:absolute;white-space:nowrap;color:inherit;">${'-'.repeat(666)}</pre>`
@@ -728,15 +744,42 @@ if(!window.location.search.includes('child=1')){
 					});
 				}
 				/*создает select с рамкой*/
-				function create_select_with_frame(options){
+				function create_select_with_frame(options,removable=false){
 					let select=create_element_from_HTML('<select/>');
 					set_select_options(select,options);
 					select.style.margin='calc(-1 * var(--symbol_size))';
 					select.style.padding='var(--symbol_size)';
+					select.style.marginRight='0';
 					select.style.cursor='pointer';
-					let frame=wrap_in_frame(select,`<button style='background:#000;'/>`);
+					let frame=wrap_in_frame(select,`<button style='background:#000;'/>`,removable);
 					frame.style.pointerEvents='none';
 					return[frame,select];
+				}
+				/*создает прозрачный пробел для горизонтального отступа*/
+				function get_space(){
+					return create_element_from_HTML(`<pre style='background:#00000000'> </pre>`);
+				}
+				/* Функция для сохранения объекта как JSON файл*/
+				function save_as_json(data,filename){
+					// Преобразуем объект в JSON строку
+					const jsonString=JSON.stringify(data);
+					// Создаем Blob из JSON строки
+					const blob=new Blob([jsonString],{type:"application/json"});
+					// Создаем ссылку на объект Blob
+					const url=URL.createObjectURL(blob);
+					// Создаем временную ссылку для скачивания
+					const a=document.createElement("a");
+					a.href=url;
+					a.download=filename;
+					a.style.display='none';
+					// Инициализируем клик по ссылке
+					document.body.appendChild(a);
+					a.click();
+					// Удаляем ссылку и освобождаем URL
+					document.body.removeChild(a);
+					URL.revokeObjectURL(url);
+					/*уведомление*/
+					alert(window.language.alerts.file_saved(filename));
 				}
 				/*финальная настройка*/
 				let room_data;
@@ -848,7 +891,7 @@ L n L q L q H  U n U n L q U n
 								scrollable:create_element_from_HTML(`<div class='scrollable'/>`),
 								div1:create_element_from_HTML(`<div class="center column"/>`),
 								drop_zone:wrap_in_frame(create_element_from_HTML(`<div class='drop_zone center'><div style='text-align:center;'>${get_transparent_space_text(window.language.rooms[room].drop_zone)}</div></div>`)),
-								div2:create_element_from_HTML(`<div class="center column"/>`),
+								div2:create_element_from_HTML(`<div class="center wrap"/>`),
 								buttons:dict_to_buttons(window.language.rooms[room].buttons),
 								settings_divs:{},
 							};
@@ -875,7 +918,7 @@ L n L q L q H  U n U n L q U n
 											change_button_text_color(add_button,'#0f0');
 											values.appendChild(add_button);
 											add_button.addEventListener('click',()=>{
-												[select_button,select]=create_select_with_frame(Object.keys(window.languages));
+												let[select_button,select]=create_select_with_frame(Object.keys(window.languages).filter(name=>name!=='default'),true);
 												values.insertBefore(select_button,add_button);
 												select_button.addEventListener('mouseover',()=>{
 													change_button_border_color(select_button,'#f0f');
@@ -897,15 +940,19 @@ L n L q L q H  U n U n L q U n
 									room_data.div1.appendChild(get_br());
 								});
 							});
-							/*заполнение текущими значениями и необходимыми элементами интерфейса в зависимости от типа настройки*/
-							/*let values=room_data.settings_divs['interface']['language'].getElementById('values');
-							values.appendChild(create_button_from_text(`+`));
 							/*завершение предсоздания интерфейса*/
 							overlay.appendChild(room_data.div2);
+							room_data.div2.appendChild(room_data.buttons.apply);
+							room_data.div2.appendChild(get_space());
 							room_data.div2.appendChild(room_data.buttons.back);
+							room_data.div2.appendChild(get_space());
+							room_data.div2.appendChild(room_data.buttons.save);
 							add_event_listener('get_json',room_data.drop_zone,(data)=>{console.log(data);});
 							room_data.buttons.back.addEventListener('click',()=>{
 								change_room('main_menu');
+							});
+							room_data.buttons.save.addEventListener('click',()=>{
+								save_as_json(window.settings,'settings.json');
 							});
 							preparation=false;
 						}
