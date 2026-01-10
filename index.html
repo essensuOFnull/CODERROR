@@ -149,7 +149,7 @@ if(!window.location.search.includes('child=1')){
 			});
 			app.init().then(()=>{
 				/*версия CODERROR'а*/
-				window.version='(1)0.14.0';
+				window.version='(1)0.14.1';
 				/*добавление в разметку canvas-а pixijs*/
 				document.body.appendChild(app.view);
 				/*добавление в разметку html-overlay*/
@@ -676,14 +676,16 @@ if(!window.location.search.includes('child=1')){
 					}
 					window.language=smart_merge(languages_list,99);
 				}
+				/*принимает словарь текста и превращает его в кнопки*/
+				function dict_to_buttons(dict){
+					let buttons=structuredClone(dict);
+					for(let key in buttons){
+						buttons[key]=create_button_from_text(buttons[key]);
+					}
+					return buttons;
+				}
 				/*финальная настройка*/
 				let room_data;
-				let logo_text=String.raw`
-/T\ /T\ PT\ P] PT\ PT\ /T\ PT\
-L U L q L q H  L q L q L q L q
-L   L q L q H] L_/ L_/ L q L_/
-L n L q L q H  U n U n L q U n
-\_/ \_/ L_/ L] U U U U \_/ U U`.trim();
 				window.settings={
 					interface:{
 						language:['default']
@@ -698,20 +700,16 @@ L n L q L q H  U n U n L q U n
 						if(preparation){
 							room_data={
 								info:create_element_from_HTML(`<div>${get_transparent_space_text(`CODERROR ${window.version} by essensuOFnull`,'#c8c8c8')}</div>`),
-								logo:create_element_from_HTML(`<div class="center-horizontal">${get_transparent_space_text(logo_text)}</div>`),
+								logo:create_element_from_HTML(`<div class="center-horizontal">${get_transparent_space_text(String.raw`
+/T\ /T\ PT\ P] PT\ PT\ /T\ PT\
+L U L q L q H  L q L q L q L q
+L   L q L q H] L_/ L_/ L q L_/
+L n L q L q H  U n U n L q U n
+\_/ \_/ L_/ L] U U U U \_/ U U`.trim())}</div>`),
 								buttons_div:create_element_from_HTML(`<div class="center column"/>`),
-								buttons:{
-									new_game:`рискнуть начать новую игру`,
-									continue:`бесцельно продолжить`,
-									settings:`иллюзия контроля`,
-									authors:`пантеон творцов`,
-									exit:`вылет`
-								},
+								buttons:dict_to_buttons(window.language.rooms[room].buttons),
 								bug_counter:0
 							};
-							for(let key in room_data.buttons){
-								room_data.buttons[key]=create_button_from_text(room_data.buttons[key]);
-							}
 							overlay.appendChild(room_data.info);
 							overlay.appendChild(room_data.logo);
 							change_button_color(room_data.buttons.exit,'#f00');
@@ -748,7 +746,6 @@ L n L q L q H  U n U n L q U n
 									else{
 										room_data.bug_counter--;
 									}
-
 								}
 							}
 							else{
@@ -766,11 +763,7 @@ L n L q L q H  U n U n L q U n
 							room_data={
 								scrollable:create_element_from_HTML(`<div class="scrollable"/>`),
 								div1:create_element_from_HTML(`<div class="center column"/>`),
-								authors:[
-									`⦑color:#f0f⦒essensuOFnull⦑reset⦒ - инициатор, автор идей, программист.`,
-									`⦑color:#909⦒仨与与仨刀仁仨・口千・力仨与户升工艮⦑reset⦒ - возможно нарисует текстуры в будущем.`,
-									`⦑color:#00f⦒Theb.ai⦑reset⦒, ⦑color:#00f⦒DeepSeek⦑reset⦒ - помощь в программировании.`
-								],
+								contribution:structuredClone(Object.entries(window.language.contribution)),
 								div2:create_element_from_HTML(`<div class="center column"/>`),
 								buttons:{
 									back:create_button_from_text(`назад`)
@@ -778,11 +771,11 @@ L n L q L q H  U n U n L q U n
 							};
 							overlay.appendChild(room_data.scrollable);
 							room_data.scrollable.appendChild(room_data.div1);
-							for(let i=0;i<room_data.authors.length;i++){
-								room_data.authors[i]=create_element_from_HTML(`<div>${get_transparent_space_text(room_data.authors[i])}</div>`);
+							room_data.contribution.forEach(([name,contribution],i)=>{
+								room_data.contribution[i]=create_element_from_HTML(`<div>${get_transparent_space_text(`${name}⦑reset⦒ - ${contribution}`)}</div>`);
 								room_data.div1.appendChild(get_br());
-								room_data.div1.appendChild(room_data.authors[i]);
-							}
+								room_data.div1.appendChild(room_data.contribution[i]);
+							});
 							overlay.appendChild(room_data.div2);
 							room_data.div2.appendChild(room_data.buttons.back);
 							room_data.buttons.back.addEventListener('click',()=>{
@@ -804,20 +797,20 @@ L n L q L q H  U n U n L q U n
 							room_data={
 								scrollable:create_element_from_HTML(`<div class='scrollable'/>`),
 								div1:create_element_from_HTML(`<div class="center column"/>`),
-								drop_zone:wrap_in_button(create_element_from_HTML(`<div class='drop_zone center'><div style='text-align:center;'>${get_transparent_space_text(`зона\nзагрузки\nфайлов`)}</div></div>`)),
+								drop_zone:wrap_in_button(create_element_from_HTML(`<div class='drop_zone center'><div style='text-align:center;'>${get_transparent_space_text(window.language.rooms[room].drop_zone)}</div></div>`)),
 								div2:create_element_from_HTML(`<div class="center column"/>`),
-								buttons:{
-									back:create_button_from_text(`назад`)
-								},
+								buttons:dict_to_buttons(window.language.rooms[room].buttons),
 							};
 							overlay.appendChild(room_data.scrollable);
 							room_data.scrollable.appendChild(room_data.div1);
 							room_data.div1.appendChild(room_data.drop_zone);
 							room_data.div1.appendChild(get_br());
-							room_data.div1.appendChild(get_symbolic_hr());
-							room_data.div1.appendChild(create_element_from_HTML(`<div>${get_transparent_space_text('настройки интерфейса')}</div>`));
-							room_data.div1.appendChild(get_symbolic_hr());
-							room_data.div1.appendChild(get_br());
+							Object.entries(window.language.rooms[room].sections).forEach(([name,text])=>{
+								room_data.div1.appendChild(get_symbolic_hr());
+								room_data.div1.appendChild(create_element_from_HTML(`<div>${get_transparent_space_text(text)}</div>`));
+								room_data.div1.appendChild(get_symbolic_hr());
+								room_data.div1.appendChild(get_br());
+							});
 							overlay.appendChild(room_data.div2);
 							room_data.div2.appendChild(room_data.buttons.back);
 							add_event_listener('get_json',room_data.drop_zone,(data)=>{console.log(data);});
