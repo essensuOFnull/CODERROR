@@ -71,7 +71,14 @@
             color:#fff;
             border: none;
             cursor: pointer !important;
-  outline: none;
+            outline: none;
+        }
+        .drop_zone {
+            width:calc(var(--symbol_size) * 12);
+            height:calc(var(--symbol_size) * 12);
+            /*border:1px solid #fff;
+            border-radius:var(--symbol_size);*/
+            background:#00000066;
         }
     </style>
     <link rel="icon" type="image/png">
@@ -396,63 +403,6 @@
                         const colors=['#000','#00f','#0f0','#0ff','#f00','#f0f','#ff0','#fff'];
                         return colors[Math.floor(Math.random()*colors.length)];
                     }
-                    /*оборачивает элемент в button с символьной рамкой*/
-                    function wrapElementWithBorderButton(element) {
-                        // Создаем кнопку и элементы для рамки
-                        const button = document.createElement('button');
-                        const borderContainer = document.createElement('div');
-                        const contentWrapper = document.createElement('div');
-                        
-                        // Настраиваем стили кнопки
-                        button.style.display = 'inline-block';
-                        button.style.position = 'relative';
-                        button.style.padding = '0';
-                        button.style.border = 'none';
-                        button.style.background = 'none';
-                        button.style.fontFamily = 'monospace';
-                        button.style.fontSize = '6.75pt';
-                        button.style.lineHeight = '1';
-
-                        // Клонируем исходный элемент
-                        const clonedElement = element.cloneNode(true);
-                        const originalStyles = window.getComputedStyle(element);
-                        
-                        // Рассчитываем размеры
-                        const getSize = (size) => parseFloat(originalStyles[size]) || 0;
-                        const widthPt = getSize('width');
-                        const heightPt = getSize('height');
-
-                        // Вычисляем количество символов
-                        const charsWide = Math.round(widthPt / 6.75);
-                        const charsTall = Math.round(heightPt / 6.75);
-
-                        // Генерируем рамку
-                        const horizontal = '-'.repeat(Math.max(0, charsWide - 2));
-                        const vertical = '|' + ' '.repeat(Math.max(0, charsWide - 2)) + '|';
-                        
-                        borderContainer.textContent = 
-                            `+${horizontal}.\n` + 
-                            `${vertical}\n`.repeat(Math.max(0, charsTall - 2)) +
-                            `\`${horizontal}'`;
-
-                        // Настраиваем стили
-                        borderContainer.style.whiteSpace = 'pre';
-                        borderContainer.style.position = 'absolute';
-                        borderContainer.style.pointerEvents = 'none';
-                        
-                        contentWrapper.style.position = 'relative';
-                        contentWrapper.style.zIndex = '1';
-                        
-                        // Компоновка элементов
-                        contentWrapper.appendChild(clonedElement);
-                        button.appendChild(borderContainer);
-                        button.appendChild(contentWrapper);
-
-                        // Заменяем исходный элемент кнопкой
-                        element.parentNode.replaceChild(button, element);
-                        
-                        return button;
-                    }
                     /*увеличивает z-index на 1*/
                     function increment_z_index(element){
                         element.style.zIndex=parseInt(element.style.zIndex||0)+1+'';
@@ -551,6 +501,65 @@
                     function get_br(){
                         return document.createElement('br');
                     }
+                    /*превращает json файл в объект (требует async await)*/
+                    function json_to_dict(file){
+                        return new Promise((resolve,reject)=>{
+                            const reader=new FileReader();
+                            reader.onload=e=>{
+                                try{
+                                    resolve(JSON.parse(e.target.result));
+                                }catch(error){
+                                    reject(error);
+                                }
+                            };
+                            reader.onerror=error=>reject(error);
+                            reader.readAsText(file);
+                        });
+                    }
+                    /*превращает много json в объекты за раз*/
+                    async function jsons_to_dict_list(files){
+                        let data=[];
+                        for(let file of files){
+                            const parsed = await json_to_dict(file);
+                            data.push(parsed);
+                        }
+                        return data;
+                    }
+                    /*соединяет объекты в 1 более общий, перезаписывая старые значения новыми*/
+                    function smart_merge(config_list,max_depth=2) {
+                        // Функция для глубокого слияния с ограничением глубины
+                        const merge = (target, source, depth = 1) => {
+                            // Если достигли предела глубины - возвращаем source
+                            if (depth >= max_depth) return {...source};
+
+                            // Создаем новый объект для результатов
+                            const result = {...target};
+
+                            // Перебираем ключи исходного объекта
+                            for (const key of Object.keys(source)) {
+                                const sourceValue = source[key];
+                                const targetValue = target[key];
+
+                                // Если оба значения - объекты (не массивы) 
+                                if (typeof sourceValue === 'object' && 
+                                    !Array.isArray(sourceValue) &&
+                                    typeof targetValue === 'object' && 
+                                    !Array.isArray(targetValue)) {
+                                    // Рекурсивное слияние с увеличением глубины
+                                    result[key] = merge(targetValue, sourceValue, depth + 1);
+                                } else {
+                                    // Заменяем значение
+                                    result[key] = sourceValue;
+                                }
+                            }
+                            return result;
+                        };
+                        let result=config_list[0];
+                        for(let i=1;i<config_list.length;i++){
+                            result=merge(result,config_list[i]);
+                        }
+                        return result;
+                    }
                     /*финальная настройка*/
                     let room_data;
                     let logo_text=String.raw`
@@ -595,6 +604,9 @@ L n L q L q H  U n U n L q U n
                                 });
                                 room_data.buttons.authors.addEventListener('click',()=>{
                                     change_room('authors');
+                                });
+                                room_data.buttons.settings.addEventListener('click',()=>{
+                                    change_room('settings');
                                 });
                                 preparation=false;
                             }
@@ -662,6 +674,32 @@ L n L q L q H  U n U n L q U n
                                 change_button_color(room_data.buttons.back,'#fff');
                             }
                                 
+                        }
+                        if(room=='settings'){
+                            if(preparation){
+                                room_data={
+                                    div:create_element_from_HTML(`<div class="center-horizontal column"/>`),
+                                    drop_zone:wrap_in_button(create_element_from_HTML(`<div class='drop_zone center'><div style='text-align:center;'>${get_transparent_space_text(`зона\nзагрузки\nфайлов`)}</div></div>`)),
+                                };
+                                overlay.appendChild(room_data.div);
+                                room_data.div.appendChild(room_data.drop_zone);
+                                room_data.drop_zone.addEventListener('dragover',(e)=>{
+                                    e.preventDefault();
+                                    change_button_border_color(room_data.drop_zone,'#f0f');
+                                });
+                                room_data.drop_zone.addEventListener('dragleave',()=>{
+                                    change_button_border_color(room_data.drop_zone,'#fff');
+                                });
+                                room_data.drop_zone.addEventListener('drop',async(e)=>{
+                                    e.preventDefault();
+                                    change_button_border_color(room_data.drop_zone,'#fff');
+                                    const dicts = await jsons_to_dict_list(e.dataTransfer.files);
+                                    const data = smart_merge(dicts);
+                                    console.log(data);
+                                });
+                                preparation=false;
+                            }
+                            visual_effect(0);
                         }
                         window.PERMITTED={ 
                             set_font_size
