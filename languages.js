@@ -12,8 +12,8 @@ default:{
 			options:{
 				language:`язык`,
 				font_size:`размер знакомест`,
-				max_window_width:`максимальная ширина окна`,
-				max_window_height:`максимальная высота окна`
+				max_content_width:`максимальная ширина содержимого окна`,
+				max_content_height:`максимальная высота содержимого окна`
 			}
 		},
 		audio:{

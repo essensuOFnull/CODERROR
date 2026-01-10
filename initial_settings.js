@@ -3,8 +3,8 @@ window.settings={
 interface:{
 	language:['default'],
 	font_size:10,
-	max_window_width:`800px`,
-	max_window_height:`600px`
+	max_content_width:`800px`,
+	max_content_height:`600px`
 },
 audio:{
 	music_volume:0.5,

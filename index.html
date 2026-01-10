@@ -2,6 +2,7 @@
 <html>
 <head>
 	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<style>
 @font-face{
 	font-family:'CODERROR';
@@ -25,20 +26,27 @@ html,body{
 	margin:0;
 	padding:0;
 	overflow:hidden;
+	background:#000;
+}
+body {
+	display: flex;
+    justify-content: center;
+    align-items: center;
 }
 canvas{
 	display:block;
+	width:inherit;
+	height:inherit;
 }
 #html-overlay{
 	position:absolute;
 	top:0;
 	left:0;
-	width:100vw;
-	height:100vh;
+	width: inherit;
+    height: inherit;
 	/*чтобы центрирование по вертикали работало*/
 	display: flex;
 	flex-direction: column;
-	min-height: 100vh;
 }
 pre{
 	color:#fff;
@@ -76,8 +84,6 @@ button{
 .drop_zone {
 	width:calc(var(--symbol_size) * 12);
 	height:calc(var(--symbol_size) * 12);
-	/*border:1px solid #fff;
-	border-radius:var(--symbol_size);*/
 	background:#00000066;
 }
 .scrollable{
@@ -87,10 +93,14 @@ button{
 	height:100%;
 	scrollbar-color:#fff #000;
 }
+#wrapper{
+    position:relative;
+}
 	</style>
 	<link rel="icon" type="image/png">
 </head>
 <body>
+	<div id="wrapper"></div>
 	<script>
 //Проверяем, является ли это окно основным
 if(!window.location.search.includes('child=1')){
@@ -149,17 +159,18 @@ if(!window.location.search.includes('child=1')){
 		.then((loaded_scripts)=>{
 			/*начальные скрипты загружены*/
 			const app=new PIXI.Application({
-				backgroundColor:0x000000,
+				backgroundColor:0x000000
 			});
 			app.init().then(()=>{
+				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.15.0';
+				window.version='(1)0.16.0';
 				/*добавление в разметку canvas-а pixijs*/
-				document.body.appendChild(app.view);
+				wrapper.appendChild(app.view);
 				/*добавление в разметку html-overlay*/
 				const overlay=document.createElement('div');
 				overlay.id='html-overlay';
-				document.body.appendChild(overlay);
+				wrapper.appendChild(overlay);
 				/**/
 				let room,preparation;
 				function change_room(room_,preparation_=true,reset_overlay_=true){
@@ -209,7 +220,7 @@ if(!window.location.search.includes('child=1')){
 				set_font_size(10);
 				/**/
 				const update_size=()=>{
-					app.renderer.resize(window.innerWidth,window.innerHeight);
+					app.renderer.resize(wrapper.clientWidth,wrapper.clientHeight);
 					update_symbols_grid();
 				};
 				function visual_effect(number){
@@ -688,9 +699,16 @@ if(!window.location.search.includes('child=1')){
 					}
 					return buttons;
 				}
+				/*устанавливает ограничение максимального размера содержимого игры, "100%" отключает ограничение*/
+				function set_max_content_size(max_width,max_height){
+					wrapper.style.width=`min(100%,${max_width})`;
+					wrapper.style.height=`min(100%,${max_height})`;
+					update_size();
+				}
 				/*финальная настройка*/
 				let room_data;
 				apply_language(window.settings.interface.language);
+				set_max_content_size(window.settings.interface.max_content_width,window.settings.interface.max_content_height);
 				change_room('main_menu');
 				/*главный цикл*/
 				app.ticker.add(()=>{
@@ -839,7 +857,9 @@ L n L q L q H  U n U n L q U n
 						});
 					}
 					window.PERMITTED={ 
-						set_font_size
+						set_font_size,
+						apply_language,
+						set_max_content_size
 					};
 				});
 				app.ticker.maxFPS=60;
