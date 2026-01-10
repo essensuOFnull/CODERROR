@@ -130,7 +130,7 @@
                 });
                 app.init().then(()=>{
                     /*версия CODERROR'а*/
-                    window.version='(1)0.9.0';
+                    window.version='(1)0.10.0';
                     /*добавление в разметку canvas-а pixijs*/
                     document.body.appendChild(app.view);
                     /*добавление в разметку html-overlay*/
@@ -139,9 +139,12 @@
                     document.body.appendChild(overlay);
                     /**/
                     let room,preparation;
-                    function change_room(room_,preparation_=true){
+                    function change_room(room_,preparation_=true,reset_overlay_=true){
                         room=room_;
                         preparation=preparation_;
+                        if(reset_overlay_){
+                            overlay.innerHTML=``;
+                        }
                     }
                     let symbols_grid=[];//двумерный массив для символов
                     let columns=0;
@@ -552,24 +555,28 @@ L U L q L q H  L q L q L q L q
 L   L q L q H] L_/ L_/ L q L_/
 L n L q L q H  U n U n L q U n
 \_/ \_/ L_/ L] U U U U \_/ U U`.trim();
-                    change_room(0);
+                    change_room('main_menu');
                     /*главный цикл*/
                     app.ticker.add(()=>{
                         document.title=`CODERROR ${window.version} FPS: ${app.ticker.FPS.toFixed(2)}`;
-                        if(room==0){
+                        if(room=='main_menu'){
                             if(preparation){
                                 room_data={
                                     info:create_element_from_HTML(`<div>${get_transparent_space_text(`CODERROR ${window.version} by essensuOFnull`,'#c8c8c8')}</div>`),
                                     logo:create_element_from_HTML(`<div class="center-horizontal">${get_transparent_space_text(logo_text)}</div>`),
                                     buttons_div:create_element_from_HTML(`<div class="center column"/>`),
                                     buttons:{
-                                        new_game:create_button_from_text(`рискнуть начать новую игру`),
-                                        continue:create_button_from_text(`бесцельно продолжить`),
-                                        settings:create_button_from_text(`иллюзия контроля`),
-                                        authors:create_button_from_text(`пантеон творцов`),
-                                        exit:create_button_from_text(`вылет`)
-                                    }
+                                        new_game:`рискнуть начать новую игру`,
+                                        continue:`бесцельно продолжить`,
+                                        settings:`иллюзия контроля`,
+                                        authors:`пантеон творцов`,
+                                        exit:`вылет`
+                                    },
+                                    bug_counter:0
                                 };
+                                for(let key in room_data.buttons){
+                                    room_data.buttons[key]=create_button_from_text(room_data.buttons[key]);
+                                }
                                 overlay.appendChild(room_data.info);
                                 overlay.appendChild(room_data.logo);
                                 change_button_color(room_data.buttons.exit,'#f00');
@@ -582,6 +589,9 @@ L n L q L q H  U n U n L q U n
                                     alert("⚠️ ERROR 400: Bad Request");
                                     self.close();
                                 });
+                                room_data.buttons.authors.addEventListener('click',()=>{
+                                    change_room('authors');
+                                });
                                 preparation=false;
                             }
                             visual_effect(0);
@@ -591,9 +601,16 @@ L n L q L q H  U n U n L q U n
                                     el.style.marginLeft=`calc(var(--symbol_size) * ${-0.5+Math.floor(Math.random()*2)})`;
                                     if(check_hover(el)){
                                         visual_effect(1);
+                                        room_data.bug_counter=100;
                                     }
                                     else{
-                                        visual_effect(2);
+                                        if(room_data.bug_counter<=0){
+                                            visual_effect(2);
+                                        }
+                                        else{
+                                            room_data.bug_counter--;
+                                        }
+
                                     }
                                 }
                                 else{
@@ -605,6 +622,42 @@ L n L q L q H  U n U n L q U n
                                     }
                                 }
                             });
+                        }
+                        if(room=='authors'){
+                            if(preparation){
+                                room_data={
+                                    div:create_element_from_HTML(`<div class="center column"/>`),
+                                    authors:[
+                                        `⦑color:#f0f⦒essensuOFnull⦑reset⦒ - инициатор, автор идей, программист.`,
+                                        `⦑color:#3c0055⦒Skayjf⦑reset⦒ - возможно нарисует текстуры в будущем.`,
+                                        `⦑color:#00f⦒Theb.ai⦑reset⦒, ⦑color:#00f⦒DeepSeek⦑reset⦒ - помощь в программистовании.`
+                                    ],
+                                    buttons:{
+                                        back:create_button_from_text(`назад`)
+                                    },
+                                };
+                                overlay.appendChild(room_data.div);
+                                for(let i=0;i<room_data.authors.length;i++){
+                                    room_data.authors[i]=create_element_from_HTML(`<div>${get_transparent_space_text(room_data.authors[i])}</div>`);
+                                    room_data.div.appendChild(room_data.authors[i]);
+                                    room_data.authors[i].style.marginTop=`var(--symbol_size)`;
+                                }
+                                room_data.div.appendChild(room_data.buttons.back);
+                                room_data.buttons.back.style.marginTop='auto';
+                                room_data.buttons.back.style.marginBottom='var(--symbol_size)';
+                                room_data.buttons.back.addEventListener('click',()=>{
+                                    change_room('main_menu');
+                                });
+                                preparation=false;
+                            }
+                            visual_effect(0);
+                            if(check_hover(room_data.buttons.back)){
+                                change_button_color(room_data.buttons.back,get_random_true_str_color());
+                            }
+                            else{
+                                change_button_color(room_data.buttons.back,'#fff');
+                            }
+                                
                         }
                         window.PERMITTED={ 
                             set_font_size
