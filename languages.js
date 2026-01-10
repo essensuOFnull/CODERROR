@@ -7,6 +7,14 @@ default:{
 		'⦑color:#00f⦒Theb.ai, DeepSeek':`помощь в программировании.`
 	},
 	splashes:["во имя шизы!","t.me/essensuOFnull","феникс"],
+	notifications:{
+		current_music:(path)=>{
+			return`<div class="inherit_colors" style="color:#f00">𝄞</div> сейчас играет: <div class="inherit_colors" style="color:#f0f">${path}</div> <div class="inherit_colors" style="color:#f00">♫</div>`
+		},
+		current_room:(room)=>{
+			return`ℹ️ текущая комната: <div class="inherit_colors" style="color:#f0f">${room}</div>`;
+		},
+	},
 	settings:{
 		interface:{
 			name:`настройки интерфейса`,

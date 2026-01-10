@@ -30,6 +30,9 @@ update_interface();
 let lock_inventory=false;
 /*функция главного цикла*/
 function update_game_logic(){
+	if(preparation){
+		print_to_chat(window.language.notifications.current_room(room));
+	}
 	tps_count++;
 	document.title=`CODERROR ${window.version} TPS: ${real_TPS} FPS: ${app.ticker.FPS.toFixed(2)} - ${window.splash}`;
 	/*перекчение слотов хотбара*/
@@ -366,7 +369,6 @@ L n L q L q H  U n U n L q U n
 				}
 			);
 			room_data.ground.collider=text_to_collider(room_data.ground.text);
-			console.log(room_data.ground.collider);
 			preparation=false;
 		}
 		update_collision();

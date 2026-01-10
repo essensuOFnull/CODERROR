@@ -9,6 +9,11 @@
 	font-family:'CODERROR';
 	src:url('fonts/CODERROR16x16GNUUnifont.ttf') format('truetype');
 }
+@keyframes message_fade_out{
+	0%{opacity:1;}
+	50%{opacity:1;}
+	100%{opacity:0;}
+}
 *{
 	margin:0;
 	padding:0;
@@ -164,6 +169,27 @@ input[type="checkbox"]{
 	padding:var(--symbol_size);
 	pointer-events:none;
 }
+#chat_preview{
+	position:absolute;
+	bottom:0;
+	left:0;
+	display:flex;
+	align-items:start;
+	justify-content:left;
+	flex-direction:column;
+	width:50cqw;
+	height:max-content;
+	margin:var(--symbol_size);
+	pointer-events:none;
+}
+#chat_preview .message{
+	color:#fff;
+	background-color:#0000007F;
+	pointer-events:none;
+	animation:message_fade_out 10s linear forwards;
+	max-width:100%;
+	word-wrap:break-word;
+}
 #hotbar{
 	position:absolute;
 	left:50cqw;/* Смещаем левый край к центру родителя */
@@ -205,6 +231,13 @@ input[type="checkbox"]{
 	position:absolute !important;
 	bottom:var(--symbol_size);
 	right:var(--symbol_size);
+}
+.inherit_colors{
+	display:contents;
+}
+.inherit_colors *{
+	color:inherit;
+	background:inherit;
 }
 	</style>
 	<link rel="icon" type="image/png">
@@ -275,18 +308,30 @@ if(!window.location.search.includes('child=1')){
 				let room_data,player;
 				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.30.0';
+				window.version='(1)0.31.0';
 				/*добавление в разметку canvas-а pixijs*/
 				wrapper.appendChild(app.view);
 				/*добавление в разметку html-overlay*/
 				const overlay=document.createElement('div');
 				overlay.id='html-overlay';
 				wrapper.appendChild(overlay);
+				/*добавление в разметку предпросмотра чата*/
+				let chat_preview=document.createElement('div');
+				chat_preview.id='chat_preview';
+				wrapper.appendChild(chat_preview);
 				/*добавление в разметку interface*/
 				let interface=document.createElement('div');
 				interface.id='interface';
 				wrapper.appendChild(interface);
 				/**/
+				function print_to_chat(message){
+					let message_element=create_element_from_HTML(`<div>${message}</div>`);
+					message_element.classList.add('message');
+					chat_preview.appendChild(message_element);
+					message_element.addEventListener('animationend',()=>{
+						message_element.remove();
+					});
+				}
 				let room,preparation;
 				function change_room(room_,preparation_=true,reset_overlay_=true){
 					room=room_;
@@ -1013,7 +1058,7 @@ if(!window.location.search.includes('child=1')){
 					if(audio_initialized){
 						current_music.play().catch(handle_play_error);
 					}
-					console.log(`𝄞 сейчас играет: ${path} ♫`);
+					print_to_chat(window.language.notifications.current_music(path));
 				}
 				/*выводит сообщение об ошибке в случае её возникновения*/
 				function handle_play_error(error){
