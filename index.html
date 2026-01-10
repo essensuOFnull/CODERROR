@@ -143,6 +143,7 @@ if(!window.location.search.includes('child=1')){
 		/*загрузка скриптов*/
 		Promise.all([
 			load_script('scripts/pixi.min.js'),
+			load_script('initial_settings.js'),
 			load_script('languages.js')
 		])
 		.then((loaded_scripts)=>{
@@ -152,7 +153,7 @@ if(!window.location.search.includes('child=1')){
 			});
 			app.init().then(()=>{
 				/*версия CODERROR'а*/
-				window.version='(1)0.14.2';
+				window.version='(1)0.15.0';
 				/*добавление в разметку canvas-а pixijs*/
 				document.body.appendChild(app.view);
 				/*добавление в разметку html-overlay*/
@@ -689,11 +690,6 @@ if(!window.location.search.includes('child=1')){
 				}
 				/*финальная настройка*/
 				let room_data;
-				window.settings={
-					interface:{
-						language:['default']
-					}
-				}
 				apply_language(window.settings.interface.language);
 				change_room('main_menu');
 				/*главный цикл*/
@@ -808,11 +804,15 @@ L n L q L q H  U n U n L q U n
 							room_data.scrollable.appendChild(room_data.div1);
 							room_data.div1.appendChild(room_data.drop_zone);
 							room_data.div1.appendChild(get_br());
-							Object.entries(window.language.rooms[room].sections).forEach(([name,text])=>{
+							Object.entries(window.language.settings).forEach(([section_id,section])=>{
 								room_data.div1.appendChild(get_symbolic_hr());
-								room_data.div1.appendChild(create_element_from_HTML(`<div>${get_transparent_space_text(text)}</div>`));
+								room_data.div1.appendChild(create_element_from_HTML(`<div>${get_transparent_space_text(section.name)}</div>`));
 								room_data.div1.appendChild(get_symbolic_hr());
 								room_data.div1.appendChild(get_br());
+								Object.entries(section.options).forEach(([option_id,option_name])=>{
+									room_data.div1.appendChild(create_element_from_HTML(`<div>${get_transparent_space_text(`${option_name}: `)}${get_transparent_space_text(window.settings[section_id][option_id],'#f0f')}</div>`));
+									room_data.div1.appendChild(get_br());
+								});
 							});
 							overlay.appendChild(room_data.div2);
 							room_data.div2.appendChild(room_data.buttons.back);

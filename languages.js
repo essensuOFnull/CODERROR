@@ -6,6 +6,32 @@ default:{
 		'⦑color:#909⦒仨与与仨刀仁仨・口千・力仨与户升工艮':`возможно нарисует текстуры в будущем.`,
 		'⦑color:#00f⦒Theb.ai, DeepSeek':`помощь в программировании.`
 	},
+	settings:{
+		interface:{
+			name:`настройки интерфейса`,
+			options:{
+				language:`язык`,
+				font_size:`размер знакомест`,
+				max_window_width:`максимальная ширина окна`,
+				max_window_height:`максимальная высота окна`
+			}
+		},
+		audio:{
+			name:`настройки аудио`,
+			options:{
+				music_volume:`громкость музыки`,
+				sounds_volume:`громкость звуков`
+			}
+		},
+		control:{
+			name:`настройки управления`,
+			options:{
+				left:`влево`,
+				right:`вправо`,
+				jump:`прыжок`
+			}
+		}
+	},
 	rooms:{
 		main_menu:{
 			buttons:{
@@ -25,9 +51,6 @@ default:{
 			drop_zone:`зона\nзагрузки\nфайлов`,
 			buttons:{
 				back:`назад`
-			},
-			sections:{
-				interface:`настройки интерфейса`
 			}
 		}
 	}
