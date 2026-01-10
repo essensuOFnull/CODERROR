@@ -195,7 +195,7 @@ if(!window.location.search.includes('child=1')){
 			app.init().then(()=>{
 				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.19.1';
+				window.version='(1)0.20.0';
 				/*добавление в разметку canvas-а pixijs*/
 				wrapper.appendChild(app.view);
 				/*добавление в разметку html-overlay*/
@@ -830,6 +830,43 @@ if(!window.location.search.includes('child=1')){
 					})
 					return[frame,textarea];
 				}
+				/*музыка*/
+				let current_music=null;
+				let current_music_path='';
+				let music_volume=0.5;
+				let audio_initialized=false;
+				function init_audio(){
+				    if(!audio_initialized){
+				        audio_initialized=true;
+				        document.removeEventListener('click',init_audio);
+				        if(current_music){
+				            current_music.play().catch(handle_play_error);
+				        }
+				    }
+				}
+				document.addEventListener('click',init_audio);
+				function set_music(path){
+				    if(current_music_path===path)return;
+				    if(current_music){
+				        current_music.pause();
+				        current_music=null;
+				    }
+				    current_music=new Audio(path);
+				    current_music.volume=music_volume;
+				    current_music.loop=true;
+				    current_music_path=path;
+				    if(audio_initialized){
+				        current_music.play().catch(handle_play_error);
+				    }
+					console.log(`𝄞 сейчас играет: ${path} ♫`);
+				}
+				function handle_play_error(error){
+				    console.error('Playback error:',error);
+				}
+				function set_volume(volume){
+				    music_volume=Math.max(0,Math.min(1,volume));
+				    if(current_music)current_music.volume=music_volume;
+				}
 				/*финальная настройка*/
 				let room_data;
 				apply_language(window.settings.interface.language);
@@ -840,6 +877,7 @@ if(!window.location.search.includes('child=1')){
 					document.title=`CODERROR ${window.version} FPS: ${app.ticker.FPS.toFixed(2)}`;
 					if(room=='main_menu'){
 						if(preparation){
+							set_music('music/main_menu.ogg');
 							room_data={
 								info:create_element_from_HTML(`<div>${get_transparent_space_text(`CODERROR ${window.version} by essensuOFnull`,'#c8c8c8')}</div>`),
 								logo:create_element_from_HTML(`<div class="center-horizontal">${get_transparent_space_text(String.raw`
