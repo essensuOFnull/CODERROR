@@ -2,7 +2,6 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>CODERROR</title>
     <style>
         @font-face{
             font-family:'CODERROR';
@@ -17,6 +16,8 @@
             font-family:'CODERROR',monospace;
             letter-spacing:0;
             user-select:none;
+            font-size:var(--symbol_size);
+            pointer-events:auto; /* Разрешить взаимодействие с HTML-элементами */
         }
         html,body{
             width:100%;
@@ -34,7 +35,6 @@
             left:0;
             width:100vw;
             height:100vh;
-            pointer-events:auto; /* Разрешить взаимодействие с HTML-элементами */
             /*чтобы центрирование по вертикали работало*/
             display: flex;
             flex-direction: column;
@@ -62,6 +62,9 @@
             display: flex;
             align-items: center; /* Центрирование по вертикали */
             justify-content: center; /* Центрирование по горизонтали */
+        }
+        .column{
+            flex-direction:column;
         }
         button{
             background-color:transparent;
@@ -126,6 +129,8 @@
                     backgroundColor:0x000000,
                 });
                 app.init().then(()=>{
+                    /*версия CODERROR'а*/
+                    window.version='(1)0.8.0';
                     /*добавление в разметку canvas-а pixijs*/
                     document.body.appendChild(app.view);
                     /*добавление в разметку html-overlay*/
@@ -167,7 +172,7 @@
                     function set_font_size(size_in_pixels){
                         symbol_size=size_in_pixels;
                         font_size=symbol_size*pixel_in_pt;
-                        styleSheet.insertRule("*{font-size:"+font_size+"pt !important;}",styleSheet.cssRules.length);
+                        styleSheet.insertRule(":root{--symbol_size:"+font_size+"pt !important;}",styleSheet.cssRules.length);
                         text_style=new PIXI.TextStyle({
                             fontFamily:'CODERROR',
                             fontSize:symbol_size,
@@ -442,6 +447,7 @@
                         grid.style.position = 'relative';
                         grid.style.alignItems = 'center'; // Выравнивание по центру
                         grid.style.justifyItems = 'center';
+                        grid.style.color='inherit';
 
                         // Создание элементов с правильными областями
                         const elements = {
@@ -460,12 +466,13 @@
                         // Привязка всех элементов к grid-areas
                         Object.entries(elements).forEach(([area, el]) => {
                             el.style.gridArea = area;
+                            el.style.color='inherit';
                             grid.appendChild(el);
                         });
                         button.appendChild(grid);
                         increment_z_index(grid);
-                        let horizontal=`<pre style="position:absolute;white-space:nowrap;">${'-'.repeat(666)}</pre>`
-                        let vertical=`<pre style="position:absolute;white-space:nowrap;">${'|<br>'.repeat(444)}</pre>`
+                        let horizontal=`<pre style="position:absolute;white-space:nowrap;color:inherit;">${'-'.repeat(666)}</pre>`
+                        let vertical=`<pre style="position:absolute;white-space:nowrap;color:inherit;">${'|<br>'.repeat(444)}</pre>`
                         let top=create_element_from_HTML(horizontal);
                         top.style.top=0;
                         top.style.left=0;
@@ -484,6 +491,38 @@
                         button.appendChild(right);
                         return button;
                     }
+                    /*создает кнопку на основе текста*/
+                    function create_button_from_text(text){
+                        return wrap_in_button(create_element_from_HTML(get_transparent_space_text(text)));
+                    }
+                    /*меняет цвет рамки кнопки*/
+                    function change_button_border_color(button,color){
+                        button.style.color=color;
+                    }
+                    /*меняет цвет текста кнопки*/
+                    function change_button_text_color(button,color){
+                        const elements=button.querySelectorAll('[style*="grid-area: c;"]');
+                        if(elements.length>0){
+                            const targetElement=elements[0];
+                            const firstChild=targetElement.firstElementChild;
+                            if(firstChild){
+                                firstChild.style.color=color;
+                            }else{
+                                console.log('У элемента нет дочерних элементов.');
+                            }
+                        }else{
+                            console.log('Элемент с grid-area: c; не найден.');
+                        }
+                    }
+                    /*меняет цвет рамки и текста кнопки*/
+                    function change_button_color(button,color){
+                        change_button_border_color(button,color);
+                        change_button_text_color(button,color);
+                    }
+                    /*проверяет наведена ли мышь на элемент*/
+                    function check_hover(element){
+                        return element.matches(':hover');
+                    }
                     /*финальная настройка*/
                     let room_data;
                     let logo_text=String.raw`
@@ -495,23 +534,40 @@ L n L q L q H  U n U n L q U n
                     change_room(0);
                     /*главный цикл*/
                     app.ticker.add(()=>{
-                        document.title=`CODERROR FPS: ${app.ticker.FPS.toFixed(2)}`;
+                        document.title=`CODERROR ${window.version} FPS: ${app.ticker.FPS.toFixed(2)}`;
                         if(room==0){
                             if(preparation){
                                 room_data={
-                                    info:create_element_from_HTML(`<div>${get_transparent_space_text(`by essensuOFnull`,'#c8c8c8')}</div>`),
+                                    info:create_element_from_HTML(`<div>${get_transparent_space_text(`CODERROR ${window.version} by essensuOFnull`,'#c8c8c8')}</div>`),
                                     logo:create_element_from_HTML(`<div class="center-horizontal">${get_transparent_space_text(logo_text)}</div>`),
-                                    buttons_div:create_element_from_HTML(`<div class="center"/>`),
-                                    button_new_game:wrap_in_button(create_element_from_HTML(get_transparent_space_text(`рискнуть начать новую игру`)))
+                                    buttons_div:create_element_from_HTML(`<div class="center column"/>`),
+                                    buttons:{
+                                        new_game:create_button_from_text(`рискнуть начать новую игру`),
+                                        continue:create_button_from_text(`бесцельно продолжить`),
+                                        settings:create_button_from_text(`иллюзия контроля`),
+                                        authors:create_button_from_text(`пантеон творцов`),
+                                        exit:create_button_from_text(`вылет`)
+                                    }
                                 };
                                 overlay.appendChild(room_data.info);
                                 overlay.appendChild(room_data.logo);
-                                room_data.buttons_div.appendChild(room_data.button_new_game);
+                                Object.entries(room_data.buttons).forEach(([name,el])=>{
+                                    el.style.marginBottom='var(--symbol_size)';
+                                    room_data.buttons_div.appendChild(el);
+                                });
                                 overlay.appendChild(room_data.buttons_div);
                                 preparation=false;
                             }
                             visual_effect(0);
                             room_data.logo.firstChild.style.color=get_random_true_str_color();
+                            Object.entries(room_data.buttons).forEach(([name,el])=>{
+                                if(check_hover(el)){
+                                    change_button_color(el,get_random_true_str_color());
+                                }
+                                else{
+                                    change_button_color(el,'#fff');
+                                }
+                            });
                         }
                         window.PERMITTED={ 
                             set_font_size
