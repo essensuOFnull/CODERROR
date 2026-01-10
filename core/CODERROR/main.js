@@ -115,7 +115,6 @@ f.check_font_loaded('CODERROR').then(() => {
 		/**отображаемый размер шрифта*/
 		d.symbol_size;
 		f.init_printable_symbols();
-		f.init_symbols_grid();
 		/**/
 		window.addEventListener('resize',f.update_size);
 		d.dragover_states=new WeakMap();
@@ -140,7 +139,6 @@ f.check_font_loaded('CODERROR').then(() => {
 			e.preventDefault();
 		});
 		f.set_empty_player();
-		f.change_room('disclaimer');
 		f.apply_settings();
 		/**инициализация системы кастомных курсоров*/
 		f.init_cursor_system();
@@ -151,11 +149,11 @@ f.check_font_loaded('CODERROR').then(() => {
 		/**логический размер символов, используемый в физике*/
 		d.logical_symbol_size=16;
 		f.update_size();
+		/*перехдим вначальную комнату*/
+		f.change_room('disclaimer');
 		/*загружаем циклы физики и отрисовки*/
 		f.eval_script(`core/CODERROR/physics.js`);
 		f.eval_script(`core/CODERROR/render.js`);
-		/*Скрываем индикатор загрузки*/
-		document.getElementById('loading').remove();
 	}).catch(console.error);
 }).catch(console.error);
 

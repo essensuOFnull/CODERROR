@@ -181,8 +181,8 @@ init_symbols_grid() {
     d.columns = 0;
     d.rows = 0;
     
-    // Создаем атласы символов
-    f.create_symbols_atlas();
+    // Создаем атласы символов (загружаем с диска или создаем новые)
+    f.init_symbols_atlas();
     
     // Создаем текстуру для белого пикселя (для фона)
     d.white_texture = PIXI.Texture.WHITE;
@@ -322,18 +322,27 @@ get_symbol_texture(char) {
     }
     
     const atlas = d.symbols_atlases[info.atlasIndex];
-    const size = d.symbol_size;
+    if (!atlas) {
+        console.warn(`Atlas ${info.atlasIndex} not found for char: ${char}`);
+        return f.get_symbol_texture(' ');
+    }
     
-    const x = (info.charIndex % info.cols) * size;
-    const y = Math.floor(info.charIndex / info.cols) * size;
+    const size = d.symbol_size;
+    const cols = atlas.cols;
+    
+    const col = info.charIndex % cols;
+    const row = Math.floor(info.charIndex / cols);
+    
+    const x = col * size;
+    const y = row * size;
     
     // Создаем прямоугольник (frame) для вырезания
     const frame = new PIXI.Rectangle(x, y, size, size);
     
     // Создаем новую текстуру, используя исходную текстуру и frame
     const subTexture = new PIXI.Texture({
-        source: atlas.texture.source, // Используем источник исходной текстуры
-        frame: frame // Передаем созданный прямоугольник
+        source: atlas.texture.source,
+        frame: frame
     });
     
     return subTexture;
@@ -399,7 +408,7 @@ set_font_size(size_in_pixels) {
     d.styleSheet.insertRule(":root{--symbol_size:" + d.symbol_size + "px !important;}", d.styleSheet.cssRules.length);
     
     // Пересоздаем атлас с новым размером
-    f.create_symbols_atlas();
+    f.init_symbols_atlas();
     f.update_symbols_grid();
 },
 update_size() {
@@ -549,6 +558,51 @@ check_font_loaded(fontName, timeout = 3000) {
         check();
     });
 },
+init_symbols_atlas() {
+    // Создаем папку TEMP если её нет
+    f.create_directory('TEMP').catch(() => {});
+    
+    // Всегда создаем атласы в памяти
+    f.create_symbols_atlas();
+    
+    // Сохраняем атласы на диск асинхронно (не блокируем основной поток)
+    setTimeout(() => {
+        for (let i = 0; i < d.symbols_atlases.length; i++) {
+            const atlas = d.symbols_atlases[i];
+            const fileName = `TEMP/symbols_atlas_${d.symbol_size}_${i}.png`;
+            
+            // Используем canvas который мы сохранили
+            if (atlas.canvas) {
+                try {
+                    // Конвертируем canvas в Data URL синхронно
+                    const dataURL = atlas.canvas.toDataURL('image/png');
+                    
+                    // Извлекаем base64 данные из Data URL
+                    const base64Data = dataURL.split(',')[1];
+                    
+                    // Конвертируем base64 в бинарные данные
+                    const binaryString = atob(base64Data);
+                    const len = binaryString.length;
+                    const bytes = new Uint8Array(len);
+                    
+                    for (let j = 0; j < len; j++) {
+                        bytes[j] = binaryString.charCodeAt(j);
+                    }
+                    
+                    // Сохраняем как бинарные данные
+                    f.write_file(fileName, bytes).then(() => {
+                        console.log('Atlas saved:', fileName);
+                    }).catch(error => {
+                        console.warn('Failed to save atlas:', error);
+                    });
+                    
+                } catch (error) {
+                    console.error('Error saving atlas:', error);
+                }
+            }
+        }
+    }, 100);
+},
 /** Создает битмап-атласы символов (разделенные на чанки) в высоком качестве */
 create_symbols_atlas() {
     if (!d.printable_symbols || d.printable_symbols.length === 0) {
@@ -556,41 +610,84 @@ create_symbols_atlas() {
     }
     
     const size = d.symbol_size;
-    const resolution = 4; // Увеличь для большего качества (2, 3, 4...)
+    const resolution = 4;
     const maxAtlasSize = 2048;
-    const symbolsPerAtlas = Math.floor((maxAtlasSize / size) ** 2);
+    const symbolsPerRow = Math.floor(maxAtlasSize / size);
+    const symbolsPerAtlas = symbolsPerRow * symbolsPerRow;
     
     d.symbols_atlases = [];
     d.symbols_atlas_map = {};
     
     for (let i = 0; i < d.printable_symbols.length; i += symbolsPerAtlas) {
-        const chunk = d.printable_symbols.slice(i, i + symbolsPerAtlas);
+        const chunk = d.printable_symbols.slice(i, Math.min(i + symbolsPerAtlas, d.printable_symbols.length));
+        
+        if (chunk.length === 0) {
+            console.warn('Empty chunk encountered, skipping atlas creation');
+            continue;
+        }
+        
         const atlasIndex = d.symbols_atlases.length;
         
-        const cols = Math.ceil(Math.sqrt(chunk.length));
+        // ИСПРАВЛЕННЫЙ РАСЧЕТ СЕТКИ:
+        const cols = Math.min(symbolsPerRow, chunk.length);
         const rows = Math.ceil(chunk.length / cols);
         
-        // Умножаем размеры canvas на resolution
-        const canvas = document.createElement('canvas');
-        canvas.width = cols * size * resolution;
-        canvas.height = rows * size * resolution;
-        const ctx = canvas.getContext('2d');
+        // Создаем финальный canvas для атласа
+        const finalCanvas = document.createElement('canvas');
+        finalCanvas.width = cols * size;
+        finalCanvas.height = rows * size;
         
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (finalCanvas.width === 0 || finalCanvas.height === 0) {
+            console.error('Final canvas has zero dimensions:', finalCanvas.width, finalCanvas.height);
+            continue;
+        }
         
-        // Увеличиваем размер шрифта
-        ctx.font = `bold ${size * resolution}px CODERROR, monospace`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = '#ffffff';
+        const finalCtx = finalCanvas.getContext('2d');
+        finalCtx.imageSmoothingEnabled = false;
+        finalCtx.webkitImageSmoothingEnabled = false;
+        finalCtx.mozImageSmoothingEnabled = false;
+        finalCtx.msImageSmoothingEnabled = false;
         
+        finalCtx.clearRect(0, 0, finalCanvas.width, finalCanvas.height);
+        
+        // Создаем временный canvas для одного символа
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = size * resolution;
+        tempCanvas.height = size * resolution;
+        
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.font = `${size * resolution}px CODERROR, monospace`;
+        tempCtx.textAlign = 'start';
+        tempCtx.textBaseline = 'top';
+        tempCtx.fillStyle = '#ffffff';
+        
+        // Отрисовываем каждый символ в чанке
         for (let j = 0; j < chunk.length; j++) {
             const char = chunk[j];
-            // Умножаем координаты на resolution
-            const x = (j % cols) * size * resolution + size * resolution / 2;
-            const y = Math.floor(j / cols) * size * resolution + size * resolution / 2;
-            ctx.fillText(char, x, y);
             
+            // ИСПРАВЛЕННЫЙ РАСЧЕТ ПОЗИЦИИ:
+            const col = j % cols;
+            const row = Math.floor(j / cols);
+            
+            // Очищаем временный canvas
+            tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+            
+            // Рисуем символ во временном canvas
+            const x = 0;
+            const y = 0;
+            tempCtx.fillText(char, x, y);
+            
+            // Масштабируем и копируем в финальный canvas
+            const destX = col * size;
+            const destY = row * size;
+            
+            finalCtx.drawImage(
+                tempCanvas,
+                0, 0, tempCanvas.width, tempCanvas.height,
+                destX, destY, size, size
+            );
+            
+            // Сохраняем информацию о позиции символа
             d.symbols_atlas_map[char] = {
                 atlasIndex: atlasIndex,
                 charIndex: j,
@@ -599,15 +696,50 @@ create_symbols_atlas() {
             };
         }
         
-        const texture = PIXI.Texture.from(canvas);
-        // Устанавливаем разрешение текстуры
-        texture.baseTexture.resolution = resolution;
+        // Создаем текстуру из финального canvas
+        const texture = PIXI.Texture.from(finalCanvas);
+        
         d.symbols_atlases.push({
             texture: texture,
             cols: cols,
             rows: rows
         });
+
+        f.save_atlas_as_PNG(finalCanvas,atlasIndex);
+
+        console.log(`Created atlas ${atlasIndex}: ${cols}x${rows} symbols, ${finalCanvas.width}x${finalCanvas.height} pixels, ${chunk.length} chars`);
     }
+    
+    if (d.symbols_atlases.length === 0) {
+        console.error('No atlases were created - check printable_symbols and symbol_size');
+    }
+},
+// Новая функция для сохранения PNG через f.write_file
+save_atlas_as_PNG(canvas, index) {
+    return new Promise((resolve, reject) => {
+        // Метод 1: Используем toDataURL как запасной вариант
+        try {
+            const dataURL = canvas.toDataURL('image/png');
+            const base64Data = dataURL.split(',')[1];
+            const binaryString = atob(base64Data);
+            const uint8Array = new Uint8Array(binaryString.length);
+            
+            for (let i = 0; i < binaryString.length; i++) {
+                uint8Array[i] = binaryString.charCodeAt(i);
+            }
+            
+            f.write_file(`TEMP/symbols_atlas/${index}.png`, uint8Array)
+                .then(() => {
+                    console.log(`Atlas ${index} saved via DataURL method`);
+                    resolve();
+                })
+                .catch(reject);
+                
+        } catch (error) {
+            console.error(`DataURL method failed for atlas ${index}:`, error);
+            reject(error);
+        }
+    });
 },
 /** Инициализация GPU-рендера символов (atlas + data-текстуры + шейдер) */
 init_gpu_symbols_renderer(){
@@ -2263,8 +2395,8 @@ file_exists(relPath){
 read_file(relPath){
 	return window.message_bus.send('read_file',{relPath});
 },
-write_file(relPath,content){
-	return window.message_bus.send('write_file',{relPath,content});
+write_file(relPath, content) {
+    return window.message_bus.send('write_file', {relPath, content});
 },
 create_directory(relPath){
 	return window.message_bus.send('create_directory',{relPath});

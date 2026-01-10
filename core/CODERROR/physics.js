@@ -92,8 +92,11 @@ function update_game_logic(){
 			d.save.temp.room.data.div.appendChild(f.get_br());
 			d.save.temp.room.data.div.appendChild(d.save.temp.room.data.button_continue);
 			d.save.temp.room.data.button_continue.addEventListener('click',()=>{
+				let loading=document.getElementById('loading');
+				loading.style.display='block';
 				/*получение доступа к своей же папке*/
 				f.init_file_access().then(()=>{
+					f.init_symbols_grid();
 					try{
 						/*используя полученные возможности, продолжаем загрузку игры*/
 						/*загружаем языки*/
@@ -110,6 +113,7 @@ function update_game_logic(){
 					}catch(e){
 						f.print_to_chat(d.language.errors.common(e));
 					}
+					loading.style.display='none';
 					f.change_room('main_menu');
 				}).catch(e=>{ console.warn('init_file_access failed:', e); });
 			});
