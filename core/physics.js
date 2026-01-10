@@ -88,7 +88,11 @@ function update_game_logic(){
                 d.save.room.data.div.appendChild(f.get_br());
                 d.save.room.data.div.appendChild(d.save.room.data.button_continue);
                 d.save.room.data.button_continue.addEventListener('click',()=>{
-                    f.change_room('main_menu');
+                    /*получение доступа к своей же папке*/
+                    f.init_file_access().then(()=>{
+                        f.create_directory('saves/slot1');
+                        f.change_room('main_menu');
+                    }).catch(e=>{ console.warn('init_file_access failed:', e); });
                 });
                 f.change_button_text_color(d.save.room.data.button_continue,'#FF1D34');
                 d.overlay.appendChild(d.save.room.data.scrollable);

@@ -1123,6 +1123,10 @@ generate_esc_menu:function(){
 },
 /**генерирует интерфейс*/
 update_interface:function(){
+    if(!d.interface){
+        console.warn('update_interface: interface is not ready yet');
+        return;
+    }
     d.interface.innerHTML='';
     d.interface.appendChild(f.generate_hotbar());
     f.update_active_hotbar_slot_frame();
@@ -1165,6 +1169,166 @@ finish_preparation:function(){
 load_save:function(data){
     d.loadable_save_data=data;
     f.change_room(data.room.id);
+},
+open_handles_DB:function() {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open(d.FS_DB_NAME, 1);
+        req.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains(d.FS_STORE_NAME)) db.createObjectStore(d.FS_STORE_NAME);
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    });
+},
+save_handle_to_DB:function(handle) {
+    return f.open_handles_DB().then(db => new Promise((resolve, reject) => {
+        try{
+            const tx = db.transaction(d.FS_STORE_NAME, 'readwrite');
+            const store = tx.objectStore(d.FS_STORE_NAME);
+            const req = store.put(handle, d.FS_KEY);
+            req.onsuccess = () => resolve();
+            req.onerror = () => reject(req.error);
+        }catch(e){
+            reject(e);
+        }
+    }));
+},
+get_handle_from_DB:function() {
+    return f.open_handles_DB().then(db => new Promise((resolve, reject) => {
+        try{
+            const tx = db.transaction(d.FS_STORE_NAME, 'readonly');
+            const store = tx.objectStore(d.FS_STORE_NAME);
+            const req = store.get(d.FS_KEY);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        }catch(e){
+            reject(e);
+        }
+    }));
+},
+verify_permission:function(handle, withWrite) {
+    const opts = {};
+    if (withWrite) opts.mode = 'readwrite';
+    // Возвращаем Promise<boolean>
+    try {
+        return Promise.resolve().then(()=>{
+            if (!handle.queryPermission) return false;
+            return handle.queryPermission(opts);
+        }).then(result => {
+            if (result === 'granted') return true;
+            if (!handle.requestPermission) return false;
+            return handle.requestPermission(opts).then(r => r === 'granted');
+        }).catch(e => { console.warn('verify_permission error', e); return false; });
+    } catch (e) {
+        console.warn('verify_permission sync error', e);
+        return Promise.resolve(false);
+    }
+},
+init_file_access:function() {
+    // Функция возвращает Promise, чтобы вызвать её из main.js и продолжать после получения дескриптора
+    return new Promise((resolve, reject) => {
+        // Если API не поддерживается — выходим молча
+        if (!window.showDirectoryPicker || !window.indexedDB) return resolve();
+        let dirHandle = null;
+        const flag = localStorage.getItem('coderror_dir_selected');
+        const tryGetFromDB = () => {
+            if (!flag) return Promise.resolve(null);
+            return f.get_handle_from_DB().catch(e => { console.warn('Не удалось взять дескриптор из DB', e); localStorage.removeItem('coderror_dir_selected'); return null; });
+        };
+
+        tryGetFromDB().then(storedHandle => {
+            if (storedHandle) {
+                // Проверим права
+                f.verify_permission(storedHandle, true).then(ok => {
+                    if (!ok) console.warn('Нет прав на выбранную папку или пользователь отозвал доступ.');
+                    d.directory_handle = storedHandle;
+                    resolve();
+                }).catch(e => { console.warn(e); d.directory_handle = storedHandle; resolve(); });
+                return;
+            }
+
+            // Нет сохранённого дескриптора — уведомим пользователя и пометим, что требуется вмешательство пользователя
+            alert('Для работы игре требуется доступ к своим же файлам. Выберите папку, которую вы использовали для загрузки расширения, или папку, в которой игра на самом деле хранится. Сейчас будет произведён запрос доступа.');
+            // Помечаем, что для получения дескриптора требуется пользовательский жест (например, нажатие кнопки)
+            d.need_directory_permission = true;
+            f.request_directory_via_user_gesture().then(handle => {
+                return resolve();
+            });
+        }).catch(e => { console.error('init_file_access error', e); resolve(); });
+    });
+},
+
+// Вызывать в обработчике пользовательского события (click) — picker требует user activation
+request_directory_via_user_gesture:function(){
+    return new Promise((resolve, reject) => {
+        if (!window.showDirectoryPicker) return resolve(null);
+        window.showDirectoryPicker().then(handle => {
+            d.directory_handle = handle;
+            f.save_handle_to_DB(handle).then(()=>{
+                localStorage.setItem('coderror_dir_selected','1');
+            }).catch(e=>{
+                console.warn('Не удалось сохранить дескриптор в IndexedDB', e);
+            }).finally(()=>{
+                d.need_directory_permission = false;
+                resolve(handle);
+            });
+        }).catch(e => {
+            console.warn('showDirectoryPicker cancelled or failed', e);
+            resolve(null);
+        });
+    });
+},
+/**читает содержимое текстового файла*/
+read_file_from_directory:function(relPath) {
+    return new Promise((resolve, reject) => {
+        if (!d.directory_handle) return reject(new Error('Directory handle is not available'));
+        const parts = relPath.split('/').filter(Boolean);
+        let dir = d.directory_handle;
+        const next = (i) => {
+            if (i >= parts.length - 1) {
+                dir.getFileHandle(parts[parts.length - 1]).then(fileHandle => {
+                    return fileHandle.getFile();
+                }).then(file => file.text()).then(text => resolve(text)).catch(reject);
+                return;
+            }
+            dir.getDirectoryHandle(parts[i]).then(next.bind(null, i+1)).catch(reject);
+        };
+        next(0);
+    });
+},
+/**записывает содержимое в текстовый файл*/
+write_file_to_directory:function(relPath, contents) {
+    return new Promise((resolve, reject) => {
+        if (!d.directory_handle) return reject(new Error('Directory handle is not available'));
+        const parts = relPath.split('/').filter(Boolean);
+        let dir = d.directory_handle;
+        const next = (i) => {
+            if (i >= parts.length - 1) {
+                dir.getFileHandle(parts[parts.length - 1], { create: true }).then(fileHandle => {
+                    return fileHandle.createWritable();
+                }).then(writable => {
+                    return writable.write(contents).then(() => writable.close());
+                }).then(resolve).catch(reject);
+                return;
+            }
+            dir.getDirectoryHandle(parts[i], { create: true }).then(next.bind(null, i+1)).catch(reject);
+        };
+        next(0);
+    });
+},
+/**создает папку*/
+create_directory:function(relPath) {
+    return new Promise((resolve, reject) => {
+        if (!d.directory_handle) return reject(new Error('Directory handle is not available'));
+        const parts = relPath.split('/').filter(Boolean);
+        let dir = d.directory_handle;
+        const next = (i) => {
+            if (i >= parts.length) return resolve(dir);
+            dir.getDirectoryHandle(parts[i], { create: true }).then(newDir => { dir = newDir; next(i+1); }).catch(reject);
+        };
+        next(0);
+    });
 }
 };
 

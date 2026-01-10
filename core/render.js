@@ -8,7 +8,6 @@ setInterval(()=>{
 	frame_count=0;
 },1000);
 
-// Кэш ссылки на элемент, чтобы не вызывать getElementById каждый кадр
 d.app.ticker.add(()=>{
 	if(!(!window.has_focus&&d.settings.interface.pause_on_blur)){
 		frame_count++;

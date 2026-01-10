@@ -1,6 +1,6 @@
 window.CODERROR.__originals__.data={
 /**версия CODERROR'а*/
-version:'(1)0.36.4',
+version:'(1)0.37.0',
 /**целевой TPS (количество итераций физики мира в секунду)*/
 fixed_TPS:60,
 /**фактический TPS*/
@@ -32,5 +32,8 @@ save:{
         /**с каких сторон игрок касается стен*/
         touch_wall:{}
     }
-}
+},
+FS_DB_NAME:'coderror-file-system',
+FS_STORE_NAME:'handles',
+FS_KEY:'directory'
 }
