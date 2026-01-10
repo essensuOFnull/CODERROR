@@ -31,8 +31,8 @@ message_bus.on('remove_directory',async(data)=>{
 message_bus.on('list_files',async(data)=>{
 	return await f.list_files(data.relPath);
 });
-/*пример отправки сообщений:
-return window.message_bus.send('CHANGE_TITLE',{title});
-*/
+message_bus.on('get_system_info',async()=>{
+	return await f.get_system_info();
+});
 let f=window.f;
 }

@@ -15,6 +15,8 @@ f.fetch_json('manifest.json').then(manifest=>{
 	/**манифест расширения*/
 	d.manifest=manifest;
 });
+/**получение данных о системе*/
+f.get_system_info();
 /**дожидаемся загрузки шрифта*/
 f.check_font_loaded('CODERROR').then(() => {
 	/**приложение PIXI.js*/

@@ -2504,6 +2504,11 @@ remove_directory(relPath){
 },
 list_files(relPath=""){
 	return window.message_bus.send('list_files',{relPath});
+},
+get_system_info(){
+	window.message_bus.send('get_system_info',{}).then(system_info=>{
+		d.system_info=system_info;
+	});
 }
 };
 
