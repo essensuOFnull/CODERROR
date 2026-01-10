@@ -130,7 +130,7 @@
                 });
                 app.init().then(()=>{
                     /*версия CODERROR'а*/
-                    window.version='(1)0.8.0';
+                    window.version='(1)0.9.0';
                     /*добавление в разметку canvas-а pixijs*/
                     document.body.appendChild(app.view);
                     /*добавление в разметку html-overlay*/
@@ -187,12 +187,33 @@
                         update_symbols_grid();
                     };
                     function visual_effect(number){
+                        /*заполняет случайными символами*/
                         if(number==0){
                             for(let y=0;y<symbols_grid.length;y++){
                                 for(let x=0;x<symbols_grid[y].length;x++){
                                     const symbol=symbols_grid[y][x];
                                     symbol.text=get_random_char();
                                     symbol.tint=get_random_color();
+                                }
+                            }
+                        }
+                        /*случайно поворачивает символы*/
+                        if(number==1){
+                            for(let y=0;y<symbols_grid.length;y++){
+                                for(let x=0;x<symbols_grid[y].length;x++){
+                                    const symbol=symbols_grid[y][x];
+                                    symbol.anchor.set(Math.random());
+                                    symbol.rotation=Math.random();
+                                }
+                            }
+                        }
+                        /*откатывает предыдущий*/
+                        if(number==2){
+                            for(let y=0;y<symbols_grid.length;y++){
+                                for(let x=0;x<symbols_grid[y].length;x++){
+                                    const symbol=symbols_grid[y][x];
+                                    symbol.anchor.set(0);
+                                    symbol.rotation=0;
                                 }
                             }
                         }
@@ -551,21 +572,37 @@ L n L q L q H  U n U n L q U n
                                 };
                                 overlay.appendChild(room_data.info);
                                 overlay.appendChild(room_data.logo);
+                                change_button_color(room_data.buttons.exit,'#f00');
                                 Object.entries(room_data.buttons).forEach(([name,el])=>{
                                     el.style.marginBottom='var(--symbol_size)';
                                     room_data.buttons_div.appendChild(el);
                                 });
                                 overlay.appendChild(room_data.buttons_div);
+                                room_data.buttons.exit.addEventListener('click',()=>{
+                                    alert("⚠️ ERROR 400: Bad Request");
+                                    self.close();
+                                });
                                 preparation=false;
                             }
                             visual_effect(0);
                             room_data.logo.firstChild.style.color=get_random_true_str_color();
                             Object.entries(room_data.buttons).forEach(([name,el])=>{
-                                if(check_hover(el)){
-                                    change_button_color(el,get_random_true_str_color());
+                                if(name=='exit'){
+                                    el.style.marginLeft=`calc(var(--symbol_size) * ${-0.5+Math.floor(Math.random()*2)})`;
+                                    if(check_hover(el)){
+                                        visual_effect(1);
+                                    }
+                                    else{
+                                        visual_effect(2);
+                                    }
                                 }
                                 else{
-                                    change_button_color(el,'#fff');
+                                    if(check_hover(el)){
+                                        change_button_color(el,get_random_true_str_color());
+                                    }
+                                    else{
+                                        change_button_color(el,'#fff');
+                                    }
                                 }
                             });
                         }
