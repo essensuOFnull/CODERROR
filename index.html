@@ -201,7 +201,7 @@ if(!window.location.search.includes('child=1')){
 			app.init().then(()=>{
 				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.23.0';
+				window.version='(1)0.24.0';
 				/*добавление в разметку canvas-а pixijs*/
 				wrapper.appendChild(app.view);
 				/*добавление в разметку html-overlay*/
@@ -882,24 +882,27 @@ if(!window.location.search.includes('child=1')){
 					button.querySelector('#frame_content').innerHTML=get_transparent_space_text(text);
 				}
 				/*ожидает пользовательский ввод и возвращает promise*/
-				function wait_user_input() {
-					return new Promise((resolve) => {
-						const handler = (e) => {
-							e.preventDefault();
-							document.removeEventListener('keydown', handler);
-							document.removeEventListener('mousedown', handler);
-							if (e.type === 'keydown') {
-								if(window.settings.control.bind_to_layout){
-									resolve(e.key);
+				window.ignored_keys=['F11','F12'];
+				function wait_user_input(){
+					return new Promise((resolve)=>{
+						const handler=(e)=>{
+							if(!window.ignored_keys.includes(e.code)){
+								e.preventDefault();
+								document.removeEventListener('keydown',handler);
+								document.removeEventListener('mousedown',handler);
+								if(e.type==='keydown'){
+									if(window.settings.control.bind_to_layout){
+										resolve(e.key);
+									}else{
+										resolve(e.code);
+									}
 								}else{
-									resolve(e.code);
+									resolve(`mouse${e.button}`);
 								}
-							} else {
-								resolve(`mouse${e.button}`);
 							}
 						};
-					document.addEventListener('keydown', handler);
-					document.addEventListener('mousedown', handler);
+					document.addEventListener('keydown',handler);
+					document.addEventListener('mousedown',handler);
 					});
 				}
 				/*принимает список и возвращает случайный элемент*/
@@ -914,10 +917,48 @@ if(!window.location.search.includes('child=1')){
 				function clear_pixijs(stage=app.stage){
 					stage.removeChildren();
 				}
+				/*отслеживает нажатия и отжатия клавиш*/
+				window.pressed=new Set();
+				function setup_input_tracker(){
+					const getKey=(e)=>{
+						if(e.type.startsWith('key')){
+							return window.settings.control.bind_to_layout?e.key:e.code;
+						}
+						return`mouse${e.button}`;
+					};
+					const handleEvent=(e)=>{
+						if(!window.ignored_keys.includes(e.code)){
+							e.preventDefault();
+							const key=getKey(e);
+							if(e.type==='keydown'||e.type==='mousedown'){
+								window.pressed.add(key);
+							}else{
+								window.pressed.delete(key);
+							}
+							console.log(window.pressed);
+						}
+					};
+					document.addEventListener('keydown',handleEvent);
+					document.addEventListener('keyup',handleEvent);
+					document.addEventListener('mousedown',handleEvent);
+					document.addEventListener('mouseup',handleEvent);
+					return{
+						stop_tracking:()=>{
+							document.removeEventListener('keydown',handleEvent);
+							document.removeEventListener('keyup',handleEvent);
+							document.removeEventListener('mousedown',handleEvent);
+							document.removeEventListener('mouseup',handleEvent);
+						}
+					};
+				}
 				/*финальная настройка*/
+				document.addEventListener('contextmenu',(e)=>{
+				    e.preventDefault();/*отключаем контекстные меню глобально. я сам ими пользовался для вызова консоли, но они могут помешать игре, если что-то забинжено на правую кнопку мыши*/
+				});
 				let room_data;
 				room='main_menu'
 				apply_settings();
+				let input_tracker=setup_input_tracker();
 				/*главный цикл*/
 				app.ticker.add(()=>{
 					document.title=`CODERROR ${window.version} FPS: ${app.ticker.FPS.toFixed(2)} - ${window.splash}`;
@@ -1229,7 +1270,7 @@ L n L q L q H  U n U n L q U n
 							video.addEventListener('ended',()=>{
 								clear_pixijs();
 								update_symbols_grid();
-							    change_room('main_menu');
+								change_room('main_menu');
 							});
 							preparation=false;
 						}
