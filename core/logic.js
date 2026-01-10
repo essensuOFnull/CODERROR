@@ -1,12 +1,12 @@
-const FIXED_TPS=60; // Целевой TPS
-const MS_PER_UPDATE=1000/FIXED_TPS; // Шаг в миллисекундах
+let FIXED_TPS=60; // Целевой TPS
+let MS_PER_UPDATE=1000/FIXED_TPS; // Шаг в миллисекундах
 let previous_time=performance.now();
 let lag=0;
 let tps_count=0;
 let last_measure=performance.now();
 let real_TPS;
 setInterval(()=>{
-	const now=performance.now();
+	let now=performance.now();
 	real_TPS=Math.round(tps_count*1000/(now-last_measure));
 	tps_count=0;
 	last_measure=now;
@@ -74,6 +74,7 @@ function update_game_logic(){
 	/*комнаты*/
 	if(room=='main_menu'){
 		if(preparation){
+			set_sky('images/skies/glitch','png');
 			set_music('music/main_menu.mp3');
 			set_interface_visibility(false);
 			room_data={
@@ -116,9 +117,11 @@ L n L q L q H  U n U n L q U n
 			});
 			preparation=false;
 		}
+		rotate_sky(0.005,0.01,0);
 	}
 	if(room=='authors'){
 		if(preparation){
+			set_sky('images/skies/glitch','png');
 			set_music('music/main_menu.mp3');
 			set_interface_visibility(false);
 			room_data={
@@ -144,9 +147,11 @@ L n L q L q H  U n U n L q U n
 			});
 			preparation=false;
 		}
+		rotate_sky(0.005,0.01,0);
 	}
 	if(room=='settings'){
 		if(preparation){
+			set_sky('images/skies/glitch','png');
 			set_music('music/main_menu.mp3');
 			set_interface_visibility(false);
 			room_data={
@@ -179,7 +184,7 @@ L n L q L q H  U n U n L q U n
 							let add_button=create_button_from_text(window.language.rooms[room].button_add);
 							change_button_text_color(add_button,'#0f0');
 							values.appendChild(add_button);
-							const create_select=()=>{
+							let create_select=()=>{
 								let[select_button,select]=create_select_with_frame(Object.keys(window.languages).filter(name=>name!=='default'),true);
 								values.insertBefore(select_button,add_button);
 								select_button.addEventListener('mouseover',()=>{
@@ -241,7 +246,7 @@ L n L q L q H  U n U n L q U n
 							let add_button=create_button_from_text(window.language.rooms[room].button_add);
 							change_button_text_color(add_button,'#0f0');
 							values.appendChild(add_button);
-							const create_button=(text)=>{
+							let create_button=(text)=>{
 								let button=create_button_from_text(text,true);
 								button.value=text;
 								values.insertBefore(button,add_button);
@@ -320,6 +325,7 @@ L n L q L q H  U n U n L q U n
 			});
 			preparation=false;
 		}
+		rotate_sky(0.005,0.01,0);
 	}
 	if(room=='room_editor'){
 		if(preparation){
@@ -333,14 +339,14 @@ L n L q L q H  U n U n L q U n
 			set_music('music/Errorscape.mp3');
 			set_interface_visibility(false);
 			clear_pixijs();
-			const video=document.createElement('video');
+			let video=document.createElement('video');
 			//video.crossOrigin="anonymous";
 			video.src='videos/intro/0.mp4';
 			video.muted=true;// Часто требуется для автовоспроизведения
 			video.autoplay=true;
 			video.addEventListener('loadeddata',()=>{
-				const texture=PIXI.Texture.from(video);
-				const sprite=new PIXI.Sprite(texture);
+				let texture=PIXI.Texture.from(video);
+				let sprite=new PIXI.Sprite(texture);
 				sprite.anchor.set(0.5);
 				sprite.x=app.screen.width/2;
 				sprite.y=app.screen.height/2;
@@ -349,6 +355,7 @@ L n L q L q H  U n U n L q U n
 			video.addEventListener('ended',()=>{
 				clear_pixijs();
 				init_sumbols_grid();
+				init_three_scene();
 				change_room('recycle_bin');
 			});
 			preparation=false;
@@ -356,6 +363,7 @@ L n L q L q H  U n U n L q U n
 	}
 	if(room=='recycle_bin'){
 		if(preparation){
+			set_sky('images/skies/glitch','png');
 			set_music('music/Errorscape.mp3');
 			set_interface_visibility(true);
 			room_data={
@@ -375,6 +383,7 @@ L n L q L q H  U n U n L q U n
 			room_data.ground.collider=text_to_collider(room_data.ground.text);
 			preparation=false;
 		}
+		rotate_sky(0.005,0.01,0);
 		update_collision();
 		/*обработка движения*/
 		if(player.walk_delay<=0){
@@ -412,9 +421,9 @@ L n L q L q H  U n U n L q U n
 	update_activated_actions();
 }
 
-const fixed_update=()=>{
-	const currentTime=performance.now();
-	const elapsed=currentTime-previous_time;
+let fixed_update=()=>{
+	let currentTime=performance.now();
+	let elapsed=currentTime-previous_time;
 	previous_time=currentTime;
 	lag+=elapsed;
 	// Выполняем логику столько раз, сколько "накопилось" шагов

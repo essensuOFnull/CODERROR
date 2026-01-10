@@ -250,20 +250,20 @@ input[type="checkbox"]{
 <body>
 	<div id="wrapper"></div>
 	<script>
-//Проверяем, является ли это окно основным
+/*Проверяем, является ли это окно основным*/
 if(!window.location.search.includes('child=1')){
-	//Параметры для нового окна
-	const width=screen.width;
-	const height=screen.height;
-	const features=`width=${width},height=${height},left=${(screen.width-width)/2},top=${(screen.height-height)/2}`;
-	//Пытаемся открыть новое окно
-	const new_window=window.open(`${window.location.href}?child=1`,'_blank',features);
+	/*Параметры для нового окна*/
+	let width=screen.width;
+	let height=screen.height;
+	let features=`width=${width},height=${height},left=${(screen.width-width)/2},top=${(screen.height-height)/2}`;
+	/*Пытаемся открыть новое окно*/
+	let new_window=window.open(`${window.location.href}?child=1`,'_blank',features);
 	if(new_window){
-		// Закрываем текущее окно после успешного открытия
+		/*Закрываем текущее окно после успешного открытия*/
 		window.close();
 	}else{
-		// Проверяем браузер пользователя
-		const is_chrome=/Chrome/.test(navigator.userAgent)&&!/Edg|Edge/.test(navigator.userAgent);
+		/*Проверяем браузер пользователя*/
+		let is_chrome=/Chrome/.test(navigator.userAgent)&&!/Edg|Edge/.test(navigator.userAgent);
 		let chrome_alert='';
 		if(!is_chrome){
 			chrome_alert=`
@@ -276,26 +276,26 @@ if(!window.location.search.includes('child=1')){
 					</a>
 				</div>`;
 		}
-		// Формируем полное сообщение
+		/*Формируем полное сообщение*/
 		document.body.innerHTML=chrome_alert+`
 			<div style="padding: 20px; color: white; background: #d32f2f; border-radius: 4px;">
 				Разрешите всплывающие окна для этого сайта и обновите страницу!
 			</div>`;
 	}
 }else{
-	//Если это дочернее окно - загружаем приложение
+	/*Если это дочернее окно - загружаем приложение*/
 	/*функция для загрузки скрипта*/
 	function load_script(src){
 		return new Promise((resolve,reject)=>{
-			const script=document.createElement('script');
+			let script=document.createElement('script');
 			script.src=src;
 			script.onload=()=>resolve(src);
 			script.onerror=()=>reject(new Error(`Ошибка загрузки скрипта: ${src}`));
 			document.head.appendChild(script);
 		});
 	}
-	//Предзагрузка шрифта
-	const font=new FontFace('CODERROR','url(fonts/CODERROR16x16GNUUnifont.ttf)');
+	/*Предзагрузка шрифта*/
+	let font=new FontFace('CODERROR','url(fonts/CODERROR16x16GNUUnifont.ttf)');
 	font.load().then(function(loadedFont){
 		document.fonts.add(loadedFont);
 		/*загрузка скриптов*/
@@ -307,137 +307,120 @@ if(!window.location.search.includes('child=1')){
 		])
 		.then((loaded_scripts)=>{
 			/*начальные скрипты загружены*/
-			const app=new PIXI.Application({
-				backgroundAlpha: 0, // Явно указываем полную прозрачность фона
-				useContextAlpha: true,
-				transparent:true,
-				premultipliedAlpha: false, // Критически важно для корректной прозрачности
-				preserveDrawingBuffer: true, // Для совместимости с Three.js
-			});
+			let app=new PIXI.Application({});
 			app.init().then(()=>{
 				let room_data,player;
 				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.32.0';
+				window.version='(1)0.32.1';
 				/*добавление в разметку сцены three*/
 				let three_container=document.createElement('div');
 				three_container.id='three_container';
 				let three_scene=new THREE.Scene();
-				three_scene.background = null;
-				let three_camera=new THREE.PerspectiveCamera(
-					75, 
-					window.innerWidth/window.innerHeight,
-					0.1,
-					1000
-				);
-				three_camera.position.z=1; // Камера внутри куба
+				three_scene.background=null;
+				/*инициализирует камеру three*/
+				let three_camera;
+				function init_three_camera(){
+					three_camera=new THREE.PerspectiveCamera(
+						75,
+						wrapper.clientWidth/wrapper.clientHeight,
+						0.1,
+						1000
+					);
+					three_camera.position.z=1;/*Камера внутри куба*/
+				}
+				init_three_camera();
 				let three_renderer=new THREE.WebGLRenderer({alpha:true});
-				three_renderer.setSize(window.innerWidth,window.innerHeight);
-				three_renderer.shadowMap.enabled=false;//отключаем тени
-				// Загрузчик для текстур
+				three_renderer.shadowMap.enabled=false;/*отключаем тени*/
+				/*Загрузчик для текстур*/
 				let texture_loader=new THREE.TextureLoader();
 				/*инициализирует коробку, на которую можно натянуть текстуру неба*/
 				let skybox;
-
-				// Исправленная функция создания материалов
-				function create_skybox_materials(path_part, extension) {
-					const sides = ['right', 'left', 'top', 'bottom', 'front', 'back'];
-					return sides.map(side => {
-						const texture = texture_loader.load(
+				/*функция создания материалов*/
+				function create_skybox_materials(path_part,extension) {
+					let sides=['right','left','top','bottom','front','back'];
+					return sides.map(side=>{
+						let texture=texture_loader.load(
 							`${path_part}/${side}.${extension}`,
-							undefined, // onLoad
-							undefined, // onProgress
-							(error) => {
-								console.error('Error loading texture:', error);
+							undefined,/*onLoad*/
+							undefined,/*onProgress*/
+							(error)=>{
+								console.error('Error loading texture:',error);
 							}
 						);
-						
-						// Используем BasicMaterial вместо StandardMaterial
 						return new THREE.MeshBasicMaterial({
 							map:texture,
-							side: THREE.BackSide,
+							side:THREE.BackSide,
 						});
 					});
 				}
-
-				// Исправленная функция инициализации неба
-				function init_sky() {
-					// Создаем временный куб с базовым материалом
-					const geometry = new THREE.BoxGeometry(5, 5, 5);
-					const material = new THREE.MeshBasicMaterial({ 
-						color: 0x0000FF, // Синий вместо фиолетового
-						side: THREE.BackSide
-					});
-					
-					skybox = new THREE.Mesh(geometry, material);
-					three_scene.add(skybox);
-				}
-
-				// Исправленная функция установки неба
-				function set_sky(path_part, extension) {
-					// Удаляем старый skybox с освобождением ресурсов
-					if (skybox) {
-						three_scene.remove(skybox);
-						
-						// Освобождаем геометрию
-						if (skybox.geometry) {
-							skybox.geometry.dispose();
+				/*функция установки неба*/
+				let current_sky_path;
+				function set_sky(path_part,extension) {
+					let new_sky_path=`${path_part}/.${extension}`;
+					if(new_sky_path!=current_sky_path){
+						/*Удаляем старый skybox с освобождением ресурсов*/
+						if(skybox){
+							three_scene.remove(skybox);
+							/*Освобождаем геометрию*/
+							if(skybox.geometry){
+								skybox.geometry.dispose();
+							}
+							/*Освобождаем материалы*/
+							if(Array.isArray(skybox.material)){
+								skybox.material.forEach(material=>{
+									if(material.map)material.map.dispose();
+									material.dispose();
+								});
+							}else if(skybox.material){
+								if(skybox.material.map)skybox.material.map.dispose();
+								skybox.material.dispose();
+							}
 						}
-						
-						// Освобождаем материалы
-						if (Array.isArray(skybox.material)) {
-							skybox.material.forEach(material => {
-								if (material.map) material.map.dispose();
-								material.dispose();
-							});
-						} else if (skybox.material) {
-							if (skybox.material.map) skybox.material.map.dispose();
-							skybox.material.dispose();
+						/*Создаем новые материалы с обработкой ошибок*/
+						try{
+							let geometry=new THREE.BoxGeometry(5, 5, 5);
+							let materials=create_skybox_materials(path_part,extension);
+							skybox=new THREE.Mesh(geometry, materials);
+							three_scene.add(skybox);
+						}catch(error){
+							console.error('Error creating skybox:',error);
 						}
-					}
-
-					// Создаем новые материалы с обработкой ошибок
-					try {
-						const geometry = new THREE.BoxGeometry(5, 5, 5);
-						const materials = create_skybox_materials(path_part, extension);
-						skybox = new THREE.Mesh(geometry, materials);
-						three_scene.add(skybox);
-					} catch (error) {
-						console.error('Error creating skybox:', error);
-						// Создаем fallback-небо
-						init_sky();
+						current_sky_path=new_sky_path;
 					}
 				}
-
-				// Инициализация
-				init_sky();
-				set_sky('images/skies/glitch', 'png');
 				/*добавление в основной canvas canvas-а three*/
-				let background_texture,background_sprite
-				// Инициализация текстуры и спрайта (выполняется один раз)
+				let background_texture,background_sprite;
+				/*Инициализация текстуры и спрайта*/
 				function init_three_scene() {
 					background_texture = PIXI.Texture.from(three_renderer.domElement);
-					background_texture.baseTexture.autoUpdate = false; // Отключаем авто-обновление
+					background_texture.baseTexture.autoUpdate = false;
 					background_sprite = new PIXI.Sprite(background_texture);
+					
+					// Устанавливаем размер спрайта
+					background_sprite.width = wrapper.clientWidth;
+					background_sprite.height = wrapper.clientHeight;
+					
 					app.stage.addChildAt(background_sprite, 0);
 				}
 				init_three_scene();
-				// Функция обновления
-				function update_three_scene() {
-					// Обновляем Three.js сцену
-					skybox.rotation.y += 0.01;
-					skybox.rotation.x += 0.005;
-					three_renderer.render(three_scene, three_camera);
-
-					// Принудительное обновление текстуры в PixiJS
+				/*Функция обновления сцены three*/
+				function update_three_scene(){
+					/*Обновляем Three.js сцену*/
+					three_renderer.render(three_scene,three_camera);
+					/*Принудительное обновление текстуры в PixiJS*/
 					background_texture.baseTexture.update();
 				}
 				update_three_scene();
+				function rotate_sky(x,y,z){
+					skybox.rotation.x+=x;
+					skybox.rotation.y+=y;
+					skybox.rotation.z+=z;
+				}
 				/*добавление в разметку canvas-а pixijs*/
 				wrapper.appendChild(app.view);
-				//wrapper.appendChild(three_renderer.domElement);//удалить
 				/*добавление в разметку html-overlay*/
-				const overlay=document.createElement('div');
+				let overlay=document.createElement('div');
 				overlay.id='html-overlay';
 				wrapper.appendChild(overlay);
 				/*добавление в разметку предпросмотра чата*/
@@ -475,65 +458,60 @@ if(!window.location.search.includes('child=1')){
 				}
 				/*обновляет размеры матрицы символов*/
 				function update_symbols_grid(){
-					const newColumns = Math.ceil(app.renderer.width / symbol_size);
-					const newRows = Math.ceil(app.renderer.height / symbol_size);
-					
-					// Ресайз существующей сетки
-					if(newColumns !== columns || newRows !== rows) {
-						// Удаляем лишние строки
-						if(newRows < rows) {
-							for(let y = newRows; y < rows; y++) {
-								for(let x = 0; x < columns; x++) {
-									symbols_grid[y][x].destroy({ children: true });
+					let newColumns=Math.ceil(app.renderer.width/symbol_size);
+					let newRows=Math.ceil(app.renderer.height/symbol_size);
+					/*Ресайз существующей сетки*/
+					if(newColumns!==columns||newRows!==rows){
+						/*Удаляем лишние строки*/
+						if(newRows<rows){
+							for(let y=newRows;y<rows;y++){
+								for(let x=0;x<columns;x++){
+									symbols_grid[y][x].destroy({children:true});
 								}
 							}
-							symbols_grid.length = newRows;
+							symbols_grid.length=newRows;
 						}
-						
-						// Добавляем новые строки
-						if(newRows > rows) {
-							for(let y = rows; y < newRows; y++) {
-								symbols_grid[y] = [];
-								for(let x = 0; x < Math.max(columns, newColumns); x++) {
-									const symbol = new PIXI.Text('', text_style);
+						/*Добавляем новые строки*/
+						if(newRows>rows){
+							for(let y=rows;y<newRows;y++){
+								symbols_grid[y]=[];
+								for(let x=0;x<Math.max(columns,newColumns);x++){
+									let symbol=new PIXI.Text('',text_style);
 									symbol.resolution=20;
-									symbol.position.set(x * symbol_size, y * symbol_size);
+									symbol.position.set(x*symbol_size,y*symbol_size);
 									app.stage.addChild(symbol);
-									symbols_grid[y][x] = symbol;
+									symbols_grid[y][x]=symbol;
 								}
 							}
 						}
-						
-						// Обновляем колонки в каждой строке
-						for(let y = 0; y < newRows; y++) {
-							// Удаляем лишние колонки
-							if(newColumns < columns) {
-								for(let x = newColumns; x < columns; x++) {
-									if(symbols_grid[y][x]) {
-										symbols_grid[y][x].destroy({ children: true });
+						/*Обновляем колонки в каждой строке*/
+						for(let y=0;y<newRows;y++){
+							/*Удаляем лишние колонки*/
+							if(newColumns<columns) {
+								for(let x=newColumns;x<columns;x++){
+									if(symbols_grid[y][x]){
+										symbols_grid[y][x].destroy({children:true});
 									}
 								}
-								symbols_grid[y].length = newColumns;
+								symbols_grid[y].length=newColumns;
 							}
-							
-							// Добавляем новые колонки
-							if(newColumns > columns) {
-								for(let x = columns; x < newColumns; x++) {
-									const symbol = new PIXI.Text('', text_style);
+							/*Добавляем новые колонки*/
+							if(newColumns>columns){
+								for(let x=columns;x<newColumns;x++){
+									let symbol=new PIXI.Text('',text_style);
 									symbol.resolution=20;
-									symbol.position.set(x * symbol_size, y * symbol_size);
+									symbol.position.set(x*symbol_size,y*symbol_size);
 									app.stage.addChild(symbol);
-									symbols_grid[y][x] = symbol;
+									symbols_grid[y][x]=symbol;
 								}
 							}
 						}
-						
-						columns = newColumns;
-						rows = newRows;
+						columns=newColumns;
+						rows=newRows;
 					}
 				}
 				/*настройки шрифтов*/
-				const styleSheet=document.styleSheets[0];
+				let styleSheet=document.styleSheets[0];
 				let symbol_size,font_size,text_style/*,pixel_in_pt=0.675 рудимент*/;
 				function set_font_size(size_in_pixels){
 					symbol_size=size_in_pixels;
@@ -549,22 +527,35 @@ if(!window.location.search.includes('child=1')){
 				}
 				set_font_size(16);
 				/**/
-				const update_size=()=>{
-					app.renderer.resize(wrapper.clientWidth,wrapper.clientHeight);
+				function update_size() {
+					/*Получаем актуальные размеры контейнера*/
+					let width=wrapper.clientWidth;
+					let height=wrapper.clientHeight;
+					/*Обновляем размеры рендерера PixiJS*/
+					app.renderer.resize(width,height);
 					update_symbols_grid();
-					/*меняем способ масштабирования в зависимости от масштаба: если больше нормы - пиксельный, меньше - размытый*/
+					/*Обновляем способ масштабирования изображений*/
 					styleSheet.insertRule(`:root{--image_rendering:${window.devicePixelRatio>=1?'pixelated':'auto'} !important;}`,styleSheet.cssRules.length);
-					/*Обновляем three*/
-					three_camera.aspect=window.innerWidth/window.innerHeight;
+					/*Обновляем Three.js камеру и рендерер*/
+					three_camera.aspect=width/height;
 					three_camera.updateProjectionMatrix();
-					three_renderer.setSize(window.innerWidth,window.innerHeight);
-				};
+					three_renderer.setSize(width,height);
+					/*Обновляем размер спрайта PixiJS*/
+					if(background_sprite){
+						background_sprite.width=width;
+						background_sprite.height=height;
+					}
+					/*Принудительно обновляем текстуру*/
+					update_three_scene();
+					app.stage.removeChild(background_sprite);
+					init_three_scene();
+				}
 				function visual_effect(number){
 					/*заполняет случайными символами*/
 					if(number==0){
 						for(let y=0;y<symbols_grid.length;y++){
 							for(let x=0;x<symbols_grid[y].length;x++){
-								const symbol=symbols_grid[y][x];
+								let symbol=symbols_grid[y][x];
 								symbol.text=get_random_char();
 								symbol.tint=get_random_color();
 							}
@@ -574,7 +565,7 @@ if(!window.location.search.includes('child=1')){
 					if(number==1){
 						for(let y=0;y<symbols_grid.length;y++){
 							for(let x=0;x<symbols_grid[y].length;x++){
-								const symbol=symbols_grid[y][x];
+								let symbol=symbols_grid[y][x];
 								symbol.anchor.set(Math.random());
 								symbol.rotation=Math.random();
 							}
@@ -584,7 +575,7 @@ if(!window.location.search.includes('child=1')){
 					if(number==2){
 						for(let y=0;y<symbols_grid.length;y++){
 							for(let x=0;x<symbols_grid[y].length;x++){
-								const symbol=symbols_grid[y][x];
+								let symbol=symbols_grid[y][x];
 								symbol.anchor.set(0);
 								symbol.rotation=0;
 							}
@@ -593,19 +584,19 @@ if(!window.location.search.includes('child=1')){
 				}
 				function init_printable_symbols(){
 					window.printable_symbols='';
-					let ranges = [
-						[0x0020, 0x007F],   // Basic Latin (ASCII)
-						[0x00A0, 0x00FF],   // Latin-1 Supplement
-						[0x0400, 0x04FF],   // Cyrillic
-						[0x0370, 0x03FF],   // Greek
-						[0x3040, 0x309F],   // Hiragana
-						[0x30A0, 0x30FF],   // Katakana
-						[0x4E00, 0x9FFF],   // CJK Unified Ideographs (кандзи)
-						[0x0600, 0x06FF],   // Arabic
-						[0x0900, 0x097F],   // Devanagari
-						[0x0E00, 0x0E7F],   // Thai
-						[0xAC00, 0xD7AF],   // Hangul Syllables (корейский)
-						[0x1F600, 0x1F64F]  // Emoji
+					let ranges=[
+						[0x0020,0x007F], /*Basic Latin (ASCII)*/
+						[0x00A0,0x00FF], /*Latin-1 Supplement*/
+						[0x0400,0x04FF], /*Cyrillic*/
+						[0x0370,0x03FF], /*Greek*/
+						[0x3040,0x309F], /*Hiragana*/
+						[0x30A0,0x30FF], /*Katakana*/
+						[0x4E00,0x9FFF], /*CJK Unified Ideographs (кандзи)*/
+						[0x0600,0x06FF], /*Arabic*/
+						[0x0900,0x097F], /*Devanagari*/
+						[0x0E00,0x0E7F], /*Thai*/
+						[0xAC00,0xD7AF], /*Hangul Syllables (корейский)*/
+						[0x1F600,0x1F64F]/*Emoji*/
 					];
 					for(let range of ranges){
 						for(let codePoint=range[0];codePoint<=range[1];codePoint++){
@@ -620,38 +611,38 @@ if(!window.location.search.includes('child=1')){
 				function get_random_color(){
 					return Math.floor(Math.random()*0xFFFFFF);
 				}
-				//для иконки
-				const dpr=window.devicePixelRatio||1;
-				const favicon_size=Math.round(16*dpr);
-				const canvas=document.createElement('canvas');
+				/*для иконки*/
+				let dpr=window.devicePixelRatio||1;
+				let favicon_size=Math.round(16*dpr);
+				let canvas=document.createElement('canvas');
 				canvas.width=favicon_size;
 				canvas.height=favicon_size;
-				const ctx=canvas.getContext('2d');
+				let ctx=canvas.getContext('2d');
 				ctx.font=`${symbol_size}px CODERROR`;
 				ctx.textAlign='center';
 				ctx.textBaseline='middle';
-				const link=document.querySelector('link[rel="icon"]');
+				let link=document.querySelector('link[rel="icon"]');
 				function generate_favicon(){
-					// Очищаем холст
+					/*Очищаем холст*/
 					ctx.clearRect(0,0,favicon_size,favicon_size);
-					// Настройки текста
+					/*Настройки текста*/
 					ctx.fillStyle=`#${get_random_color().toString(16).padStart(6,'0')}`;
-					// Рисуем символ
+					/*Рисуем символ*/
 					ctx.fillText(get_random_char(),favicon_size/2,favicon_size/2);
-					// Обновляем иконку
+					/*Обновляем иконку*/
 					canvas.toBlob(blob=>{
 						link.href=URL.createObjectURL(blob);
 					},'image/png');
 				}
 				window.addEventListener('resize',update_size);
 				/*обновление favicon*/
-				const faviconInterval=setInterval(()=>{
+				let faviconInterval=setInterval(()=>{
 					generate_favicon();
 				},1000/5);
 				/*функция генерации кода разметки pre с отсутствием фона у пробелов*/
 				function get_transparent_space_text(text,color='#fff',background='#000'){
-					const escapeHtml=(char)=>{
-						const escapes={
+					let escapeHtml=(char)=>{
+						let escapes={
 							'<':'&lt;',
 							'>':'&gt;',
 							'&':'&amp;',
@@ -660,17 +651,17 @@ if(!window.location.search.includes('child=1')){
 						};
 						return escapes[char]||char;
 					};
-					const areStylesEqual=(a,b)=>{
-						const aKeys=Object.keys(a);
-						const bKeys=Object.keys(b);
+					let areStylesEqual=(a,b)=>{
+						let aKeys=Object.keys(a);
+						let bKeys=Object.keys(b);
 						if(aKeys.length!==bKeys.length)return false;
-						for(const key of aKeys){
+						for(let key of aKeys){
 							if(a[key]!==b[key])return false;
 						}
 						return true;
 					};
-					const tokenRegex=/(⦑[^⦒]*⦒)|(\n)|( )|(.)/g;
-					const tokens=[];
+					let tokenRegex=/(⦑[^⦒]*⦒)|(\n)|( )|(.)/g;
+					let tokens=[];
 					let match;
 					while((match=tokenRegex.exec(text))!==null){
 						if(match[1])tokens.push({type:'tag',value:match[1]});
@@ -678,42 +669,42 @@ if(!window.location.search.includes('child=1')){
 						else if(match[3])tokens.push({type:'space'});
 						else if(match[4])tokens.push({type:'char',value:match[4]});
 					}
-					const initialStyles={color,background};
+					let initialStyles={color,background};
 					let currentStyles={...initialStyles};
 					let output=[];
 					let currentNonSpace={styles:null,content:[]};
 					let currentSpace=[];
-					const flushNonSpace=()=>{
+					let flushNonSpace=()=>{
 						if(currentNonSpace.content.length===0)return;
-						// Всегда добавляем наследование, если стили не изменены
-						const baseStyles={color:'inherit',background:'inherit'};
-						const mergedStyles=!areStylesEqual(currentNonSpace.styles,initialStyles) 
+						/*Всегда добавляем наследование, если стили не изменены*/
+						let baseStyles={color:'inherit',background:'inherit'};
+						let mergedStyles=!areStylesEqual(currentNonSpace.styles,initialStyles) 
 							?{...currentNonSpace.styles}
 							:baseStyles;
-						const styleStr=`style="${Object.entries(mergedStyles).map(([k,v])=>`${k}:${v}`).join(';')}"`;
-						const content=currentNonSpace.content.map(escapeHtml).join('');
+						let styleStr=`style="${Object.entries(mergedStyles).map(([k,v])=>`${k}:${v}`).join(';')}"`;
+						let content=currentNonSpace.content.map(escapeHtml).join('');
 						output.push(`<pre ${styleStr}>${content}</pre>`);
 						currentNonSpace.content=[];
 						currentNonSpace.styles=null;
 					};
-					const flushSpace=()=>{
+					let flushSpace=()=>{
 						if(currentSpace.length===0)return;
-						// Только прозрачный фон и цвет если изменен
-						const spaceStyles={
+						/*Только прозрачный фон и цвет если изменен*/
+						let spaceStyles={
 							background:'transparent',
 							...(currentStyles.color!==initialStyles.color&&{color:currentStyles.color})
 						};
-						const styleStr=Object.keys(spaceStyles).length>0 
+						let styleStr=Object.keys(spaceStyles).length>0 
 							?`style="${Object.entries(spaceStyles).map(([k,v])=>`${k}:${v}`).join(';')}"`
 							:'';
-						const content=currentSpace.map(escapeHtml).join('');
+						let content=currentSpace.map(escapeHtml).join('');
 						output.push(`<pre ${styleStr}>${content}</pre>`);
 						currentSpace=[];
 					};
-					for(const token of tokens){
+					for(let token of tokens){
 						switch(token.type){
 							case'tag':{
-								const tagContent=token.value.slice(1,-1).trim();
+								let tagContent=token.value.slice(1,-1).trim();
 								if(tagContent==='reset'){
 									currentStyles={...initialStyles};
 								}else{
@@ -751,17 +742,17 @@ if(!window.location.search.includes('child=1')){
 				}
 				/*принимает разметку, возвращает полноценный элемент*/
 				function create_element_from_HTML(html){
-					const template=document.createElement('template');
+					let template=document.createElement('template');
 					template.innerHTML=html.trim();
-					const fragment=template.content;
-					// Проверяем, есть ли ровно один дочерний элемент
+					let fragment=template.content;
+					/*Проверяем, есть ли ровно один дочерний элемент*/
 					if(fragment.childNodes.length===1&&fragment.firstChild.nodeType===Node.ELEMENT_NODE){
 						return fragment.firstChild;
 					}else{
-						// Создаём контейнер с display: contents
-						const container=document.createElement('div');
+						/*Создаём контейнер с display: contents*/
+						let container=document.createElement('div');
 						container.style.display='contents';
-						// Перемещаем все узлы из фрагмента в контейнер
+						/*Перемещаем все узлы из фрагмента в контейнер*/
 						while(fragment.firstChild){
 							container.appendChild(fragment.firstChild);
 						}
@@ -791,7 +782,7 @@ if(!window.location.search.includes('child=1')){
 					grid.style.alignItems='center'; // Выравнивание по центру
 					grid.style.justifyItems='center';
 					grid.style.color='inherit';
-					// Создание элементов с правильными областями
+					/*Создание элементов с правильными областями*/
 					let b;
 					if(removable){
 						b=create_element_from_HTML(`<pre><button style='color:inherit'>X</button></pre>`);/*костыль*/
@@ -802,19 +793,19 @@ if(!window.location.search.includes('child=1')){
 					else{
 						b=create_element_from_HTML(`<pre>.</pre>`);
 					}
-					const elements={
+					let elements={
 						a:create_element_from_HTML(`<pre>+</pre>`),
 						b:b,
 						c:document.createElement('div'),
 						d:create_element_from_HTML(`<pre>\`</pre>`),
 						e:create_element_from_HTML(`<pre>'</pre>`)
 					};
-					// Настройка центрального элемента
+					/*Настройка центрального элемента*/
 					elements.c.appendChild(content);
 					elements.c.style.gridArea='c';
 					elements.c.style.whiteSpace='nowrap';
 					elements.c.id='frame_content';
-					// Привязка всех элементов к grid-areas
+					/*Привязка всех элементов к grid-areas*/
 					Object.entries(elements).forEach(([area,el])=>{
 						el.style.gridArea=area;
 						el.style.color='inherit';
@@ -855,8 +846,8 @@ if(!window.location.search.includes('child=1')){
 				}
 				/*меняет цвет текста кнопки*/
 				function change_button_text_color(button,color){
-					const targetElement=button.querySelector('#frame_content');
-					const firstChild=targetElement.firstElementChild;
+					let targetElement=button.querySelector('#frame_content');
+					let firstChild=targetElement.firstElementChild;
 					if(firstChild){
 						firstChild.style.color=color;
 					}else{
@@ -869,10 +860,10 @@ if(!window.location.search.includes('child=1')){
 					change_button_text_color(button,color);
 				}
 				/*проверяет перетаскивают ли файл над объектом*/
-				const dragoverStates=new WeakMap();
+				let dragoverStates=new WeakMap();
 				function check_dragover(element){
 					if (!element.__dragoverHandlersAdded){
-						const handlers={
+						let handlers={
 							dragenter:(event)=>{
 								event.preventDefault();
 								if(!dragoverStates.get(element)){
@@ -919,7 +910,7 @@ if(!window.location.search.includes('child=1')){
 				/*превращает json файл в объект (требует async await)*/
 				function json_to_dict(file){
 					return new Promise((resolve,reject)=>{
-						const reader=new FileReader();
+						let reader=new FileReader();
 						reader.onload=e=>{
 							try{
 								resolve(JSON.parse(e.target.result));
@@ -935,32 +926,31 @@ if(!window.location.search.includes('child=1')){
 				async function jsons_to_dict_list(files){
 					let data=[];
 					for(let file of files){
-						const parsed=await json_to_dict(file);
+						let parsed=await json_to_dict(file);
 						data.push(parsed);
 					}
 					return data;
 				}
 				/*соединяет объекты в 1 более общий, перезаписывая старые значения новыми*/
 				function smart_merge(config_list,max_depth=2){
-					// Функция для глубокого слияния с ограничением глубины
-					const merge=(target,source,depth=1)=>{
-						// Если достигли предела глубины - возвращаем source
+					let merge=(target,source,depth=1)=>{
+						/*Если достигли предела глубины - возвращаем source*/
 						if(depth>=max_depth)return{...source};
-						// Создаем новый объект для результатов
-						const result={...target};
-						// Перебираем ключи исходного объекта
-						for(const key of Object.keys(source)) {
-							const sourceValue=source[key];
-							const targetValue=target[key];
-							// Если оба значения - объекты (не массивы) 
+						/*Создаем новый объект для результатов*/
+						let result={...target};
+						/*Перебираем ключи исходного объекта*/
+						for(let key of Object.keys(source)) {
+							let sourceValue=source[key];
+							let targetValue=target[key];
+							/*Если оба значения - объекты (не массивы)*/
 							if(typeof sourceValue==='object'&& 
 								!Array.isArray(sourceValue)&&
 								typeof targetValue==='object'&& 
 								!Array.isArray(targetValue)){
-								// Рекурсивное слияние с увеличением глубины
+								/*Рекурсивное слияние с увеличением глубины*/
 								result[key]=merge(targetValue,sourceValue,depth+1);
 							}else{
-								// Заменяем значение
+								/*Заменяем значение*/
 								result[key]=sourceValue;
 							}
 						}
@@ -973,42 +963,42 @@ if(!window.location.search.includes('child=1')){
 					return result;
 				}
 				/*создаёт кастомные обработчики событий*/
-				const eventHandlers=new WeakMap();
+				let eventHandlers=new WeakMap();
 				function add_event_listener(name,element,function_part){
 					/*Удаляем старые обработчики перед добавлением новых*/
 					remove_event_listener(name,element);
-					const handlers={
+					let handlers={
 						drop:null,
 						click:null,
 						change:null
 					};
 					if(name==='get_json'){
-						const jsonInput=document.createElement('input');
+						let jsonInput=document.createElement('input');
 						jsonInput.type='file';
 						jsonInput.multiple=true;
 						jsonInput.accept='.json';
 						jsonInput.style.display='none';
 						/*Обработчик для drag-and-drop*/
-						const dropHandler=async(e)=>{
+						let dropHandler=async(e)=>{
 							e.preventDefault();
 							try{
-								const dicts=await jsons_to_dict_list(e.dataTransfer.files);
-								const merged=smart_merge(dicts);
+								let dicts=await jsons_to_dict_list(e.dataTransfer.files);
+								let merged=smart_merge(dicts);
 								function_part(merged);
 							}catch(error){
 								console.error('Ошибка:',error);
 							}
 						};
 						/*Обработчик для клика (открытие проводника)*/
-						const clickHandler=()=>{
+						let clickHandler=()=>{
 							jsonInput.click();
 						};
 						/*Обработчик выбора файлов (общий для всех вызовов)*/
-						const changeHandler=async(e)=>{
+						let changeHandler=async(e)=>{
 							try{
-								const files=Array.from(e.target.files);
-								const dicts=await jsons_to_dict_list(files);
-								const merged=smart_merge(dicts);
+								let files=Array.from(e.target.files);
+								let dicts=await jsons_to_dict_list(files);
+								let merged=smart_merge(dicts);
 								function_part(merged);
 								jsonInput.value='';
 							}catch(error){
@@ -1033,7 +1023,7 @@ if(!window.location.search.includes('child=1')){
 				}
 				/*удаляет кастомные обработчики событий*/
 				function remove_event_listener(name,element){
-					const stored=eventHandlers.get(element);
+					let stored=eventHandlers.get(element);
 					if(stored&&stored.name===name){
 						/*Удаляем все обработчики событий*/
 						element.removeEventListener('drop',stored.handlers.drop);
@@ -1078,7 +1068,6 @@ if(!window.location.search.includes('child=1')){
 					selectElement.innerHTML='';
 					options.forEach(optionText=>{
 						let option=document.createElement('option');
-						//option.value=optionText;// Задаем значение
 						option.textContent=optionText;// Задаем текст отображения
 						selectElement.appendChild(option);
 					});
@@ -1100,23 +1089,23 @@ if(!window.location.search.includes('child=1')){
 				function get_space(){
 					return create_element_from_HTML(`<pre style='background:#00000000'> </pre>`);
 				}
-				/* Функция для сохранения объекта как JSON файл*/
+				/*Функция для сохранения объекта как JSON файл*/
 				function save_as_json(data,filename){
-					// Преобразуем объект в JSON строку
-					const jsonString=JSON.stringify(data);
-					// Создаем Blob из JSON строки
-					const blob=new Blob([jsonString],{type:"application/json"});
-					// Создаем ссылку на объект Blob
-					const url=URL.createObjectURL(blob);
-					// Создаем временную ссылку для скачивания
-					const a=document.createElement("a");
+					/*Преобразуем объект в JSON строку*/
+					let jsonString=JSON.stringify(data);
+					/*Создаем Blob из JSON строки*/
+					let blob=new Blob([jsonString],{type:"application/json"});
+					/*Создаем ссылку на объект Blob*/
+					let url=URL.createObjectURL(blob);
+					/*Создаем временную ссылку для скачивания*/
+					let a=document.createElement("a");
 					a.href=url;
 					a.download=filename;
 					a.style.display='none';
-					// Инициализируем клик по ссылке
+					/*Инициализируем клик по ссылке*/
 					document.body.appendChild(a);
 					a.click();
-					// Удаляем ссылку и освобождаем URL
+					/*Удаляем ссылку и освобождаем URL*/
 					document.body.removeChild(a);
 					URL.revokeObjectURL(url);
 					/*уведомление*/
@@ -1124,24 +1113,24 @@ if(!window.location.search.includes('child=1')){
 				}
 				/*удаляет из списка повторяющиеся значения, оставляя в нём только их последние вхождения*/
 				function remove_duplicates(arr){
-					const seen=new Set();
-					const result=[];
-					// Идем по массиву в обратном порядке
+					let seen=new Set();
+					let result=[];
+					/*Идем по массиву в обратном порядке*/
 					for(let i=arr.length-1;i>=0;i--){
-						const value=arr[i];
+						let value=arr[i];
 						if(!seen.has(value)){
 							seen.add(value);
 							result.push(value);
 						}
 					}
-					// Перевернем результат, чтобы вернуть его в правильном порядке
+					/*Перевернем результат, чтобы вернуть его в правильном порядке*/
 					return result.reverse();
 				}
 				/*применяет к игре настройки из window.settings*/
 				function apply_settings(){
 					apply_language(window.settings.interface.language);
 					apply_random_splash();
-					//set_font_size(window.settings.interface.font_size);
+					/*set_font_size(window.settings.interface.font_size);*/
 					set_max_content_size(window.settings.interface.max_content_width,window.settings.interface.max_content_height);
 					change_room(room);
 				}
@@ -1206,7 +1195,7 @@ if(!window.location.search.includes('child=1')){
 				window.ignored_keys=['F11','F12'];
 				function wait_user_input(){
 					return new Promise((resolve)=>{
-						const handler=(e)=>{
+						let handler=(e)=>{
 							if(!window.ignored_keys.includes(e.code)){
 								e.preventDefault();
 								document.removeEventListener('keydown',handler);
@@ -1241,6 +1230,7 @@ if(!window.location.search.includes('child=1')){
 				/*очищает сцену pixijs*/
 				function clear_pixijs(stage=app.stage){
 					stage.removeChildren();
+					current_sky_path=null;
 				}
 				/*отслеживает нажатия и отжатия клавиш*/
 				window.pressed=new Set();
@@ -1259,7 +1249,7 @@ if(!window.location.search.includes('child=1')){
 					});
 				}
 				function setup_input_tracker(){
-					const getKey=(e)=>{
+					let getKey=(e)=>{
 						if(e.type.startsWith('key')){
 							return window.settings.control.bind_to_layout?e.key:e.code;
 						}else if(e.type.startsWith('mouse')&&e.type!=='wheel'){
@@ -1268,10 +1258,10 @@ if(!window.location.search.includes('child=1')){
 							return e.deltaY<0?'WheelUp':'WheelDown';
 						}
 					};
-					const handleEvent=(e)=>{
+					let handleEvent=(e)=>{
 						if(!e.repeat){/*Отключаем автоповтор*/
 							if(!window.ignored_keys.includes(e.code)){
-								const key=getKey(e);
+								let key=getKey(e);
 								if(e.type==='keydown'||e.type==='mousedown'||e.type==='wheel'){
 									window.pressed.add(key);
 								}else{
@@ -1476,6 +1466,7 @@ if(!window.location.search.includes('child=1')){
 				apply_settings();
 				let input_tracker=setup_input_tracker();
 				let logical_symbol_size=16;
+				update_size();
 				/*загрузка циклов физики и отрисовки*/
 				eval_script('core/logic.js');
 				eval_script('core/rendering.js');
