@@ -195,7 +195,7 @@ if(!window.location.search.includes('child=1')){
 			app.init().then(()=>{
 				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.19.0';
+				window.version='(1)0.19.1';
 				/*добавление в разметку canvas-а pixijs*/
 				wrapper.appendChild(app.view);
 				/*добавление в разметку html-overlay*/
@@ -815,6 +815,7 @@ if(!window.location.search.includes('child=1')){
 				function apply_settings(){
 					apply_language(window.settings.interface.language);
 					set_font_size(window.settings.interface.font_size);
+					set_max_content_size(window.settings.interface.max_content_width,window.settings.interface.max_content_height);
 					change_room(room);
 				}
 				/*создает textarea с рамкой*/
@@ -989,11 +990,11 @@ L n L q L q H  U n U n L q U n
 												change_button_border_color(add_button,'#fff');
 											});
 										}
-										if(option_id=='font_size'){
+										if(['font_size','max_content_width','max_content_height'].includes(option_id)){
 											let[frame,textarea]=create_textarea_with_frame(option.placeholder);
-											textarea.value=window.settings.interface.font_size;
+											textarea.value=window.settings[section_id][option_id];
 											textarea.addEventListener('input',(e)=>{
-												window.settings.interface.font_size=e.target.value;
+												window.settings[section_id][option_id]=e.target.value;
 											});
 											values.appendChild(frame);
 											frame.addEventListener('mouseover',()=>{
