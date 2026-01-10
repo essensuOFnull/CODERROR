@@ -201,7 +201,7 @@ if(!window.location.search.includes('child=1')){
 			app.init().then(()=>{
 				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.26.0';
+				window.version='(1)0.26.1';
 				/*добавление в разметку canvas-а pixijs*/
 				wrapper.appendChild(app.view);
 				/*добавление в разметку html-overlay*/
@@ -988,17 +988,17 @@ if(!window.location.search.includes('child=1')){
 				}
 				/*превращает текст в коллайдер в зависимости от размера шрифта*/
 				function text_to_collider(text,void_symbols=['',' ']){
-			        let lines=text.split("\n"),collider=[];
-			        for(let line of lines){
-			            let temp_row=[];
-			            for(let char of line){
+					let lines=text.split("\n"),collider=[];
+					for(let line of lines){
+						let temp_row=[];
+						for(let char of line){
 							temp_row.push(...Array(logical_symbol_size).fill(!void_symbols.includes(char)));
 						}
 						for(let y=0;y<logical_symbol_size;y++){
 							collider.push([...temp_row]);
 						}
 					}
-			        return collider;
+					return collider;
 				}
 				/*очищает symbols_grid*/
 				function clear_symbols_grid(){
