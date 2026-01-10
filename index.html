@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>CODERROR</title>
+    <style>
+        * { margin: 0; padding: 0; }
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color:#000;
+        }
+        canvas {
+            display: block;
+            image-rendering: crisp-edges;
+            image-rendering: pixelated;
+        }
+    </style>
+</head>
+<body>
+    <script>
+        // Проверяем, является ли это окно основным
+        if (!window.location.search.includes('child=1')) {
+            // Параметры для нового окна
+            const width = 800;
+            const height = 600;
+            const features = `width=${width},height=${height},left=${(screen.width-width)/2},top=${(screen.height-height)/2}`;
+            
+            // Пытаемся открыть новое окно
+            const newWindow = window.open(`${window.location.href}?child=1`, '_blank', features);
+            
+            if (newWindow) {
+                // Закрываем текущее окно после успешного открытия
+                window.close();
+            } else {
+                // Обработка блокировки всплывающих окон
+                document.body.innerHTML = `
+                    <div style="padding: 20px; color: white; background: black;">
+                        Разрешите всплывающие окна для этого сайта и обновите страницу!
+                    </div>
+                `;
+            }
+        } else {
+            // Если это дочернее окно - загружаем приложение
+            const script = document.createElement('script');
+            script.src = 'scripts/pixi.min.js';
+            script.onload = function() {
+                // Весь код приложения
+                const app = new PIXI.Application({
+                    backgroundColor: 0x000000,
+                    resolution: 1,
+                    antialias: false,
+                    autoDensity: false,
+                    roundPixels: true
+                });
+                
+                app.init().then(() => {
+                    document.body.appendChild(app.view);
+
+                    const textStyle = new PIXI.TextStyle({
+                        fontFamily: 'CODERROR',
+                        fontSize: 10,
+                        fill: 0xFFFFFF,
+                        dropShadow: false,
+                        lineJoin: "bevel"
+                    });
+
+                    let symbolsPool = [];
+                    let columns = 0;
+                    let rows = 0;
+                    
+                    const updateSize = () => {
+                        app.renderer.resize(window.innerWidth, window.innerHeight);
+                        calculateGrid();
+                        updatePool();
+                    };
+
+                    function calculateGrid() {
+                        columns = Math.ceil(app.renderer.width / 10);
+                        rows = Math.ceil(app.renderer.height / 10);
+                    }
+
+                    function getRandomChar() {
+                        return String.fromCharCode(Math.floor(Math.random() * (126 - 33 + 1)) + 33);
+                    }
+
+                    function getRandomColor() {
+                        return Math.floor(Math.random() * 0xFFFFFF);
+                    }
+
+                    function updatePool() {
+                        const required = columns * rows;
+                        
+                        while(symbolsPool.length < required) {
+                            const symbol = new PIXI.Text('', textStyle);
+                            symbol.resolution = 20;
+                            symbol.visible = false;
+                            app.stage.addChild(symbol);
+                            symbolsPool.push(symbol);
+                        }
+
+                        let index = 0;
+                        for(let y = 0; y < rows; y++) {
+                            for(let x = 0; x < columns; x++) {
+                                const symbol = symbolsPool[index];
+                                symbol.text = getRandomChar();
+                                symbol.tint = getRandomColor();
+                                symbol.position.set(x * 10, y * 10);
+                                symbol.visible = true;
+                                index++;
+                            }
+                        }
+
+                        for(let i = index; i < symbolsPool.length; i++) {
+                            symbolsPool[i].visible = false;
+                        }
+                    }
+
+                    updateSize();
+                    window.addEventListener('resize', updateSize);
+
+                    app.ticker.add(() => {
+                        updatePool();
+                        document.title = `CODERROR FPS: ${app.ticker.FPS.toFixed(2)}`;
+                    });
+
+                    app.ticker.maxFPS = 60;
+                }).catch(console.error);
+            };
+            document.head.appendChild(script);
+        }
+    </script>
+</body>
+</html>
