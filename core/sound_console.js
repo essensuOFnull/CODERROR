@@ -168,19 +168,19 @@ let whitelist = new Set(['__is_wrapped']);
 let blacklist = new Set(['self']);
 
 function clean_dangerous_properties(list) {
-    return list.filter(element => 
-        whitelist.has(element) || 
-        (!element.startsWith('__') && !blacklist.has(element))
-    );
+	return list.filter(element => 
+		whitelist.has(element) || 
+		(!element.startsWith('__') && !blacklist.has(element))
+	);
 }
 
 function recursive_traversal(obj,path,name,parent=window,level=0,visited_objects=new WeakSet()){
-    // Базовые случаи остановки рекурсии
-    if (!obj|| visited_objects.has(obj)) {
-        return;
-    }
-    visited_objects.add(obj); // Запоминаем объект чтобы избежать циклов
-    
+	// Базовые случаи остановки рекурсии
+	if (!obj|| visited_objects.has(obj)) {
+		return;
+	}
+	visited_objects.add(obj); // Запоминаем объект чтобы избежать циклов
+	
 	if(typeof obj === 'function'){
 		if (obj.__is_wrapped) {
 			return; // Уже обернута
@@ -211,13 +211,13 @@ function recursive_traversal(obj,path,name,parent=window,level=0,visited_objects
 		visited_objects.add(wrapper);
 		return;
 	}
-    // Рекурсивный обход для объектов
-    if (typeof obj === 'object' && !Array.isArray(obj)) {
-        let keys = clean_dangerous_properties(Object.keys(obj));
-        for (let key of keys) {
-            recursive_traversal(obj[key],`${path}.${key}`,key,obj, level + 1, visited_objects);
-        }
-    }
+	// Рекурсивный обход для объектов
+	if (typeof obj === 'object' && !Array.isArray(obj)) {
+		let keys = clean_dangerous_properties(Object.keys(obj));
+		for (let key of keys) {
+			recursive_traversal(obj[key],`${path}.${key}`,key,obj, level + 1, visited_objects);
+		}
+	}
 }
 
 function get_object_by_path(path){
@@ -234,9 +234,9 @@ function get_object_by_path(path){
 }
 
 function wrap_all_functions() {
-    for (let name of objectsToTrack) {
-        recursive_traversal(get_object_by_path(name),name,name.split('.').at(-1));
-    }
+	for (let name of objectsToTrack) {
+		recursive_traversal(get_object_by_path(name),name,name.split('.').at(-1));
+	}
 }
 
 wrap_all_functions();

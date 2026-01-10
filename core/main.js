@@ -108,6 +108,7 @@ d.app.init().then(()=>{
 	document.addEventListener('contextmenu',(e)=>{
 		e.preventDefault();
 	});
+	f.set_empty_player();
 	f.change_room('disclaimer');
 	f.apply_settings();
 	/**прослушиватель нажатий клавиш*/

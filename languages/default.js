@@ -1,10 +1,11 @@
 window.CODERROR.__originals__.data.languages.default={
 	contribution:{
 		'⦑color:#f0f⦒essensuOFnull':`инициатор, автор идей, программист.`,
+		'⦑color:#c70a0a⦒aliph0th':`главный советчик.`,
 		'⦑color:#909⦒仨与与仨刀仁仨・口千・力仨与户升工艮':`обещал продолжить моё дело в случае моей смерти.`,
 		'⦑color:#00f⦒Theb.ai, DeepSeek':`помощь в программировании.`
 	},
-	splashes:["во имя шизы!","t.me/essensuOFnull","феникс","библиотечный соскрёб"],
+	splashes:["во имя шизы!","t.me/essensuOFnull","феникс","библиотечный соскрёб","made with Holy JS Language"],
 	notifications:{
 		current_music:(path)=>{
 			return`<div class="inherit_colors" style="color:#f00">𝄞</div> сейчас играет: <div class="inherit_colors" style="color:#f0f">${path}</div> <div class="inherit_colors" style="color:#f00">♫</div>`

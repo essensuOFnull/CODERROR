@@ -85,48 +85,45 @@ create_skybox_materials:function(path_part,extension,is_sphere) {
 /**устанавливает небо*/
 set_sky:function(path_part,extension,is_sphere=false) {
 	let new_sky_path=`${path_part}/.${extension}`;
-	if(new_sky_path!=d.current_sky_path){
-		/*Удаляем старый skybox с освобождением ресурсов*/
-		if(d.skybox){
-			d.three_scene.remove(d.skybox);
-			/*Освобождаем геометрию*/
-			if(d.skybox.geometry){
-				d.skybox.geometry.dispose();
-			}
-			/*Освобождаем материалы*/
-			if(Array.isArray(d.skybox.material)){
-				d.skybox.material.forEach(material=>{
-					if(material.map)material.map.dispose();
-					material.dispose();
-				});
-			}else if(d.skybox.material){
-				if(d.skybox.material.map)d.skybox.material.map.dispose();
-				d.skybox.material.dispose();
-			}
+	if(new_sky_path==d.current_sky_path)return
+	/*Удаляем старый skybox с освобождением ресурсов*/
+	if(d.skybox){
+		d.three_scene.remove(d.skybox);
+		/*Освобождаем геометрию*/
+		if(d.skybox.geometry){
+			d.skybox.geometry.dispose();
 		}
-		/*Создаем новые материалы с обработкой ошибок*/
-		try{
-			let geometry=new THREE.BoxGeometry(5, 5, 5);
-			let materials=f.create_skybox_materials(path_part,extension,is_sphere);
-			d.skybox=new THREE.Mesh(geometry, materials);
-			d.three_scene.add(d.skybox);
-		}catch(error){
-			console.error('Error creating d.skybox:',error);
+		/*Освобождаем материалы*/
+		if(Array.isArray(d.skybox.material)){
+			d.skybox.material.forEach(material=>{
+				if(material.map)material.map.dispose();
+				material.dispose();
+			});
+		}else if(d.skybox.material){
+			if(d.skybox.material.map)d.skybox.material.map.dispose();
+			d.skybox.material.dispose();
 		}
-		d.current_sky_path=new_sky_path;
 	}
+	/*Создаем новые материалы с обработкой ошибок*/
+	try{
+		let geometry=new THREE.BoxGeometry(5, 5, 5);
+		let materials=f.create_skybox_materials(path_part,extension,is_sphere);
+		d.skybox=new THREE.Mesh(geometry, materials);
+		d.three_scene.add(d.skybox);
+	}catch(error){
+		console.error('Error creating d.skybox:',error);
+	}
+	d.current_sky_path=new_sky_path;
 },
 /**Инициализация текстуры и спрайта*/
-init_three_scene:function() {
-	d.background_texture = PIXI.Texture.from(d.three_renderer.domElement);
-	d.background_texture.baseTexture.autoUpdate = false;
-	d.background_sprite = new PIXI.Sprite(d.background_texture);
-	
+init_three_scene:function(){
+	d.background_texture=PIXI.Texture.from(d.three_renderer.domElement);
+	d.background_texture.baseTexture.autoUpdate=false;
+	d.background_sprite=new PIXI.Sprite(d.background_texture);
 	// Устанавливаем размер спрайта
-	d.background_sprite.width = d.wrapper.clientWidth;
-	d.background_sprite.height = d.wrapper.clientHeight;
-	
-	d.app.stage.addChildAt(d.background_sprite, 0);
+	d.background_sprite.width=d.wrapper.clientWidth;
+	d.background_sprite.height=d.wrapper.clientHeight;
+	d.app.stage.addChildAt(d.background_sprite,0);
 },
 /**Функция обновления сцены three*/
 update_three_scene:function(){
@@ -153,18 +150,11 @@ print_to_chat:function(message){
 		message_element.remove();
 	});
 },
-change_room:function(room_,preparation_=true,reset_overlay_=true){
-	if (!d.save.world.players[d.save.player.nickname]) {
-		d.save.world.players[d.save.player.nickname]={};
-	}
-	if(!d.save.world.players[d.save.player.nickname].position){
-		d.save.world.players[d.save.player.nickname].position={};
-	}
-	d.save.world.players[d.save.player.nickname].position.room_id=room_;
-	d.save.temp.room.preparation=preparation_;
-	if(reset_overlay_){
-		d.overlay.innerHTML=``;
-	}
+change_room:function(room,preparation=true,reset_overlay=true){
+	_.set(d,`save.world.players.${d.save.player.nickname}.position.room_id`,room);
+	_.set(d,'save.temp.room.preparation',preparation);
+	if(!reset_overlay)return
+	d.overlay.innerHTML=``;
 },
 /**инициализирует матрицу символов*/
 init_symbols_grid:function(){
@@ -178,54 +168,53 @@ update_symbols_grid:function(){
 	let newColumns=Math.ceil(d.app.renderer.width/d.symbol_size);
 	let newRows=Math.ceil(d.app.renderer.height/d.symbol_size);
 	/*Ресайз существующей сетки*/
-	if(newColumns!==d.columns||newRows!==d.rows){
-		/*Удаляем лишние строки*/
-		if(newRows<d.rows){
-			for(let y=newRows;y<d.rows;y++){
-				for(let x=0;x<d.columns;x++){
+	if(newColumns===d.columns&&newRows===d.rows)return
+	/*Удаляем лишние строки*/
+	if(newRows<d.rows){
+		for(let y=newRows;y<d.rows;y++){
+			for(let x=0;x<d.columns;x++){
+				d.symbols_grid[y][x].destroy({children:true});
+			}
+		}
+		d.symbols_grid.length=newRows;
+	}
+	/*Добавляем новые строки*/
+	if(newRows>d.rows){
+		for(let y=d.rows;y<newRows;y++){
+			d.symbols_grid[y]=[];
+			for(let x=0;x<Math.max(d.columns,newColumns);x++){
+				let symbol=new PIXI.Text('',d.pixi_text_style);
+				symbol.resolution=20;
+				symbol.position.set(x*d.symbol_size,y*d.symbol_size);
+				d.app.stage.addChild(symbol);
+				d.symbols_grid[y][x]=symbol;
+			}
+		}
+	}
+	/*Обновляем колонки в каждой строке*/
+	for(let y=0;y<newRows;y++){
+		/*Удаляем лишние колонки*/
+		if(newColumns<d.columns) {
+			for(let x=newColumns;x<d.columns;x++){
+				if(d.symbols_grid[y][x]){
 					d.symbols_grid[y][x].destroy({children:true});
 				}
 			}
-			d.symbols_grid.length=newRows;
+			d.symbols_grid[y].length=newColumns;
 		}
-		/*Добавляем новые строки*/
-		if(newRows>d.rows){
-			for(let y=d.rows;y<newRows;y++){
-				d.symbols_grid[y]=[];
-				for(let x=0;x<Math.max(d.columns,newColumns);x++){
-					let symbol=new PIXI.Text('',d.pixi_text_style);
-					symbol.resolution=20;
-					symbol.position.set(x*d.symbol_size,y*d.symbol_size);
-					d.app.stage.addChild(symbol);
-					d.symbols_grid[y][x]=symbol;
-				}
+		/*Добавляем новые колонки*/
+		if(newColumns>d.columns){
+			for(let x=d.columns;x<newColumns;x++){
+				let symbol=new PIXI.Text('',d.pixi_text_style);
+				symbol.resolution=20;
+				symbol.position.set(x*d.symbol_size,y*d.symbol_size);
+				d.app.stage.addChild(symbol);
+				d.symbols_grid[y][x]=symbol;
 			}
 		}
-		/*Обновляем колонки в каждой строке*/
-		for(let y=0;y<newRows;y++){
-			/*Удаляем лишние колонки*/
-			if(newColumns<d.columns) {
-				for(let x=newColumns;x<d.columns;x++){
-					if(d.symbols_grid[y][x]){
-						d.symbols_grid[y][x].destroy({children:true});
-					}
-				}
-				d.symbols_grid[y].length=newColumns;
-			}
-			/*Добавляем новые колонки*/
-			if(newColumns>d.columns){
-				for(let x=d.columns;x<newColumns;x++){
-					let symbol=new PIXI.Text('',d.pixi_text_style);
-					symbol.resolution=20;
-					symbol.position.set(x*d.symbol_size,y*d.symbol_size);
-					d.app.stage.addChild(symbol);
-					d.symbols_grid[y][x]=symbol;
-				}
-			}
-		}
-		d.columns=newColumns;
-		d.rows=newRows;
 	}
+	d.columns=newColumns;
+	d.rows=newRows;
 },
 set_font_size:function(size_in_pixels){
 	d.symbol_size=size_in_pixels;
@@ -442,16 +431,15 @@ create_element_from_HTML:function(html){
 	/*Проверяем, есть ли ровно один дочерний элемент*/
 	if(fragment.childNodes.length===1&&fragment.firstChild.nodeType===Node.ELEMENT_NODE){
 		return fragment.firstChild;
-	}else{
-		/*Создаём контейнер с display: contents*/
-		let container=document.createElement('div');
-		container.style.display='contents';
-		/*Перемещаем все узлы из фрагмента в контейнер*/
-		while(fragment.firstChild){
-			container.appendChild(fragment.firstChild);
-		}
-		return container;
 	}
+	/*Создаём контейнер с display: contents*/
+	let container=document.createElement('div');
+	container.style.display='contents';
+	/*Перемещаем все узлы из фрагмента в контейнер*/
+	while(fragment.firstChild){
+		container.appendChild(fragment.firstChild);
+	}
+	return container;
 },
 /**возвращает один из ИСТИНЫХ цветов*/
 get_random_true_str_color:function(){
@@ -685,17 +673,16 @@ add_event_listener:function(name,element,function_part){
 /**удаляет кастомные обработчики событий*/
 remove_event_listener:function(name,element){
 	let stored=d.event_handlers.get(element);
-	if(stored&&stored.name===name){
-		/*Удаляем все обработчики событий*/
-		element.removeEventListener('drop',stored.handlers.drop);
-		element.removeEventListener('click',stored.handlers.click);
-		stored.elements.jsonInput.removeEventListener('change',stored.handlers.change);
-		/*Удаляем созданный input из DOM если был добавлен*/
-		if(document.body.contains(stored.elements.jsonInput)){
-			document.body.removeChild(stored.elements.jsonInput);
-		}
-		d.event_handlers.delete(element);
+	if(!stored||stored.name!==name)return
+	/*Удаляем все обработчики событий*/
+	element.removeEventListener('drop',stored.handlers.drop);
+	element.removeEventListener('click',stored.handlers.click);
+	stored.elements.jsonInput.removeEventListener('change',stored.handlers.change);
+	/*Удаляем созданный input из DOM если был добавлен*/
+	if(document.body.contains(stored.elements.jsonInput)){
+		document.body.removeChild(stored.elements.jsonInput);
 	}
+	d.event_handlers.delete(element);
 },
 /**создает hr из -*/
 get_symbolic_hr:function(){
@@ -814,13 +801,11 @@ create_textarea_with_frame:function(placeholder='',removable=false){
 },
 /**для того чтобы музыка начинала проигрываться после нажатия на любое место страницы*/
 init_audio:function(){
-	if(!d.audio_initialized){
-		d.audio_initialized=true;
-		document.removeEventListener('click',f.init_audio);
-		if(d.current_music){
-			d.current_music.play().catch(f.handle_play_error);
-		}
-	}
+	if(d.audio_initialized)return;
+	d.audio_initialized=true;
+	document.removeEventListener('click',f.init_audio);
+	if(!d.current_music)return
+	d.current_music.play().catch(f.handle_play_error);
 },
 /**принимает путь до музыки и включает её*/
 set_music:function(path){
@@ -855,22 +840,21 @@ change_button_text:function(button,text){
 wait_user_input:function(){
 	return new Promise((resolve)=>{
 		let handler=(e)=>{
-			if(!d.ignored_keys.includes(e.code)){
-				e.preventDefault();
-				document.removeEventListener('keydown',handler);
-				document.removeEventListener('mousedown',handler);
-				document.removeEventListener('wheel',handler);
-				if(e.type==='keydown'){
-					if(d.settings.control.bind_to_layout){
-						resolve(e.key);
-					}else{
-						resolve(e.code);
-					}
-				}else if(e.type==='mousedown'){
-					resolve(`mouse${e.button}`);
-				}else if(e.type==='wheel') {
-					resolve(e.deltaY<0?'WheelUp':'WheelDown');
+			if(d.ignored_keys.includes(e.code))return
+			e.preventDefault();
+			document.removeEventListener('keydown',handler);
+			document.removeEventListener('mousedown',handler);
+			document.removeEventListener('wheel',handler);
+			if(e.type==='keydown'){
+				if(d.settings.control.bind_to_layout){
+					resolve(e.key);
+				}else{
+					resolve(e.code);
 				}
+			}else if(e.type==='mousedown'){
+				resolve(`mouse${e.button}`);
+			}else if(e.type==='wheel') {
+				resolve(e.deltaY<0?'WheelUp':'WheelDown');
 			}
 		};
 	document.addEventListener('keydown',handler);
@@ -916,17 +900,14 @@ setup_input_tracker:function(){
 		}
 	};
 	let handleEvent=(e)=>{
-		if(!e.repeat){/*Отключаем автоповтор*/
-			if(!d.ignored_keys.includes(e.code)){
-				let key=getKey(e);
-				if(e.type==='keydown'||e.type==='mousedown'||e.type==='wheel'){
-					d.pressed.add(key);
-				}else{
-					d.pressed.delete(key);
-				}
-				f.update_activated_actions();
-			}
+		if(e.repeat||d.ignored_keys.includes(e.code))return/*Отключаем автоповтор*/
+		let key=getKey(e);
+		if(e.type==='keydown'||e.type==='mousedown'||e.type==='wheel'){
+			d.pressed.add(key);
+		}else{
+			d.pressed.delete(key);
 		}
+		f.update_activated_actions();
 	};
 	document.addEventListener('keydown',handleEvent);
 	document.addEventListener('keyup',handleEvent);
@@ -1020,50 +1001,36 @@ update_player_collider:function(){
 /**расчет коллизии*/
 update_collision:function(ground_collider=d.save.temp.ground.collider){
 	f.update_player_collider();
-	if(!d.save.world.players[d.save.player.nickname].position.touch_wall){
-		d.save.world.players[d.save.player.nickname].position.touch_wall={};
-	}
-	/**упирается ли игрок в стену снизу*/
-	d.save.world.players[d.save.player.nickname].position.touch_wall.below=false;
-	/**упирается ли игрок в стену слева*/
-	d.save.world.players[d.save.player.nickname].position.touch_wall.left=false;
-	/**упирается ли игрок в стену справа*/
-	d.save.world.players[d.save.player.nickname].position.touch_wall.right=false;
-	/**упирается ли игрок в стену сверху*/
-	d.save.world.players[d.save.player.nickname].position.touch_wall.higher=false;
-	for(let y=d.save.world.players[d.save.player.nickname].position.collider[0][1];y<d.save.world.players[d.save.player.nickname].position.collider[1][1];y++){
-		for(let x=d.save.world.players[d.save.player.nickname].position.collider[0][0];x<d.save.world.players[d.save.player.nickname].position.collider[1][0];x++){
-			let coordinates=[x,y+1];
-			if(coordinates.every(num=>num>=0)){
-				try{
-					if(ground_collider[coordinates[1]][coordinates[0]]){
-						d.save.world.players[d.save.player.nickname].position.touch_wall.below=true;
-					}
-				}catch{}
+	let nickname=d.save.player.nickname,
+	touch_wall=`save.world.players.${nickname}.position.touch_wall`,
+	collider=`save.world.players.${nickname}.position.collider`;
+	_.set(d,touch_wall,{
+		/**упирается ли игрок в стену снизу*/
+		below:false,
+		/**упирается ли игрок в стену слева*/
+		left:false,
+		/**упирается ли игрок в стену справа*/
+		right:false,
+		/**упирается ли игрок в стену сверху*/
+		higher:false
+	});
+	for(let y=_.get(d,`${collider}[0][1]`);y<_.get(d,`${collider}[1][1]`);y++){
+		for(let x=_.get(d,`${collider}[0][0]`);x<_.get(d,`${collider}[1][0]`);x++){
+			// Проверка снизу
+			if(_.get(ground_collider,[y+1,x])){
+				_.set(d,`${touch_wall}.below`,true);
 			}
-			coordinates=[x,y-1];
-			if(coordinates.every(num=>num>=0)){
-				try{
-					if(ground_collider[coordinates[1]][coordinates[0]]){
-						d.save.world.players[d.save.player.nickname].position.touch_wall.higher=true;
-					}
-				}catch{}
+			// Проверка сверху
+			if(_.get(ground_collider,[y-1,x])){
+				_.set(d,`${touch_wall}.higher`,true);
 			}
-			coordinates=[x+1,y];
-			if(coordinates.every(num=>num>=0)){
-				try{
-					if(ground_collider[coordinates[1]][coordinates[0]]){
-						d.save.world.players[d.save.player.nickname].position.touch_wall.right=true;
-					}
-				}catch{}
+			// Проверка справа
+			if(_.get(ground_collider,[y,x+1])){
+				_.set(d,`${touch_wall}.right`,true);
 			}
-			coordinates=[x-1,y];
-			if(coordinates.every(num=>num>=0)){
-				try{
-					if(ground_collider[coordinates[1]][coordinates[0]]){
-						d.save.world.players[d.save.player.nickname].position.touch_wall.left=true;
-					}
-				}catch{}
+			// Проверка слева
+			if(_.get(ground_collider,[y,x-1])){
+				_.set(d,`${touch_wall}.left`,true);
 			}
 		}
 	}
@@ -1103,6 +1070,7 @@ generate_esc_menu:function(){
 	button_to_main_menu.addEventListener('click',()=>{
 		f.save_character(d.save.player);
 		f.save_world(d.save.world);
+		f.set_empty_player();
 		f.change_room('main_menu');
 	});
 	button_to_main_menu.id='button_to_main_menu';
@@ -1122,11 +1090,7 @@ update_interface:function(){
 },
 /**включает/отключает интерфейс*/
 set_interface_visibility:function(is_visible){
-	if(is_visible){
-		d.interface.style.visibility='visible';
-	}else{
-		d.interface.style.visibility='collapse';
-	}
+	d.interface.style.visibility=(is_visible?'visible':'collapse');
 },
 /**активирует прошлый слот хотбара*/
 activate_previous_hotbar_slot:function(){
@@ -1199,326 +1163,312 @@ verify_permission:function(handle, withWrite) {
 		return Promise.resolve(false);
 	}
 },
-init_file_access:function() {
+init_file_access:function(){
 	// Функция возвращает Promise, чтобы вызвать её из main.js и продолжать после получения дескриптора
-	return new Promise((resolve, reject) => {
+	return new Promise((resolve,reject)=>{
 		// Если API не поддерживается — выходим молча
-		if (!window.showDirectoryPicker || !window.indexedDB) return resolve();
-		let dirHandle = null;
-		const flag = localStorage.getItem('coderror_dir_selected');
-		const tryGetFromDB = () => {
-			if (!flag) return Promise.resolve(null);
-			return f.get_handle_from_DB().catch(e => { console.warn('Не удалось взять дескриптор из DB', e); localStorage.removeItem('coderror_dir_selected'); return null; });
+		if(!window.showDirectoryPicker||!window.indexedDB)return resolve();
+		const flag=localStorage.getItem('coderror_dir_selected');
+		const tryGetFromDB=()=>{
+			if(!flag)return Promise.resolve(null);
+			return f.get_handle_from_DB().catch(e=>{
+				console.warn('Не удалось взять дескриптор из DB',e);
+				localStorage.removeItem('coderror_dir_selected');
+				return null;
+			});
 		};
-
-		tryGetFromDB().then(storedHandle => {
-			if (storedHandle) {
+		tryGetFromDB().then(storedHandle=>{
+			if(storedHandle){
 				// Проверим права
-				f.verify_permission(storedHandle, true).then(ok => {
-					if (!ok) console.warn('Нет прав на выбранную папку или пользователь отозвал доступ.');
-					d.directory_handle = storedHandle;
+				f.verify_permission(storedHandle,true).then(ok=>{
+					if(!ok)console.warn('Нет прав на выбранную папку или пользователь отозвал доступ.');
+					d.directory_handle=storedHandle;
 					resolve();
-				}).catch(e => { console.warn(e); d.directory_handle = storedHandle; resolve(); });
+				}).catch(e=>{
+					console.warn(e);d.directory_handle=storedHandle;resolve();
+				});
 				return;
 			}
-
 			// Нет сохранённого дескриптора — уведомим пользователя и пометим, что требуется вмешательство пользователя
 			alert('Для работы игре требуется доступ к своим же файлам. Выберите папку, которую вы использовали для загрузки расширения, или папку, в которой игра на самом деле хранится. Сейчас будет произведён запрос доступа.');
 			// Помечаем, что для получения дескриптора требуется пользовательский жест (например, нажатие кнопки)
-			d.need_directory_permission = true;
-			f.request_directory_via_user_gesture().then(handle => {
+			d.need_directory_permission=true;
+			f.request_directory_via_user_gesture().then(handle=>{
 				return resolve();
 			});
-		}).catch(e => { console.error('init_file_access error', e); resolve(); });
+		}).catch(e=>{
+			console.error('init_file_access error',e);
+			resolve();
+		});
 	});
 },
-
 // Вызывать в обработчике пользовательского события (click) — picker требует user activation
 request_directory_via_user_gesture:function(){
-	return new Promise((resolve, reject) => {
-		if (!window.showDirectoryPicker) return resolve(null);
-		window.showDirectoryPicker().then(handle => {
-			d.directory_handle = handle;
+	return new Promise((resolve,reject)=>{
+		if(!window.showDirectoryPicker)return resolve(null);
+		window.showDirectoryPicker().then(handle=>{
+			d.directory_handle=handle;
 			f.save_handle_to_DB(handle).then(()=>{
 				localStorage.setItem('coderror_dir_selected','1');
 			}).catch(e=>{
-				console.warn('Не удалось сохранить дескриптор в IndexedDB', e);
+				console.warn('Не удалось сохранить дескриптор в IndexedDB',e);
 			}).finally(()=>{
-				d.need_directory_permission = false;
+				d.need_directory_permission=false;
 				resolve(handle);
 			});
-		}).catch(e => {
-			console.warn('showDirectoryPicker cancelled or failed', e);
+		}).catch(e=>{
+			console.warn('showDirectoryPicker cancelled or failed',e);
 			resolve(null);
 		});
 	});
 },
 /**проверяет существует ли файл*/
-file_exists: function(relPath) {
-	return new Promise((resolve, reject) => {
-		if (!d.directory_handle) return reject(new Error('Directory handle is not available'));
-		const parts = relPath.split('/').filter(Boolean);
-		let dir = d.directory_handle;
-		const next = (i) => {
-			if (i >= parts.length - 1) {
-				dir.getFileHandle(parts[parts.length - 1])
-					.then(() => resolve(true))
-					.catch(error => {
-						if (error.name === 'NotFoundError') {
-							resolve(false);
-						} else {
-							reject(error);
-						}
-					});
-				return;
-			}
-			dir.getDirectoryHandle(parts[i])
-				.then(newDir => {
-					dir = newDir;
-					next(i + 1);
-				})
-				.catch(error => {
-					if (error.name === 'NotFoundError') {
+file_exists:function(relPath){
+	return new Promise((resolve,reject)=>{
+		if(!d.directory_handle)return reject(new Error('Directory handle is not available'));
+		const parts=relPath.split('/').filter(Boolean);
+		let dir=d.directory_handle;
+		const next=(i)=>{
+			if(i>=parts.length-1){
+				dir.getFileHandle(parts[parts.length-1])
+				.then(()=>resolve(true))
+				.catch(error=>{
+					if(error.name==='NotFoundError'){
 						resolve(false);
 					} else {
 						reject(error);
 					}
 				});
+				return;
+			}
+			dir.getDirectoryHandle(parts[i])
+			.then(newDir=>{
+				dir=newDir;
+				next(i+1);
+			}).catch(error=>{
+				if(error.name==='NotFoundError'){
+					resolve(false);
+				}else{
+					reject(error);
+				}
+			});
 		};
 		next(0);
 	});
 },
 /**читает содержимое текстового файла, возвращает null если файл не существует*/
-read_file: function(relPath) {
-	return new Promise((resolve, reject) => {
-		if (!d.directory_handle) return reject(new Error('Directory handle is not available'));
-		const parts = relPath.split('/').filter(Boolean);
-		let dir = d.directory_handle;
-		const next = (i) => {
-			if (i >= parts.length - 1) {
-				dir.getFileHandle(parts[parts.length - 1])
-					.then(fileHandle => fileHandle.getFile())
-					.then(file => file.text())
-					.then(resolve)
-					.catch(error => {
-						if (error.name === 'NotFoundError') {
-							resolve(null);
-						} else {
-							reject(error);
-						}
-					});
-				return;
-			}
-			dir.getDirectoryHandle(parts[i])
-				.then(newDir => {
-					dir = newDir;
-					next(i + 1);
-				})
-				.catch(error => {
-					if (error.name === 'NotFoundError') {
+read_file:function(relPath){
+	return new Promise((resolve,reject)=>{
+		if(!d.directory_handle)return reject(new Error('Directory handle is not available'));
+		const parts=relPath.split('/').filter(Boolean);
+		let dir=d.directory_handle;
+		const next=(i)=>{
+			if(i>=parts.length-1){
+				dir.getFileHandle(parts[parts.length-1])
+				.then(fileHandle=>fileHandle.getFile())
+				.then(file=>file.text())
+				.then(resolve)
+				.catch(error=>{
+					if(error.name==='NotFoundError'){
 						resolve(null);
-					} else {
+					}else{
 						reject(error);
 					}
 				});
+				return;
+			}
+			dir.getDirectoryHandle(parts[i])
+			.then(newDir=>{
+				dir=newDir;
+				next(i+1);
+			}).catch(error=>{
+				if(error.name==='NotFoundError'){
+					resolve(null);
+				}else{
+					reject(error);
+				}
+			});
 		};
 		next(0);
 	});
 },
 /**записывает содержимое в текстовый файл (с автоматическим созданием директорий)*/
-write_file: function(relPath, contents) {
-	return new Promise((resolve, reject) => {
-		if (!d.directory_handle) return reject(new Error('Directory handle is not available'));
-		const parts = relPath.split('/').filter(Boolean);
-		let dir = d.directory_handle;
-		
-		const next = (i) => {
-			if (i >= parts.length - 1) {
+write_file:function(relPath,contents){
+	return new Promise((resolve,reject)=>{
+		if(!d.directory_handle)return reject(new Error('Directory handle is not available'));
+		const parts=relPath.split('/').filter(Boolean);
+		let dir=d.directory_handle;
+		const next=(i)=>{
+			if(i>=parts.length-1){
 				// Достигли файла
-				dir.getFileHandle(parts[parts.length - 1], { create: true })
-					.then(fileHandle => fileHandle.createWritable())
-					.then(writable => {
-						return writable.write(contents).then(() => writable.close());
-					})
-					.then(resolve)
-					.catch(reject);
+				dir.getFileHandle(parts[parts.length-1],{create:true})
+				.then(fileHandle=>fileHandle.createWritable())
+				.then(writable=>{
+					return writable.write(contents).then(()=>writable.close());
+				})
+				.then(resolve)
+				.catch(reject);
 				return;
 			}
 			// Создаем директории по пути
-			dir.getDirectoryHandle(parts[i], { create: true })
-				.then(newDir => {
-					dir = newDir;
-					next(i + 1);
-				})
-				.catch(reject);
+			dir.getDirectoryHandle(parts[i],{create:true})
+			.then(newDir=>{
+				dir=newDir;
+				next(i+1);
+			})
+			.catch(reject);
 		};
 		next(0);
 	});
 },
 /**создает папку*/
-create_directory: function(relPath) {
-	return new Promise((resolve, reject) => {
-		if (!d.directory_handle) return reject(new Error('Directory handle is not available'));
-		const parts = relPath.split('/').filter(Boolean);
-		let dir = d.directory_handle;
-		const next = (i) => {
-			if (i >= parts.length) return resolve(dir);
-			dir.getDirectoryHandle(parts[i], { create: true })
-				.then(newDir => {
-					dir = newDir;
-					next(i + 1);
-				})
-				.catch(reject);
+create_directory:function(relPath){
+	return new Promise((resolve,reject)=>{
+		if(!d.directory_handle)return reject(new Error('Directory handle is not available'));
+		const parts=relPath.split('/').filter(Boolean);
+		let dir=d.directory_handle;
+		const next=(i)=>{
+			if(i>=parts.length)return resolve(dir);
+			dir.getDirectoryHandle(parts[i],{create:true})
+			.then(newDir=>{
+				dir=newDir;
+				next(i+1);
+			})
+			.catch(reject);
 		};
 		next(0);
 	});
 },
 /**удаляет файл*/
-remove_file: function(relPath) {
-	return new Promise((resolve, reject) => {
-		if (!d.directory_handle) return reject(new Error('Directory handle is not available'));
-		const parts = relPath.split('/').filter(Boolean);
-		let dir = d.directory_handle;
-		const next = (i) => {
-			if (i >= parts.length - 1) {
-				dir.removeEntry(parts[parts.length - 1])
-					.then(resolve)
-					.catch(reject);
+remove_file:function(relPath){
+	return new Promise((resolve,reject)=>{
+		if(!d.directory_handle)return reject(new Error('Directory handle is not available'));
+		const parts=relPath.split('/').filter(Boolean);
+		let dir=d.directory_handle;
+		const next=(i)=>{
+			if(i>=parts.length-1){
+				dir.removeEntry(parts[parts.length-1])
+				.then(resolve)
+				.catch(reject);
 				return;
 			}
 			dir.getDirectoryHandle(parts[i])
-				.then(newDir => {
-					dir = newDir;
-					next(i + 1);
-				})
-				.catch(reject);
+			.then(newDir=>{
+				dir=newDir;
+				next(i+1);
+			})
+			.catch(reject);
 		};
 		next(0);
 	});
 },
 /**рекурсивно удаляет папку с содержимым*/
-remove_directory: function(relPath) {
-	return new Promise((resolve, reject) => {
-		if (!d.directory_handle) return reject(new Error('Directory handle is not available'));
-		const parts = relPath.split('/').filter(Boolean);
-		let dir = d.directory_handle;
-		
-		const deleteRecursive = async (currentDir) => {
-			for await (const [name, handle] of currentDir.entries()) {
-				if (handle.kind === 'directory') {
+remove_directory:function(relPath){
+	return new Promise((resolve,reject)=>{
+		if(!d.directory_handle)return reject(new Error('Directory handle is not available'));
+		const parts=relPath.split('/').filter(Boolean);
+		let dir=d.directory_handle;
+		const deleteRecursive=async(currentDir)=>{
+			for await(const[name,handle]of currentDir.entries()){
+				if(handle.kind==='directory'){
 					await deleteRecursive(handle);
-				} else {
+				}else{
 					await currentDir.removeEntry(name);
 				}
 			}
-			if (currentDir !== d.directory_handle) {
-				await dir.removeEntry(parts[parts.length - 1], { recursive: true });
+			if(currentDir!==d.directory_handle){
+				await dir.removeEntry(parts[parts.length-1],{recursive:true});
 			}
 		};
-
-		const next = (i) => {
-			if (i >= parts.length) {
+		const next=(i)=>{
+			if(i>=parts.length){
 				deleteRecursive(dir)
-					.then(resolve)
-					.catch(reject);
+				.then(resolve)
+				.catch(reject);
 				return;
 			}
 			dir.getDirectoryHandle(parts[i])
-				.then(newDir => {
-					dir = newDir;
-					next(i + 1);
-				})
-				.catch(reject);
+			.then(newDir=>{
+				dir=newDir;
+				next(i+1);
+			}).catch(reject);
 		};
 		next(0);
 	});
 },
 /**возвращает список названий файлов в указанной директории (папки игнорируются)*/
-list_files: function(relPath = "") {
-	return new Promise((resolve, reject) => {
-		if (!d.directory_handle) return reject(new Error('Directory handle is not available'));
-		
-		const parts = relPath.split('/').filter(Boolean);
-		let dir = d.directory_handle;
-		
-		const next = (i) => {
-			if (i >= parts.length) {
+list_files:function(relPath=""){
+	return new Promise((resolve,reject)=>{
+		if(!d.directory_handle)return reject(new Error('Directory handle is not available'));
+		const parts=relPath.split('/').filter(Boolean);
+		let dir=d.directory_handle;
+		const next=(i)=>{
+			if(i>=parts.length){
 				// Достигли целевой директории - читаем её содержимое
-				const files = [];
-				const readFiles = async () => {
-					try {
-						for await (const [name, handle] of dir.entries()) {
+				const files=[];
+				const readFiles=async()=>{
+					try{
+						for await(const[name,handle]of dir.entries()){
 							// Добавляем только файлы, игнорируем папки
-							if (handle.kind === 'file') {
+							if(handle.kind==='file'){
 								files.push(name);
 							}
 						}
 						resolve(files.sort());
-					} catch (error) {
+					}catch(error){
 						reject(error);
 					}
 				};
 				readFiles();
 				return;
 			}
-			
 			dir.getDirectoryHandle(parts[i])
-				.then(newDir => {
-					dir = newDir;
-					next(i + 1);
-				})
-				.catch(error => {
-					if (error.name === 'NotFoundError') {
-						// Директория не существует - возвращаем пустой массив
-						resolve([]);
-					} else {
-						reject(error);
-					}
-				});
+			.then(newDir=>{
+				dir=newDir;
+				next(i+1);
+			}).catch(error=>{
+				if(error.name==='NotFoundError'){
+					// Директория не существует - возвращаем пустой массив
+					resolve([]);
+				}else{
+					reject(error);
+				}
+			});
 		};
-		
 		next(0);
 	});
 },
-fetch_json: function(path) {
-	return fetch(path) // <- добавлен return
-		.then(response => {
-			if (!response.ok) {
-				throw new Error('Ошибка сети');
-			}
-			return response.json();
-		})
-		.then(data => {
-			return data; // данные будут доступны через then
-		})
-		.catch(error => {
-			console.error('Ошибка загрузки файла:', error);
-			throw error; // пробрасываем ошибку дальше
-		});
+fetch_json:function(path){
+	return fetch(path)
+	.then(response=>{
+		if(!response.ok){
+			throw new Error('Ошибка сети');
+		}
+		return response.json();
+	}).then(data=>{
+		return data;// данные будут доступны через then
+	}).catch(error=>{
+		console.error('Ошибка загрузки файла:',error);
+		throw error;// пробрасываем ошибку дальше
+	});
 },
 /**загружает языки из папки languages*/
-load_languages: function(){
-	return f.list_files('languages').then(files => {
-		let languages_div = document.getElementById('languages_div');
-		languages_div.innerHTML = '';
-		
+load_languages:function(){
+	return f.list_files('languages').then(files=>{
+		let languages_div=document.getElementById('languages_div');
+		languages_div.innerHTML='';
 		// Создаем массив промисов для каждого скрипта
-		const promises = [];
-		
+		const promises=[];
 		for(const file of files){
-			const promise = new Promise((resolve, reject) => {
-				const script = document.createElement('script');
-				script.src = `languages/${file}`;
-				
-				script.onload = resolve;
-				script.onerror = reject;
-				
+			const promise=new Promise((resolve,reject)=>{
+				const script=document.createElement('script');
+				script.src=`languages/${file}`;
+				script.onload=resolve;
+				script.onerror=reject;
 				languages_div.appendChild(script);
 			});
-			
 			promises.push(promise);
 		}
-		
 		// Ждем загрузки всех скриптов
 		return Promise.all(promises);
 	});
@@ -1532,11 +1482,7 @@ character_to_element:function(character){
 	let button=f.wrap_in_frame(div1);
 	button.addEventListener('click',()=>{
 		d.save.player=character;
-		if(d.is_singleplayer){
-			f.change_room('world_selection');
-		}else{
-			f.change_room('server_selection');
-		}
+		f.change_room(d.is_singleplayer?'world_selection':'server_selection');
 	});
 	return button;
 },
@@ -1645,10 +1591,9 @@ load_save:function(data){
 },
 /**начать подготову комнаты*/
 prepare:function(preparation_func){
-	if(d.save.temp.room.preparation){
-		preparation_func();
-		f.finish_preparation();
-	}
+	if(!d.save.temp.room.preparation)return
+	preparation_func();
+	f.finish_preparation();
 },
 /**завершить подготовку комнаты*/
 finish_preparation:function(){
@@ -1658,7 +1603,27 @@ finish_preparation:function(){
 		f.update_interface();
 	}
 	d.save.temp.room.preparation=false;
-}
+},
+apply_standard_buttons_style(buttons=d.save.temp.room.data.buttons){
+	Object.entries(buttons).forEach(([name,el])=>{
+		f.change_button_color(el,(f.check_hover(el)?f.get_random_true_str_color():'#fff'));
+	});
+},
+apply_standard_drop_zone_style(drop_zone=d.save.temp.room.data.drop_zone){
+	f.change_button_border_color(drop_zone,(f.check_hover(drop_zone)?'#f0f':'#fff'));
+},
+set_empty_player(){
+	d.save.player={
+		/**ник персонажа*/
+		nickname:'',
+		interface:{
+			hotbar:{
+				slot_count:0,
+				active_slot_index:0
+			}
+		}
+	}
+},
 };
 
 let f=window.CODERROR.__originals__.functions;

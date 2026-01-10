@@ -1,14 +1,14 @@
 window.CODERROR={
-    CHEATING:{
-        functions:{},
-        data:{}
-    },
-    PERMITTED:{
-        functions:{},
-        data:{}
-    },
-    __originals__:{
-        functions:{},
-        data:{}
-    },
+	CHEATING:{
+		functions:{},
+		data:{}
+	},
+	PERMITTED:{
+		functions:{},
+		data:{}
+	},
+	__originals__:{
+		functions:{},
+		data:{}
+	},
 };
