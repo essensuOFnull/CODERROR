@@ -22,22 +22,22 @@ d.app.ticker.add(()=>{
 			if(button_to_main_menu) f.change_button_color(button_to_main_menu,'#fff');
 		}
 		/*комнаты*/
-		if(d.save.room.id=='main_menu'){
-			if(!d.save.room.preparation){
+		if(d.save.world.players[d.save.player.nickname].position.room_id=='main_menu'){
+			if(!d.save.temp.room.preparation){
 				f.visual_effect(0);
-				d.save.room.data.logo.firstChild.style.color=f.get_random_true_str_color();
-				Object.entries(d.save.room.data.buttons).forEach(([name,el])=>{
+				d.save.temp.room.data.logo.firstChild.style.color=f.get_random_true_str_color();
+				Object.entries(d.save.temp.room.data.buttons).forEach(([name,el])=>{
 					if(name=='exit'){
 						el.style.marginLeft=`calc(var(--symbol_size) * ${-0.5+Math.floor(Math.random()*2)})`;
 						if(f.check_hover(el)){
 							f.visual_effect(1);
-							d.save.room.data.bug_counter=100;
+							d.save.temp.room.data.bug_counter=100;
 						}
 						else{
-							if(d.save.room.data.bug_counter<=0){
+							if(d.save.temp.room.data.bug_counter<=0){
 								f.visual_effect(2);
 							}else{
-								d.save.room.data.bug_counter--;
+								d.save.temp.room.data.bug_counter--;
 							}
 						}
 					}else if(name=='donation'){
@@ -56,16 +56,16 @@ d.app.ticker.add(()=>{
 				});
 			}
 		}
-		if(d.save.room.id=='character_selection'){
-			if(!d.save.room.preparation){
+		if(d.save.world.players[d.save.player.nickname].position.room_id=='character_selection'){
+			if(!d.save.temp.room.preparation){
 				f.visual_effect(0);
-				if(f.check_hover(d.save.room.data.drop_zone)){
-					f.change_button_border_color(d.save.room.data.drop_zone,'#f0f');
+				if(f.check_hover(d.save.temp.room.data.drop_zone)){
+					f.change_button_border_color(d.save.temp.room.data.drop_zone,'#f0f');
 				}
 				else{
-					f.change_button_border_color(d.save.room.data.drop_zone,'#fff');
+					f.change_button_border_color(d.save.temp.room.data.drop_zone,'#fff');
 				}
-				Object.entries(d.save.room.data.buttons).forEach(([name,el])=>{
+				Object.entries(d.save.temp.room.data.buttons).forEach(([name,el])=>{
 					if(f.check_hover(el)){
 						f.change_button_color(el,f.get_random_true_str_color());
 					}
@@ -75,27 +75,16 @@ d.app.ticker.add(()=>{
 				});
 			}
 		}
-		if(d.save.room.id=='authors'){
-			if(!d.save.room.preparation){
+		if(d.save.world.players[d.save.player.nickname].position.room_id=='world_selection'){
+			if(!d.save.temp.room.preparation){
 				f.visual_effect(0);
-				if(f.check_hover(d.save.room.data.buttons.back)){
-					f.change_button_color(d.save.room.data.buttons.back,f.get_random_true_str_color());
+				if(f.check_hover(d.save.temp.room.data.drop_zone)){
+					f.change_button_border_color(d.save.temp.room.data.drop_zone,'#f0f');
 				}
 				else{
-					f.change_button_color(d.save.room.data.buttons.back,'#fff');
+					f.change_button_border_color(d.save.temp.room.data.drop_zone,'#fff');
 				}
-			}
-		}
-		if(d.save.room.id=='settings'){
-			if(!d.save.room.preparation){
-				f.visual_effect(0);
-				if(f.check_hover(d.save.room.data.drop_zone)){
-					f.change_button_border_color(d.save.room.data.drop_zone,'#f0f');
-				}
-				else{
-					f.change_button_border_color(d.save.room.data.drop_zone,'#fff');
-				}
-				Object.entries(d.save.room.data.buttons).forEach(([name,el])=>{
+				Object.entries(d.save.temp.room.data.buttons).forEach(([name,el])=>{
 					if(f.check_hover(el)){
 						f.change_button_color(el,f.get_random_true_str_color());
 					}
@@ -105,16 +94,27 @@ d.app.ticker.add(()=>{
 				});
 			}
 		}
-		if(d.save.room.id=='continue'){
-			if(!d.save.room.preparation){
+		if(d.save.world.players[d.save.player.nickname].position.room_id=='authors'){
+			if(!d.save.temp.room.preparation){
 				f.visual_effect(0);
-				if(f.check_hover(d.save.room.data.drop_zone)){
-					f.change_button_border_color(d.save.room.data.drop_zone,'#f0f');
+				if(f.check_hover(d.save.temp.room.data.buttons.back)){
+					f.change_button_color(d.save.temp.room.data.buttons.back,f.get_random_true_str_color());
 				}
 				else{
-					f.change_button_border_color(d.save.room.data.drop_zone,'#fff');
+					f.change_button_color(d.save.temp.room.data.buttons.back,'#fff');
 				}
-				Object.entries(d.save.room.data.buttons).forEach(([name,el])=>{
+			}
+		}
+		if(d.save.world.players[d.save.player.nickname].position.room_id=='settings'){
+			if(!d.save.temp.room.preparation){
+				f.visual_effect(0);
+				if(f.check_hover(d.save.temp.room.data.drop_zone)){
+					f.change_button_border_color(d.save.temp.room.data.drop_zone,'#f0f');
+				}
+				else{
+					f.change_button_border_color(d.save.temp.room.data.drop_zone,'#fff');
+				}
+				Object.entries(d.save.temp.room.data.buttons).forEach(([name,el])=>{
 					if(f.check_hover(el)){
 						f.change_button_color(el,f.get_random_true_str_color());
 					}
@@ -124,17 +124,36 @@ d.app.ticker.add(()=>{
 				});
 			}
 		}
-		if(d.save.room.id=='recycle_bin'){
-			if(!d.save.room.preparation){
+		if(d.save.world.players[d.save.player.nickname].position.room_id=='continue'){
+			if(!d.save.temp.room.preparation){
+				f.visual_effect(0);
+				if(f.check_hover(d.save.temp.room.data.drop_zone)){
+					f.change_button_border_color(d.save.temp.room.data.drop_zone,'#f0f');
+				}
+				else{
+					f.change_button_border_color(d.save.temp.room.data.drop_zone,'#fff');
+				}
+				Object.entries(d.save.temp.room.data.buttons).forEach(([name,el])=>{
+					if(f.check_hover(el)){
+						f.change_button_color(el,f.get_random_true_str_color());
+					}
+					else{
+						f.change_button_color(el,'#fff');
+					}
+				});
+			}
+		}
+		if(d.save.world.players[d.save.player.nickname].position.room_id=='recycle_bin'){
+			if(!d.save.temp.room.preparation){
 				/*очистка*/
 				f.clear_symbols_grid();
 				f.focus_camera_on_player();
 				/*отрисовка карты*/
-				f.print_text_to_symbols_grid(d.save.room.data.ground.text,0-d.save.room.data.camera[0]/d.symbol_size,0-d.save.room.data.camera[1]/d.symbol_size);
+				f.print_text_to_symbols_grid(d.save.temp.room.data.ground.text,0-d.save.temp.camera[0]/d.symbol_size,0-d.save.temp.camera[1]/d.symbol_size);
 				/*расчет скина игрока*/
 				let fractional=[false,false];
 				for(let i=0;i<=1;i++){
-					if(d.save.player.coordinates[i]/d.logical_symbol_size!=Math.floor(d.save.player.coordinates[i]/d.logical_symbol_size)){
+					if(d.save.world.players[d.save.player.nickname].position.coordinates[i]/d.logical_symbol_size!=Math.floor(d.save.world.players[d.save.player.nickname].position.coordinates[i]/d.logical_symbol_size)){
 						fractional[i]=true;
 					}
 				}
@@ -154,7 +173,7 @@ d.app.ticker.add(()=>{
 				}
 				/*отрисовка игрока*/
 				f.focus_camera_on_player();
-				let rendering_coordinates=[f.logical_to_screen(d.save.player.coordinates[0])-d.save.room.data.camera[0],f.logical_to_screen(d.save.player.coordinates[1])-d.save.room.data.camera[1]];
+				let rendering_coordinates=[f.logical_to_screen(d.save.world.players[d.save.player.nickname].position.coordinates[0])-d.save.temp.camera[0],f.logical_to_screen(d.save.world.players[d.save.player.nickname].position.coordinates[1])-d.save.temp.camera[1]];
 				if(fractional[0]){
 					rendering_coordinates[0]--;
 				}

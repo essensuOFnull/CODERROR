@@ -154,8 +154,14 @@ print_to_chat:function(message){
 	});
 },
 change_room:function(room_,preparation_=true,reset_overlay_=true){
-	d.save.room.id=room_;
-	d.save.room.preparation=preparation_;
+	if (!d.save.world.players[d.save.player.nickname]) {
+		d.save.world.players[d.save.player.nickname]={};
+	}
+	if(!d.save.world.players[d.save.player.nickname].position){
+		d.save.world.players[d.save.player.nickname].position={};
+	}
+	d.save.world.players[d.save.player.nickname].position.room_id=room_;
+	d.save.temp.room.preparation=preparation_;
 	if(reset_overlay_){
 		d.overlay.innerHTML=``;
 	}
@@ -823,7 +829,7 @@ apply_settings:function(){
 	f.apply_random_splash();
 	/*set_font_size(d.settings.interface.font_size);*/
 	f.set_max_content_size(d.settings.interface.max_content_width,d.settings.interface.max_content_height);
-	f.change_room(d.save.room.id);
+	f.change_room(d.save.world.players[d.save.player.nickname].position.room_id);
 },
 /**создает textarea с рамкой*/
 create_textarea_with_frame:function(placeholder='',removable=false){
@@ -1036,30 +1042,33 @@ logical_to_screen:function(num){
 },
 /**настройки камеры*/
 focus_camera_on_player:function(){
-	d.save.room.data.camera=[f.logical_to_screen(d.save.player.coordinates[0])-(Math.floor(d.columns/2)*d.symbol_size),f.logical_to_screen(d.save.player.coordinates[1])-(Math.floor(d.rows/2)*d.symbol_size)];
+	d.save.temp.camera=[f.logical_to_screen(d.save.world.players[d.save.player.nickname].position.coordinates[0])-(Math.floor(d.columns/2)*d.symbol_size),f.logical_to_screen(d.save.world.players[d.save.player.nickname].position.coordinates[1])-(Math.floor(d.rows/2)*d.symbol_size)];
 },
 /**расчет коллайдеров*/
 update_player_collider:function(){
-	d.save.player.collider=[[d.save.player.coordinates[0],d.save.player.coordinates[1]],[d.save.player.coordinates[0]+d.logical_symbol_size,d.save.player.coordinates[1]+d.logical_symbol_size]];
+	d.save.world.players[d.save.player.nickname].position.collider=[[d.save.world.players[d.save.player.nickname].position.coordinates[0],d.save.world.players[d.save.player.nickname].position.coordinates[1]],[d.save.world.players[d.save.player.nickname].position.coordinates[0]+d.logical_symbol_size,d.save.world.players[d.save.player.nickname].position.coordinates[1]+d.logical_symbol_size]];
 },
 /**расчет коллизии*/
-update_collision:function(ground_collider=d.save.room.data.ground.collider){
+update_collision:function(ground_collider=d.save.temp.ground.collider){
 	f.update_player_collider();
+	if(!d.save.world.players[d.save.player.nickname].position.touch_wall){
+		d.save.world.players[d.save.player.nickname].position.touch_wall={};
+	}
 	/**упирается ли игрок в стену снизу*/
-	d.save.player.touch_wall.below=false;
+	d.save.world.players[d.save.player.nickname].position.touch_wall.below=false;
 	/**упирается ли игрок в стену слева*/
-	d.save.player.touch_wall.left=false;
+	d.save.world.players[d.save.player.nickname].position.touch_wall.left=false;
 	/**упирается ли игрок в стену справа*/
-	d.save.player.touch_wall.right=false;
+	d.save.world.players[d.save.player.nickname].position.touch_wall.right=false;
 	/**упирается ли игрок в стену сверху*/
-	d.save.player.touch_wall.higher=false;
-	for(let y=d.save.player.collider[0][1];y<d.save.player.collider[1][1];y++){
-		for(let x=d.save.player.collider[0][0];x<d.save.player.collider[1][0];x++){
+	d.save.world.players[d.save.player.nickname].position.touch_wall.higher=false;
+	for(let y=d.save.world.players[d.save.player.nickname].position.collider[0][1];y<d.save.world.players[d.save.player.nickname].position.collider[1][1];y++){
+		for(let x=d.save.world.players[d.save.player.nickname].position.collider[0][0];x<d.save.world.players[d.save.player.nickname].position.collider[1][0];x++){
 			let coordinates=[x,y+1];
 			if(coordinates.every(num=>num>=0)){
 				try{
 					if(ground_collider[coordinates[1]][coordinates[0]]){
-						d.save.player.touch_wall.below=true;
+						d.save.world.players[d.save.player.nickname].position.touch_wall.below=true;
 					}
 				}catch{}
 			}
@@ -1067,7 +1076,7 @@ update_collision:function(ground_collider=d.save.room.data.ground.collider){
 			if(coordinates.every(num=>num>=0)){
 				try{
 					if(ground_collider[coordinates[1]][coordinates[0]]){
-						d.save.player.touch_wall.higher=true;
+						d.save.world.players[d.save.player.nickname].position.touch_wall.higher=true;
 					}
 				}catch{}
 			}
@@ -1075,7 +1084,7 @@ update_collision:function(ground_collider=d.save.room.data.ground.collider){
 			if(coordinates.every(num=>num>=0)){
 				try{
 					if(ground_collider[coordinates[1]][coordinates[0]]){
-						d.save.player.touch_wall.right=true;
+						d.save.world.players[d.save.player.nickname].position.touch_wall.right=true;
 					}
 				}catch{}
 			}
@@ -1083,7 +1092,7 @@ update_collision:function(ground_collider=d.save.room.data.ground.collider){
 			if(coordinates.every(num=>num>=0)){
 				try{
 					if(ground_collider[coordinates[1]][coordinates[0]]){
-						d.save.player.touch_wall.left=true;
+						d.save.world.players[d.save.player.nickname].position.touch_wall.left=true;
 					}
 				}catch{}
 			}
@@ -1092,6 +1101,7 @@ update_collision:function(ground_collider=d.save.room.data.ground.collider){
 },
 /**устанавливает рамку на активный слот хотбара*/
 update_active_hotbar_slot_frame:function(){
+	if(d.save.player.interface.hotbar.slot_count==0)return;
 	let active_hotbar_slot_frame=document.getElementById('active_hotbar_slot_frame');
 	if(!active_hotbar_slot_frame){
 		active_hotbar_slot_frame=f.create_element_from_HTML(`<img id="active_hotbar_slot_frame" src="images/interface/inventory/active_slot_frame.png"/>`);
@@ -1122,9 +1132,8 @@ generate_esc_menu:function(){
 	let esc_menu=f.create_element_from_HTML(`<div id="esc_menu"></div>`);
 	let button_to_main_menu=f.create_button_from_text(d.language.interface.buttons.to_main_menu);
 	button_to_main_menu.addEventListener('click',()=>{
-		if(confirm(d.language.confirms.is_need_save)){
-			f.save_as_json(d.save,`${1e16-Date.now()} - CODERROR ${window.version} d.save.json`);
-		}
+		f.save_character(d.save.player);
+		f.save_world(d.save.world);
 		f.change_room('main_menu');
 	});
 	button_to_main_menu.id='button_to_main_menu';
@@ -1165,20 +1174,6 @@ activate_next_hotbar_slot:function(){
 		d.save.player.interface.hotbar.active_slot_index=0;
 	}
 	f.update_active_hotbar_slot_frame();
-},
-/**завершить подготовку комнаты*/
-finish_preparation:function(){
-	d.save.room.preparation=false;
-	if(d.loadable_save_data){
-		d.save=d.loadable_save_data;
-		d.loadable_save_data=null;
-		f.update_interface();
-	}
-},
-/**загружает сохранение*/
-load_save:function(data){
-	d.loadable_save_data=data;
-	f.change_room(data.room.id);
 },
 open_handles_DB:function() {
 	return new Promise((resolve, reject) => {
@@ -1592,7 +1587,7 @@ save_character:function(character){
 	});
 },
 update_characters_list:function(){
-	d.save.room.data.characters_list_div.replaceChildren(f.create_characters_list());
+	d.save.temp.room.data.characters_list_div.replaceChildren(f.create_characters_list());
 },
 save_character_update_list:function(character){
 	f.save_character(character);
@@ -1618,6 +1613,83 @@ load_characters:async function(){
 		console.error('Ошибка загрузки персонажей:', error);
 		throw error;
 	}
+},
+world_to_element:function(world){
+	let div1=f.create_element_from_HTML(`<div></div>`);
+	div1.appendChild(f.create_element_from_HTML(f.get_transparent_space_text(world.name)));
+	let button=f.wrap_in_frame(div1);
+	button.addEventListener('click',()=>{
+		d.save.world=world;
+		if(d.save.world.players&&d.save.world.players[d.save.player.nickname]&&d.save.world.players[d.save.player.nickname].position){
+			f.load_save(d.save);
+		}else{
+			f.change_room('intro0');
+		}
+	});
+	return button;
+},
+create_worlds_list:function(){
+	let worlds_list=f.create_element_from_HTML('<div id="worlds_list" class="column"></div>');
+	for(let world of d.worlds){
+		let world_element=f.world_to_element(world);
+		worlds_list.appendChild(world_element);
+		worlds_list.appendChild(f.get_br());
+		worlds_list.appendChild(f.get_br());
+	}
+	return worlds_list;
+},
+save_world:function(world){
+	f.write_file(`YOUR_DATA/worlds/${world.name}.json`,f.object_to_string(world)).then(()=>{
+		f.print_to_chat(d.language.notifications.world_saved);
+	});
+},
+update_worlds_list:function(){
+	d.save.temp.room.data.worlds_list_div.replaceChildren(f.create_worlds_list());
+},
+save_world_update_list:function(world){
+	f.save_world(world);
+	d.worlds.unshift(world);
+	f.update_worlds_list();
+},
+load_world:async function(filename) {
+	return await f.fetch_json(`YOUR_DATA/worlds/${filename}`);
+},
+load_worlds:async function(){
+	try{
+		d.worlds=[];
+		const files=await f.list_files('YOUR_DATA/worlds');
+		const worldPromises=files.map(file=>
+			this.load_world(file)
+		);
+		const worlds=await Promise.all(worldPromises);
+		d.worlds.unshift(...worlds);
+		return worlds;
+	}catch(error){
+		console.error('Ошибка загрузки миров:',error);
+		throw error;
+	}
+},
+/**загружает сохранение*/
+load_save:function(data){
+	d.loadable_save_data=_.cloneDeep(data);
+	f.change_room(d.save.world.players[d.save.player.nickname].position.room_id);
+},
+/**начать подготову комнаты*/
+prepare:function(preparation_func){
+	if(d.save.temp.room.preparation){
+		preparation_func();
+		f.finish_preparation();
+	}
+},
+/**завершить подготовку комнаты*/
+finish_preparation:function(){
+	if(d.loadable_save_data){
+		d.save=f.smart_merge([d.save,d.loadable_save_data],99);
+		d.loadable_save_data=null;
+		f.update_interface();
+	}
+	d.save.temp.room.preparation=false;
+	console.log(d.save);
 }
 };
 

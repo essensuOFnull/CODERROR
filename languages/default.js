@@ -4,7 +4,7 @@ window.CODERROR.__originals__.data.languages.default={
 		'⦑color:#909⦒仨与与仨刀仁仨・口千・力仨与户升工艮':`обещал продолжить моё дело в случае моей смерти.`,
 		'⦑color:#00f⦒Theb.ai, DeepSeek':`помощь в программировании.`
 	},
-	splashes:["во имя шизы!","t.me/essensuOFnull","феникс"],
+	splashes:["во имя шизы!","t.me/essensuOFnull","феникс","библиотечный соскрёб"],
 	notifications:{
 		current_music:(path)=>{
 			return`<div class="inherit_colors" style="color:#f00">𝄞</div> сейчас играет: <div class="inherit_colors" style="color:#f0f">${path}</div> <div class="inherit_colors" style="color:#f00">♫</div>`
@@ -15,6 +15,7 @@ window.CODERROR.__originals__.data.languages.default={
 		settings_saved:`✔️ настройки сохранены`,
 		settings_loaded:`✔️ настройки загружены`,
 		character_saved:`✔️ персонаж сохранён`,
+		world_saved:`✔️ мир сохранён`,
 	},
 	alerts:{
 		file_saved:(name)=>{return`файл возможно был сохранён в папку загрузок с именем "${name}"`}
@@ -26,7 +27,8 @@ window.CODERROR.__originals__.data.languages.default={
 		common:(error)=>{return`❌ <div class="inherit_colors" style="color:#f00">Ошибка: ${error}</div>`},
 	},
 	prompts:{
-		enter_nickname:`Введите ник персонажа:`
+		enter_nickname:`Введите ник персонажа:`,
+		enter_world_name:`Введите название мира:`
 	},
 	settings:{
 		interface:{
@@ -107,6 +109,14 @@ window.CODERROR.__originals__.data.languages.default={
 			buttons:{
 				back:`назад`,
 				create:`создать нового персонажа`
+			}
+		},
+		world_selection:{
+			title:`выбор мира`,
+			drop_zone:`зона\nзагрузки\nмира`,
+			buttons:{
+				back:`назад`,
+				create:`создать новый мир`
 			}
 		},
 		authors:{
