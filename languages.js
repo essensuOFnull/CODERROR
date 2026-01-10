@@ -73,5 +73,66 @@ default:{
 			}
 		}
 	}
+},
+'test english':{
+    contribution:{
+        '⦑color:#f0f⦒essensuOFnull':`initiator, idea author, programmer.`,
+        '⦑color:#909⦒仨与与仨刀仁仨・口千・力仨与户升工艮':`might draw textures in the future.`,
+        '⦑color:#00f⦒Theb.ai, DeepSeek':`programming assistance.`
+    },
+    settings:{
+        interface:{
+            name:`interface settings`,
+            options:{
+                language:`additional languages priority`,
+                font_size:`character cell size (not recommended to change)`,
+                max_content_width:`maximum window content width`,
+                max_content_height:`maximum window content height`
+            }
+        },
+        audio:{
+            name:`audio settings`,
+            options:{
+                music_volume:`music volume`,
+                sounds_volume:`sound effects volume`
+            }
+        },
+        control:{
+            name:`control settings`,
+            options:{
+                left:`left`,
+                right:`right`,
+                jump:`jump`
+            }
+        }
+    },
+    alerts:{
+        file_saved:(name)=>{return`the file might have been saved to your Downloads folder as "${name}". I can't choose the save location. You may want to move it to the "YOUR_DATA" folder in the project directory for convenience`}
+    },
+    rooms:{
+        main_menu:{
+            buttons:{
+                new_game:`take the risk to start new game`,
+                continue:`continue aimlessly`,
+                settings:`illusion of control`,
+                authors:`pantheon of creators`,
+                exit:`exit`
+            }
+        },
+        authors:{
+            buttons:{
+                back:`back`
+            }
+        },
+        settings:{
+            drop_zone:`file\ndrop\nzone`,
+            buttons:{
+                back:`back`,
+                apply:`apply`,
+                save:`save to file`,
+                add:`+`
+            }
+        }
+    }
 }
 }

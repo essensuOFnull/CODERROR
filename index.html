@@ -30,8 +30,8 @@ html,body{
 }
 body {
 	display: flex;
-    justify-content: center;
-    align-items: center;
+	justify-content: center;
+	align-items: center;
 }
 canvas{
 	display:block;
@@ -43,7 +43,7 @@ canvas{
 	top:0;
 	left:0;
 	width: inherit;
-    height: inherit;
+	height: inherit;
 	/*чтобы центрирование по вертикали работало*/
 	display: flex;
 	flex-direction: column;
@@ -94,13 +94,13 @@ button{
 	scrollbar-color:#fff #000;
 }
 #wrapper{
-    position:relative;
+	position:relative;
 }
 select{
 	background:#00000000;
 	color:#fff;
 	outline:none;
-    border:none;
+	border:none;
 }
 /* Для выпадающего списка */
 select option{
@@ -178,7 +178,7 @@ if(!window.location.search.includes('child=1')){
 			app.init().then(()=>{
 				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.18.0';
+				window.version='(1)0.18.1';
 				/*добавление в разметку canvas-а pixijs*/
 				wrapper.appendChild(app.view);
 				/*добавление в разметку html-overlay*/
@@ -227,6 +227,7 @@ if(!window.location.search.includes('child=1')){
 					text_style=new PIXI.TextStyle({
 						fontFamily:'CODERROR',
 						fontSize:symbol_size,
+						trim:false,
 						fill:0xFFFFFF,
 					});
 					update_symbols_grid();
@@ -781,6 +782,21 @@ if(!window.location.search.includes('child=1')){
 					/*уведомление*/
 					alert(window.language.alerts.file_saved(filename));
 				}
+				/*удаляет из списка повторяющиеся значения, оставляя в нём только их последние вхождения*/
+				function remove_duplicates(arr){
+					const seen=new Set();
+					const result=[];
+					// Идем по массиву в обратном порядке
+					for(let i=arr.length-1;i>=0;i--){
+						const value=arr[i];
+						if(!seen.has(value)){
+							seen.add(value);
+							result.push(value);
+						}
+					}
+					// Перевернем результат, чтобы вернуть его в правильном порядке
+					return result.reverse();
+				}
 				/*финальная настройка*/
 				let room_data;
 				apply_language(window.settings.interface.language);
@@ -953,6 +969,16 @@ L n L q L q H  U n U n L q U n
 							});
 							room_data.buttons.save.addEventListener('click',()=>{
 								save_as_json(window.settings,'settings.json');
+							});
+							room_data.buttons.apply.addEventListener('click',()=>{
+								let language_list=[];
+								for(let select of room_data.settings_divs.interface.language.querySelectorAll('select')){
+									language_list.push(select.value);
+								}
+								language_list=remove_duplicates(language_list);
+								window.settings.interface.language=language_list;
+								apply_language(language_list);
+								change_room(room);
 							});
 							preparation=false;
 						}
