@@ -40,8 +40,32 @@ d.app.init().then(()=>{
 	/**данные о курсоре мыши*/
 	d.mouse={x:0,y:0};
 	d.wrapper.addEventListener('mousemove',(event)=>{
+		if(!window.has_focus&&d.settings.interface.pause_on_blur)return;
+		
 		d.mouse.x=event.clientX-d.wrapper.getBoundingClientRect().left;
 		d.mouse.y=event.clientY-d.wrapper.getBoundingClientRect().top;
+		/*для кастомного курсора*/
+		if(!d.cursor || !d.cursor_config) return;
+
+		let element = event.target;
+		// Используем data-атрибут вместо computedStyle
+		let cursor_type = f.get_cursor_from_element(element);
+		
+		// Если курсор не найден в конфиге, используем default
+		if(!d.cursor_config[cursor_type]){
+			cursor_type = 'default';
+		}
+		
+		let x=d.mouse.x-_.get(d, `cursor_config.${cursor_type}.hotspot_x`),
+		y=d.mouse.y-_.get(d, `cursor_config.${cursor_type}.hotspot_y`);
+		
+		d.cursor.style.transform = `translate(${x}px, ${y}px)`;
+
+		if(d.cursor_type === cursor_type) return;
+
+		let cursor_file_path = _.get(d, `cursor_config.${cursor_type}.file`);
+		d.cursor.src = cursor_file_path ? `${d.cursor_folder_path}/${cursor_file_path}` : '';
+		d.cursor_type = cursor_type;
 	});
 	/*добавление в разметку canvas-а pixijs*/
 	d.wrapper.appendChild(d.app.view);
@@ -111,6 +135,10 @@ d.app.init().then(()=>{
 	f.set_empty_player();
 	f.change_room('disclaimer');
 	f.apply_settings();
+	/**инициализация системы кастомных курсоров*/
+	f.init_cursor_system();
+	/**загрузка курсора по умолчанию*/
+	f.set_cursor('images/interface/cursors/default');
 	/**прослушиватель нажатий клавиш*/
 	d.input_tracker=f.setup_input_tracker();
 	/**логический размер символов, используемый в физике*/

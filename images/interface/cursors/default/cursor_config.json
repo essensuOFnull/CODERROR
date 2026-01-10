@@ -1,0 +1,172 @@
+{
+"auto":{
+	"file":"normal_select.png",
+	"hotspot_x":2,
+	"hotspot_y":4
+},
+"default":{
+	"file":"normal_select.png",
+	"hotspot_x":2,
+	"hotspot_y":4
+},
+"pointer":{
+	"file":"link_select.png",
+	"hotspot_x":13,
+	"hotspot_y":2
+},
+"text":{
+	"file":"text_select.png",
+	"hotspot_x":15,
+	"hotspot_y":15
+},
+"wait":{
+	"file":"busy.png",
+	"hotspot_x":10,
+	"hotspot_y":10
+},
+"help":{
+	"file":"help_select.png",
+	"hotspot_x":2,
+	"hotspot_y":4
+},
+"progress":{
+	"file":"working_in_background.png",
+	"hotspot_x":2,
+	"hotspot_y":4
+},
+"crosshair":{
+	"file":"precision_select.png",
+	"hotspot_x":15,
+	"hotspot_y":15
+},
+"move":{
+	"file":"move.png",
+	"hotspot_x":15,
+	"hotspot_y":15
+},
+"e-resize":{
+	"file":"horizontal_resize.png",
+	"hotspot_x":15,
+	"hotspot_y":15
+},
+"w-resize":{
+	"file":"horizontal_resize.png",
+	"hotspot_x":15,
+	"hotspot_y":15
+},
+"n-resize":{
+	"file":"vertical_resize.png",
+	"hotspot_x":15,
+	"hotspot_y":15
+},
+"s-resize":{
+	"file":"vertical_resize.png",
+	"hotspot_x":15,
+	"hotspot_y":15
+},
+"ne-resize":{
+	"file":"diagonal_resize2.png",
+	"hotspot_x":15,
+	"hotspot_y":15
+},
+"nw-resize":{
+	"file":"diagonal_resize1.png",
+	"hotspot_x":15,
+	"hotspot_y":15
+},
+"se-resize":{
+	"file":"diagonal_resize1.png",
+	"hotspot_x":15,
+	"hotspot_y":15
+},
+"sw-resize":{
+	"file":"diagonal_resize2.png",
+	"hotspot_x":15,
+	"hotspot_y":15
+},
+"ew-resize":{
+	"file":"horizontal_resize.png",
+	"hotspot_x":15,
+	"hotspot_y":15
+},
+"ns-resize":{
+	"file":"vertical_resize.png",
+	"hotspot_x":15,
+	"hotspot_y":15
+},
+"nesw-resize":{
+	"file":"diagonal_resize2.png",
+	"hotspot_x":15,
+	"hotspot_y":15
+},
+"nwse-resize":{
+	"file":"diagonal_resize1.png",
+	"hotspot_x":15,
+	"hotspot_y":15
+},
+"col-resize":{
+	"file":"horizontal_resize.png",
+	"hotspot_x":15,
+	"hotspot_y":15
+},
+"row-resize":{
+	"file":"vertical_resize.png",
+	"hotspot_x":15,
+	"hotspot_y":15
+},
+"not-allowed":{
+	"file":"unavailible.png",
+	"hotspot_x":2,
+	"hotspot_y":4
+},
+"no-drop":{
+	"file":"unavailible.png",
+	"hotspot_x":2,
+	"hotspot_y":4
+},
+"grab":{
+	"file":"alternate_select.png",
+	"hotspot_x":15,
+	"hotspot_y":6
+},
+"grabbing":{
+	"file":"alternate_select.png",
+	"hotspot_x":15,
+	"hotspot_y":6
+},
+"context-menu":{
+	"file":"alternate_select.png",
+	"hotspot_x":15,
+	"hotspot_y":6
+},
+"vertical-text":{
+	"file":"text_select.png",
+	"hotspot_x":15,
+	"hotspot_y":15
+},
+"cell":{
+	"file":"location_select.png",
+	"hotspot_x":9,
+	"hotspot_y":4
+},
+"alias":{
+	"file":"location_select.png",
+	"hotspot_x":9,
+	"hotspot_y":4
+},
+"copy":{
+	"file":"location_select.png",
+	"hotspot_x":9,
+	"hotspot_y":4
+},
+"zoom-in":{
+	"file":"person_select.png",
+	"hotspot_x":9,
+	"hotspot_y":4
+},
+"zoom-out":{
+	"file":"person_select.png",
+	"hotspot_x":9,
+	"hotspot_y":4
+}
+}

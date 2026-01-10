@@ -242,7 +242,6 @@ input[type="checkbox"]{
 	color:inherit;
 	background:inherit;
 }
-
 /* Эпичная пульсирующая золотая кнопка для пожертвований */
 .epic-donation-button{
 	animation:epic-pulse 500ms ease-in-out infinite;
@@ -252,4 +251,13 @@ input[type="checkbox"]{
 	0%   {transform:scale(0.98);box-shadow:0 0 calc(var(--symbol_size) / 2) calc(var(--symbol_size) / 4) gold;}
 	90%  {transform:scale(1.01);box-shadow:0 0 calc(var(--symbol_size) * 2) calc(var(--symbol_size) / 2) #ff0;}
 	100% {transform:scale(0.98);box-shadow:0 0 calc(var(--symbol_size) / 2) calc(var(--symbol_size) / 4) gold;}
+}
+#cursor{
+	position:absolute;
+	width:auto;
+	height:auto;
+	pointer-events:none;
+	z-index:9999;
+	top:0;
+	left:0;
 }

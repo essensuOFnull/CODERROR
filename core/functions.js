@@ -1739,6 +1739,143 @@ render_player(player=_.get(d,'save.player')){
 	if(label.position.x !== screen_x || label.position.y !== screen_y){
 		label.position.set(screen_x, screen_y);
 	}
+},
+/**инициализирует систему кастомных курсоров*/
+init_cursor_system(){
+	/**контейнер для кастомного курсора*/
+	d.cursor = document.getElementById('cursor');
+	/**текущая конфигурация курсора*/
+	d.cursor_config = null;
+	/**текущий способ отображения курсора*/
+	d.cursor_type = null;
+	
+	/**обработчик для копирования cursor в data-атрибуты*/
+	f.init_cursor_data_attributes();
+},
+/**Инициализирует data-атрибуты для курсоров*/
+init_cursor_data_attributes(){
+	// Обрабатываем существующие элементы
+	f.process_elements_for_cursor(document.documentElement);
+	
+	// Наблюдаем за новыми элементами
+	const observer = new MutationObserver((mutations) => {
+		for(let mutation of mutations){
+			for(let node of mutation.addedNodes){
+				if(node.nodeType === Node.ELEMENT_NODE){
+					f.process_elements_for_cursor(node);
+				}
+			}
+		}
+	});
+	
+	observer.observe(document.body, {
+		childList: true,
+		subtree: true
+	});
+},
+/**Обрабатывает элементы, копируя cursor в data-атрибут*/
+process_elements_for_cursor(root){
+	// Получаем все элементы, включая сам root
+	const elements = [root, ...root.querySelectorAll('*')];
+	
+	// Обходим в обратном порядке (снизу вверх) для правильного наследования
+	for(let i = elements.length - 1; i >= 0; i--){
+		let element = elements[i];
+		// Пропускаем уже обработанные элементы
+		if(element.hasAttribute('data-cursor-processed')) continue;
+		
+		// Получаем вычисленный курсор
+		const computed_style = window.getComputedStyle(element);
+		let cursor_type = computed_style.getPropertyValue('cursor');
+		
+		// Обрабатываем специальные случаи
+		if(cursor_type === 'inherit') {
+			// Для inherit находим родительский data-cursor
+			cursor_type = f.get_inherited_cursor(element);
+		} else if(cursor_type === 'auto') {
+			// Для auto используем логику браузера
+			cursor_type = f.get_auto_cursor(element);
+		}
+		
+		// Сохраняем в data-атрибут
+		element.setAttribute('data-cursor', cursor_type);
+		element.style.cursor = 'none';
+		
+		// Помечаем как обработанный
+		element.setAttribute('data-cursor-processed', 'true');
+	}
+},
+/**Получает унаследованный курсор из родительских элементов*/
+get_inherited_cursor(element) {
+	let parent = element.parentElement;
+	while(parent && parent.nodeType === Node.ELEMENT_NODE) {
+		if(parent.hasAttribute('data-cursor')) {
+			return parent.getAttribute('data-cursor');
+		}
+		parent = parent.parentElement;
+	}
+	return 'default';
+},
+/**Определяет курсор для значения 'auto' на основе типа элемента*/
+get_auto_cursor(element) {
+	// Логика определения курсора для auto (аналогично браузерной)
+	const tagName = element.tagName.toLowerCase();
+	const computedStyle = window.getComputedStyle(element);
+	
+	// Проверяем, является ли элемент кликабельным
+	if(element.onclick || 
+	   element.hasAttribute('onclick') ||
+	   element.closest('[onclick]') ||
+	   element.matches('a, button, input[type="button"], input[type="submit"]') ||
+	   computedStyle.pointerEvents === 'none') {
+		return 'pointer';
+	}
+	
+	// Проверяем, является ли элемент текстовым
+	if(element.matches('input, textarea, [contenteditable="true"]') ||
+	   computedStyle.userSelect === 'text') {
+		return 'text';
+	}
+	
+	// Для изображений и ссылок
+	if(element.matches('img, a')) {
+		return 'pointer';
+	}
+	
+	// По умолчанию
+	return 'default';
+},
+/**Получает тип курсора из элемента и его родителей*/
+get_cursor_from_element(element){
+	// Ищем ближайший элемент с data-cursor
+	let current = element;
+	while(current && current.nodeType === Node.ELEMENT_NODE){
+		if(current.hasAttribute('data-cursor')){
+			const cursor = current.getAttribute('data-cursor');
+			// Если нашли inherit, продолжаем поиск
+			if(cursor !== 'inherit') {
+				return cursor;
+			}
+		}
+		current = current.parentElement;
+	}
+	
+	// Если не нашли, используем default
+	return 'default';
+},
+/**устанавливает курсор из указанной папки*/
+set_cursor(cursor_folder_path){
+	f.fetch_json(`${cursor_folder_path}/cursor_config.json`).then(config => {
+		if(!config || typeof config !== 'object'){
+			console.error('Неверный формат конфигурации курсора');
+			return;
+		}
+		
+		d.cursor_config = config;
+		d.cursor_folder_path = cursor_folder_path;
+	}).catch(error => {
+		console.error('Ошибка при загрузке конфигурации курсора:', error);
+	});
 }
 };
 
