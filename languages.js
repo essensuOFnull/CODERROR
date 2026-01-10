@@ -14,6 +14,17 @@ default:{
 		current_room:(room)=>{
 			return`ℹ️ текущая комната: <div class="inherit_colors" style="color:#f0f">${room}</div>`;
 		},
+		settings_saved:`✔️ настройки сохранены`,
+		settings_loaded:`✔️ настройки загружены`
+	},
+	alerts:{
+		file_saved:(name)=>{return`файл возможно был сохранён в папку загрузок с именем "${name}"`}
+	},
+	confirms:{
+		is_need_save:`создать файл сохранения? помещенные в одну папку, более новые сохранения будут выше.`
+	},
+	errors:{
+		common:(error)=>{return`❌ <div class="inherit_colors" style="color:#f00">Ошибка: ${error}</div>`},
 	},
 	settings:{
 		interface:{
@@ -80,12 +91,6 @@ default:{
 			}
 		}
 	},
-	alerts:{
-		file_saved:(name)=>{return`файл возможно был сохранён в папку загрузок с именем "${name}", я не могу выбрать куда его сохранить. возможно стоит перенести его в папку "YOUR_DATA" в папке проекта для удобства`}
-	},
-	confirms:{
-		is_need_save:`создать файл сохранения? помещенные в одну папку, более новые сохранения будут выше.`
-	},
 	rooms:{
 		main_menu:{
 			buttons:{
@@ -109,7 +114,7 @@ default:{
 			buttons:{
 				back:`назад`,
 				apply:`применить`,
-				save:`сохранить в файл`
+				save:`сохранить`
 			},
 			messages:{
 				input:`ткни клаву`

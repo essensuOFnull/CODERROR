@@ -90,7 +90,17 @@ function update_game_logic(){
                 d.save.room.data.button_continue.addEventListener('click',()=>{
                     /*получение доступа к своей же папке*/
                     f.init_file_access().then(()=>{
-                        f.create_directory('saves/slot1');
+                        try{
+                            f.read_file('YOUR_DATA/settings.json').then((text)=>{
+                                if(text){
+                                    d.settings=JSON.parse(text);
+                                    f.apply_settings();
+                                    f.print_to_chat(d.language.notifications.settings_loaded);
+                                }
+                            });
+                        }catch(e){
+                            f.print_to_chat(d.language.errors.common(e));
+                        }
                         f.change_room('main_menu');
                     }).catch(e=>{ console.warn('init_file_access failed:', e); });
                 });
@@ -342,14 +352,25 @@ L n L q L q H  U n U n L q U n
                 d.save.room.data.div2.appendChild(f.get_space());
                 d.save.room.data.div2.appendChild(d.save.room.data.buttons.save);
                 f.add_event_listener('get_json',d.save.room.data.drop_zone,(data)=>{
-                    d.settings=f.smart_merge([d.settings,data],9);
-                    f.apply_settings();
+                    try{
+                        d.settings=f.smart_merge([d.settings,data],9);
+                        f.apply_settings();
+                        f.print_to_chat(d.language.notifications.settings_loaded);
+                    }catch(e){
+                        f.print_to_chat(d.language.errors.common(e));
+                    }
                 });
                 d.save.room.data.buttons.back.addEventListener('click',()=>{
                     f.change_room('main_menu');
                 });
                 d.save.room.data.buttons.save.addEventListener('click',()=>{
-                    f.save_as_json(d.settings,'settings.json');
+                    try{
+                        f.write_file('YOUR_DATA/settings.json',f.object_to_string(d.settings)).then(()=>{
+                            f.print_to_chat(d.language.notifications.settings_saved);
+                        });
+                    }catch(e){
+                        f.print_to_chat(d.language.errors.common(e));
+                    }
                 });
                 d.save.room.data.buttons.apply.addEventListener('click',()=>{
                     let language_list=[];
