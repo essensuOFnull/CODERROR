@@ -24,7 +24,7 @@ function update_game_logic(){
 	let nickname=d.save.player.nickname,
 	room_id=_.get(d,`save.world.players.${nickname}.position.room_id`);
 
-	f.change_title(`CODERROR ${d.version} TPS: ${d.TPS} FPS: ${d.FPS} - ${d.splash}`);
+	f.change_title(`CODERROR (1)${d.manifest.version} TPS: ${d.TPS} FPS: ${d.FPS} - ${d.splash}`);
 	if(!window.has_focus&&d.settings.interface.pause_on_blur)return
 	if(d.save.temp.room.preparation){
 		f.print_to_chat(d.language.notifications.current_room(room_id));
@@ -128,7 +128,7 @@ function update_game_logic(){
 			f.set_music('music/main_menu.mp3');
 			f.set_interface_visibility(false);
 			d.save.temp.room.data={
-				info:f.create_element_from_HTML(`<div>${f.get_transparent_space_text(`CODERROR ${d.version} by essensuOFnull`,'#c8c8c8')}</div>`),
+				info:f.create_element_from_HTML(`<div>${f.get_transparent_space_text(`CODERROR (1)${d.manifest.version} by essensuOFnull`,'#c8c8c8')}</div>`),
 				logo:f.create_element_from_HTML(`<div class="center-horizontal">${f.get_transparent_space_text(String.raw`
 /T\ /T\ PT\ P] PT\ PT\ /T\ PT\
 L U L q L q H  L q L q L q L q

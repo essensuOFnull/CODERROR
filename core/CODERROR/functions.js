@@ -169,8 +169,8 @@ print_to_chat(message){
 	});
 },
 change_room(room,preparation=true,reset_overlay=true){
-	_.set(d,`save.world.players.${d.save.player.nickname}.position.room_id`,room);
-	_.set(d,'save.temp.room.preparation',preparation);
+	_.set(d,['save','world','players',d.save.player.nickname,'position','room_id'],room);
+	_.set(d,['save','temp','room','preparation'],preparation);
 	if(!reset_overlay)return
 	d.overlay.innerHTML=``;
 },
@@ -348,45 +348,42 @@ get_symbol_texture(char) {
 },
 /** Устанавливает символ в ячейку (высокооптимизированная версия) */
 set_symbol_data(x, y, char, textColor = 0xFFFFFF, bgColor = 0x000000, bgAlpha = 0) {
-    if (y >= 0 && y < d.rows && x >= 0 && x < d.columns) {
-        let container = d.symbols_grid[y][x];
-        let data = d.symbols_grid_data[y][x];
-        
-        if (!container || !data) return;
-        
-        let background = container.children[0];
-        let symbol = container.children[1];
-        
-        // Обновляем фон
-        if (background.alpha !== bgAlpha || background.tint !== bgColor) {
-            background.tint = bgColor;
-            background.alpha = bgAlpha;
-        }
-        
-        // Обновляем символ
-        if (data.char !== char || data.textColor !== textColor) {
-            data.char = char;
-            data.textColor = textColor;
-            
-            if (char && char !== '') {
-                // Получаем текстуру символа из атласа
-                const texture = f.get_symbol_texture(char);
-                if (texture) {
-                    symbol.texture = texture;
-                    symbol.tint = textColor;
-                    symbol.alpha = 1;
-                } else {
-                    symbol.alpha = 0; // Скрываем если символ не найден
-                }
-            } else {
-                symbol.alpha = 0; // Пустой символ
-            }
-        }
-        
-        // Сохраняем данные
-        data.bgColor = bgColor;
-        data.bgAlpha = bgAlpha;
-    }
+	let container = _.get(d, ['symbols_grid', y, x]),
+    data = _.get(d, ['symbols_grid_data', y, x]);
+	if(!container||!data)return;
+	
+	let background = container.children[0];
+	let symbol = container.children[1];
+	
+	// Обновляем фон
+	if (background.alpha !== bgAlpha || background.tint !== bgColor) {
+		background.tint = bgColor;
+		background.alpha = bgAlpha;
+	}
+	
+	// Обновляем символ
+	if (data.char !== char || data.textColor !== textColor) {
+		data.char = char;
+		data.textColor = textColor;
+		
+		if (char && char !== '') {
+			// Получаем текстуру символа из атласа
+			const texture = f.get_symbol_texture(char);
+			if (texture) {
+				symbol.texture = texture;
+				symbol.tint = textColor;
+				symbol.alpha = 1;
+			} else {
+				symbol.alpha = 0; // Скрываем если символ не найден
+			}
+		} else {
+			symbol.alpha = 0; // Пустой символ
+		}
+	}
+	
+	// Сохраняем данные
+	data.bgColor = bgColor;
+	data.bgAlpha = bgAlpha;
 },
 /** Устанавливает текст в ячейку (только данные) */
 set_text_data(x, y, text, textColor = 0xFFFFFF, bgColor = 0x000000, bgAlpha = 0){
@@ -1909,8 +1906,9 @@ update_player_collider(){
 update_collision(ground_collider=d.save.temp.ground.collider){
 	f.update_player_collider();
 	let nickname=d.save.player.nickname,
-	touch_wall=`save.world.players.${nickname}.position.touch_wall`,
-	collider=`save.world.players.${nickname}.position.collider`;
+	position=['save','world','players',nickname,'position'],
+	touch_wall=[...position,'touch_wall'],
+	collider=[...position,'collider'];
 	_.set(d,touch_wall,{
 		/**упирается ли игрок в стену снизу*/
 		below:false,
@@ -1921,23 +1919,23 @@ update_collision(ground_collider=d.save.temp.ground.collider){
 		/**упирается ли игрок в стену сверху*/
 		higher:false
 	});
-	for(let y=_.get(d,`${collider}[0][1]`);y<_.get(d,`${collider}[1][1]`);y++){
-		for(let x=_.get(d,`${collider}[0][0]`);x<_.get(d,`${collider}[1][0]`);x++){
+	for(let y=_.get(d,[...collider,0,1]);y<_.get(d,[...collider,1,1]);y++){
+		for(let x=_.get(d,[...collider,0,0]);x<_.get(d,[...collider,1,0]);x++){
 			// Проверка снизу
 			if(_.get(ground_collider,[y+1,x])){
-				_.set(d,`${touch_wall}.below`,true);
+				_.set(d,[...touch_wall,'below'],true);
 			}
 			// Проверка сверху
 			if(_.get(ground_collider,[y-1,x])){
-				_.set(d,`${touch_wall}.higher`,true);
+				_.set(d,[...touch_wall,'higher'],true);
 			}
 			// Проверка справа
 			if(_.get(ground_collider,[y,x+1])){
-				_.set(d,`${touch_wall}.right`,true);
+				_.set(d,[...touch_wall,'right'],true);
 			}
 			// Проверка слева
 			if(_.get(ground_collider,[y,x-1])){
-				_.set(d,`${touch_wall}.left`,true);
+				_.set(d,[...touch_wall,'left'],true);
 			}
 		}
 	}
@@ -2226,15 +2224,15 @@ set_empty_player(){
 		}
 	}
 },
-render_player(player=_.get(d,'save.player')){
-	let basePath=`save.world.players.${player.nickname}`,
-	player_nickname=_.get(player,`nickname`);
+render_player(player=_.get(d,['save','player'])){
+	let basePath=['save','world','players',player.nickname],
+	player_nickname=_.get(player,['nickname']);
 	//Символическое представление игрока
-	if(_.get(player,`is_symbolic`)){
+	if(_.get(player,['is_symbolic'])){
 		/*расчет скина игрока*/
 		const fractional=[false,false];
 		for(let i=0;i<=1;i++){
-			const coord=_.get(d,`${basePath}.position.coordinates[${i}]`);
+			const coord=_.get(d,[...basePath,'position','coordinates',i]);
 			if(coord/d.logical_symbol_size!==Math.floor(coord/d.logical_symbol_size)){
 				fractional[i]=true;
 			}
@@ -2242,9 +2240,9 @@ render_player(player=_.get(d,'save.player')){
 		const player_skin=(fractional[0]?(fractional[1]?'▗▖\n▝▘':'▐▌'):(fractional[1]?'▄\n▀':'█'));
 		/*отрисовка игрока*/
 		f.focus_camera_on_player();
-		const coord0=_.get(d,`${basePath}.position.coordinates[0]`);
-		const coord1=_.get(d,`${basePath}.position.coordinates[1]`);
-		let rendering_coordinates=[f.logical_to_screen(coord0)-(_.get(d,'save.temp.camera[0]')||d.save.temp.camera&&d.save.temp.camera[0]||0),f.logical_to_screen(coord1)-(_.get(d,'save.temp.camera[1]')||d.save.temp.camera&&d.save.temp.camera[1]||0)];
+		const coord0=_.get(d,[...basePath,'position','coordinates',0]);
+		const coord1=_.get(d,[...basePath,'position','coordinates',1]);
+		let rendering_coordinates=[f.logical_to_screen(coord0)-(_.get(d,['save','temp','camera',0])||d.save.temp.camera&&d.save.temp.camera[0]||0),f.logical_to_screen(coord1)-(_.get(d,['save','temp','camera',1])||d.save.temp.camera&&d.save.temp.camera[1]||0)];
 		if(fractional[0]) rendering_coordinates[0]--;
 		if(fractional[1]) rendering_coordinates[1]--;
 		f.print_text_to_symbols_grid(player_skin,rendering_coordinates[0]/d.symbol_size,rendering_coordinates[1]/d.symbol_size);
@@ -2252,12 +2250,13 @@ render_player(player=_.get(d,'save.player')){
 	//Ник над персонажем — создаётся один раз и потом только перемещается
 	if(!d.nickname_labels)d.nickname_labels=new Map();
 	//Вычисляем центр верхней границы коллайдера в логических координатах
-	let collider=`${basePath}.position.collider`,
-	x=(_.get(d,`${collider}[0][0]`)+_.get(d,`${collider}[1][0]`))/2,
-	y=_.get(d,`${collider}[0][1]`);
+	let collider=[...basePath,'position','collider'],
+	x=(_.get(d,[...collider,0,0])+_.get(d,[...collider,1,0]))/2,
+	y=_.get(d,[...collider,0,1]);
 	//Переводим в экранные пиксели
-	let screen_x=Math.round(f.logical_to_screen(x)-_.get(d,'save.temp.camera[0]',0)),
-	screen_y=Math.round(f.logical_to_screen(y)-_.get(d,'save.temp.camera[1]',0));
+	let camera=['save','temp','camera'],
+	screen_x=Math.round(f.logical_to_screen(x)-_.get(d,[...camera,0],0)),
+	screen_y=Math.round(f.logical_to_screen(y)-_.get(d,[...camera,1],0));
 	//Смещаем надпись над головой на расстояние d.symbol_size
 	screen_y-=d.symbol_size;
 

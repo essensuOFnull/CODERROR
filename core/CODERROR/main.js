@@ -10,6 +10,11 @@ window.addEventListener('focus', function() {
 window.addEventListener('blur', function() {
 	window.has_focus = false;
 });
+/**получение манифеста*/
+f.fetch_json('manifest.json').then(manifest=>{
+	/**манифест расширения*/
+	d.manifest=manifest;
+});
 /**дожидаемся загрузки шрифта*/
 f.check_font_loaded('CODERROR').then(() => {
 	/**приложение PIXI.js*/
