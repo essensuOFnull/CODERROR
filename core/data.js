@@ -4,7 +4,7 @@ d=window.CODERROR.CHEATING.data;
 
 window.CODERROR.CHEATING.data={
 /**версия CODERROR'а*/
-version:'(1)0.35.1',
+version:'(1)0.36.0',
 /**данные иконки сайта*/
 favicon:{},
 /**клавиши которые нельзя забиндить*/

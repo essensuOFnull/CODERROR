@@ -161,11 +161,11 @@ change_room:function(room_,preparation_=true,reset_overlay_=true){
     }
 },
 /**инициализирует матрицу символов*/
-init_sumbols_grid:function(){
+init_symbols_grid:function(){
     d.symbols_grid=[];
     d.columns=0;
     d.rows=0;
-    f.update_symbols_grid();
+    f.set_font_size(d.symbol_size||16);
 },
 /**обновляет размеры матрицы символов*/
 update_symbols_grid:function(){
@@ -187,7 +187,7 @@ update_symbols_grid:function(){
             for(let y=d.rows;y<newRows;y++){
                 d.symbols_grid[y]=[];
                 for(let x=0;x<Math.max(d.columns,newColumns);x++){
-                    let symbol=new PIXI.Text('',text_style);
+                    let symbol=new PIXI.Text('',d.pixi_text_style);
                     symbol.resolution=20;
                     symbol.position.set(x*d.symbol_size,y*d.symbol_size);
                     d.app.stage.addChild(symbol);
@@ -209,7 +209,7 @@ update_symbols_grid:function(){
             /*Добавляем новые колонки*/
             if(newColumns>d.columns){
                 for(let x=d.columns;x<newColumns;x++){
-                    let symbol=new PIXI.Text('',text_style);
+                    let symbol=new PIXI.Text('',d.pixi_text_style);
                     symbol.resolution=20;
                     symbol.position.set(x*d.symbol_size,y*d.symbol_size);
                     d.app.stage.addChild(symbol);
@@ -224,13 +224,13 @@ update_symbols_grid:function(){
 set_font_size:function(size_in_pixels){
     d.symbol_size=size_in_pixels;
     d.styleSheet.insertRule(":root{--symbol_size:"+d.symbol_size+"px !important;}",d.styleSheet.cssRules.length);
-    text_style=new PIXI.TextStyle({
+    d.pixi_text_style=new PIXI.TextStyle({
         fontFamily:'CODERROR',
         fontSize:d.symbol_size,
         trim:false,
         fill:0xFFFFFF,
     });
-    f.init_sumbols_grid();
+    f.update_symbols_grid();
 },
 update_size:function() {
     /*Получаем актуальные размеры контейнера*/
@@ -1002,7 +1002,6 @@ clear_symbols_grid:function(){
     for(let y=0;y<d.symbols_grid.length;y++){
         for(let x=0;x<d.symbols_grid[y].length;x++){
             d.symbols_grid[y][x].text='';
-            d.symbols_grid[y][x].backgroundColor=0x00000000;
         }
     }
 },

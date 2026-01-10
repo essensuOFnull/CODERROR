@@ -2,6 +2,15 @@
 let f=window.CODERROR.CHEATING.functions,
 d=window.CODERROR.CHEATING.data;
 
+// ========== ОБРАБОТЧИКИ ФОКУСА ОКНА ==========
+window.has_focus = true;
+window.addEventListener('focus', function() {
+	window.has_focus = true;
+});
+window.addEventListener('blur', function() {
+	window.has_focus = false;
+});
+
 /**приложение PIXI.js*/
 d.app=new PIXI.Application({});
 d.app.init().then(()=>{
@@ -56,7 +65,7 @@ d.app.init().then(()=>{
 	d.rows;
 	/**отображаемый размер шрифта*/
 	d.symbol_size;
-	f.set_font_size(16);
+	f.init_symbols_grid();
 	/**/
 	f.init_printable_symbols();
 	/*для иконки*/
