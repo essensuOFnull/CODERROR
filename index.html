@@ -919,7 +919,21 @@ if(!window.location.search.includes('child=1')){
 				}
 				/*отслеживает нажатия и отжатия клавиш*/
 				window.pressed=new Set();
+				window.activated_actions=new Set();
 				function setup_input_tracker(){
+					function update_activated_actions(){
+						window.activated_actions.clear();
+						Object.entries(window.settings.control).forEach(([control_id,control])=>{
+							if(control_id!='bind_to_layout'){
+								for(let key of control){
+									if(window.pressed.has(key)){
+										window.activated_actions.add(control_id);
+										break;
+									}
+								}
+							}
+						});
+					}
 					const getKey=(e)=>{
 						if(e.type.startsWith('key')){
 							return window.settings.control.bind_to_layout?e.key:e.code;
@@ -928,14 +942,13 @@ if(!window.location.search.includes('child=1')){
 					};
 					const handleEvent=(e)=>{
 						if(!window.ignored_keys.includes(e.code)){
-							e.preventDefault();
 							const key=getKey(e);
 							if(e.type==='keydown'||e.type==='mousedown'){
 								window.pressed.add(key);
 							}else{
 								window.pressed.delete(key);
 							}
-							console.log(window.pressed);
+							update_activated_actions();
 						}
 					};
 					document.addEventListener('keydown',handleEvent);
