@@ -15,8 +15,13 @@
         }
         canvas {
             display: block;
-            image-rendering: crisp-edges;
-            image-rendering: pixelated;
+        }
+        @font-face {
+            font-family: 'CODERROR';
+            src: url('fonts/CODERROR.ttf') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+            font-display: block;
         }
     </style>
 </head>
@@ -47,14 +52,22 @@
             // Если это дочернее окно - загружаем приложение
             const script = document.createElement('script');
             script.src = 'scripts/pixi.min.js';
+            // Предзагрузка шрифта
+            const font = new FontFace('CODERROR', 'url(fonts/CODERROR.ttf)');
+
+            font.load().then(function(loadedFont) {
+                document.fonts.add(loadedFont);
+                
+                // Запускаем загрузку Pixi только после загрузки шрифта
+                document.head.appendChild(script);
+            }).catch(function(error) {
+                console.error('Font loading failed:', error);
+            });
+
             script.onload = function() {
                 // Весь код приложения
                 const app = new PIXI.Application({
                     backgroundColor: 0x000000,
-                    resolution: 1,
-                    antialias: false,
-                    autoDensity: false,
-                    roundPixels: true
                 });
                 
                 app.init().then(() => {
@@ -64,8 +77,6 @@
                         fontFamily: 'CODERROR',
                         fontSize: 10,
                         fill: 0xFFFFFF,
-                        dropShadow: false,
-                        lineJoin: "bevel"
                     });
 
                     let symbolsPool = [];
