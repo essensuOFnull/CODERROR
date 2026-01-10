@@ -1099,16 +1099,21 @@ update_active_hotbar_slot_frame:function(){
 	document.querySelector(`.hotbar_slot[data-index="${d.save.player.interface.hotbar.active_slot_index}"]`).appendChild(active_hotbar_slot_frame);
 },
 /**генерирует хотбар*/
-generate_hotbar:function(){
-	let hotbar=f.create_element_from_HTML(`<div id="hotbar" class="row"></div>`);
-	for(let i=0;i<d.save.player.interface.hotbar.slot_count;i++){
+generate_hotbar:function(player=d.save.player,functional=true){
+	let hotbar=f.create_element_from_HTML(`<div class="row"></div>`);
+	if(functional){
+		hotbar.id='hotbar';
+	}
+	for(let i=0;i<player.interface.hotbar.slot_count;i++){
 		let slot=document.createElement('div');
 		slot.dataset.index=i;
 		slot.classList.add('hotbar_slot');
-		slot.addEventListener('click',function(e){
-			d.save.player.interface.hotbar.active_slot_index=this.dataset.index;
-			f.update_active_hotbar_slot_frame();
-		});
+		if(functional){
+			slot.addEventListener('click',function(e){
+				player.interface.hotbar.active_slot_index=this.dataset.index;
+				f.update_active_hotbar_slot_frame();
+			});
+		}
 		hotbar.appendChild(slot);
 	}
 	return hotbar;
@@ -1466,89 +1471,153 @@ remove_directory: function(relPath) {
 },
 /**возвращает список названий файлов в указанной директории (папки игнорируются)*/
 list_files: function(relPath = "") {
-    return new Promise((resolve, reject) => {
-        if (!d.directory_handle) return reject(new Error('Directory handle is not available'));
-        
-        const parts = relPath.split('/').filter(Boolean);
-        let dir = d.directory_handle;
-        
-        const next = (i) => {
-            if (i >= parts.length) {
-                // Достигли целевой директории - читаем её содержимое
-                const files = [];
-                const readFiles = async () => {
-                    try {
-                        for await (const [name, handle] of dir.entries()) {
-                            // Добавляем только файлы, игнорируем папки
-                            if (handle.kind === 'file') {
-                                files.push(name);
-                            }
-                        }
-                        resolve(files.sort());
-                    } catch (error) {
-                        reject(error);
-                    }
-                };
-                readFiles();
-                return;
-            }
-            
-            dir.getDirectoryHandle(parts[i])
-                .then(newDir => {
-                    dir = newDir;
-                    next(i + 1);
-                })
-                .catch(error => {
-                    if (error.name === 'NotFoundError') {
-                        // Директория не существует - возвращаем пустой массив
-                        resolve([]);
-                    } else {
-                        reject(error);
-                    }
-                });
-        };
-        
-        next(0);
-    });
-},
-fetch_json:function(path){
-	fetch(path).then(response=>{
-		if(!response.ok){
-			throw new Error('Ошибка сети');
-		}
-		return response.json();// Парсим JSON в JS-объект
-	}).then(data=>{
-		return data;
-	}).catch(error=>{
-		console.error('Ошибка загрузки файла:',error);
+	return new Promise((resolve, reject) => {
+		if (!d.directory_handle) return reject(new Error('Directory handle is not available'));
+		
+		const parts = relPath.split('/').filter(Boolean);
+		let dir = d.directory_handle;
+		
+		const next = (i) => {
+			if (i >= parts.length) {
+				// Достигли целевой директории - читаем её содержимое
+				const files = [];
+				const readFiles = async () => {
+					try {
+						for await (const [name, handle] of dir.entries()) {
+							// Добавляем только файлы, игнорируем папки
+							if (handle.kind === 'file') {
+								files.push(name);
+							}
+						}
+						resolve(files.sort());
+					} catch (error) {
+						reject(error);
+					}
+				};
+				readFiles();
+				return;
+			}
+			
+			dir.getDirectoryHandle(parts[i])
+				.then(newDir => {
+					dir = newDir;
+					next(i + 1);
+				})
+				.catch(error => {
+					if (error.name === 'NotFoundError') {
+						// Директория не существует - возвращаем пустой массив
+						resolve([]);
+					} else {
+						reject(error);
+					}
+				});
+		};
+		
+		next(0);
 	});
+},
+fetch_json: function(path) {
+	return fetch(path) // <- добавлен return
+		.then(response => {
+			if (!response.ok) {
+				throw new Error('Ошибка сети');
+			}
+			return response.json();
+		})
+		.then(data => {
+			return data; // данные будут доступны через then
+		})
+		.catch(error => {
+			console.error('Ошибка загрузки файла:', error);
+			throw error; // пробрасываем ошибку дальше
+		});
 },
 /**загружает языки из папки languages*/
 load_languages: function(){
-    return f.list_files('languages').then(files => {
-        let languages_div = document.getElementById('languages_div');
-        languages_div.innerHTML = '';
-        
-        // Создаем массив промисов для каждого скрипта
-        const promises = [];
-        
-        for(const file of files){
-            const promise = new Promise((resolve, reject) => {
-                const script = document.createElement('script');
-                script.src = `languages/${file}`;
-                
-                script.onload = resolve;
-                script.onerror = reject;
-                
-                languages_div.appendChild(script);
-            });
-            
-            promises.push(promise);
-        }
-        
-        // Ждем загрузки всех скриптов
-        return Promise.all(promises);
-    });
+	return f.list_files('languages').then(files => {
+		let languages_div = document.getElementById('languages_div');
+		languages_div.innerHTML = '';
+		
+		// Создаем массив промисов для каждого скрипта
+		const promises = [];
+		
+		for(const file of files){
+			const promise = new Promise((resolve, reject) => {
+				const script = document.createElement('script');
+				script.src = `languages/${file}`;
+				
+				script.onload = resolve;
+				script.onerror = reject;
+				
+				languages_div.appendChild(script);
+			});
+			
+			promises.push(promise);
+		}
+		
+		// Ждем загрузки всех скриптов
+		return Promise.all(promises);
+	});
+},
+character_to_element:function(character){
+	let div1=f.create_element_from_HTML(`<div></div>`);
+	div1.appendChild(f.create_element_from_HTML(f.get_transparent_space_text(character.nickname)));
+	div1.appendChild(f.get_br());
+	let hotbar=f.generate_hotbar(character,false);
+	div1.appendChild(hotbar);
+	let button=f.wrap_in_frame(div1);
+	button.addEventListener('click',()=>{
+		d.save.player=character;
+		if(d.is_singleplayer){
+			f.change_room('world_selection');
+		}else{
+			f.change_room('server_selection');
+		}
+	});
+	return button;
+},
+create_characters_list:function(){
+	let characters_list=f.create_element_from_HTML('<div id="characters_list" class="column"></div>');
+	for(let character of d.characters){
+		let character_element=f.character_to_element(character);
+		characters_list.appendChild(character_element);
+		characters_list.appendChild(f.get_br());
+		characters_list.appendChild(f.get_br());
+	}
+	return characters_list;
+},
+save_character:function(character){
+	f.write_file(`YOUR_DATA/characters/${character.nickname}.json`,f.object_to_string(character)).then(()=>{
+		f.print_to_chat(d.language.notifications.character_saved);
+	});
+},
+update_characters_list:function(){
+	d.save.room.data.characters_list_div.replaceChildren(f.create_characters_list());
+},
+save_character_update_list:function(character){
+	f.save_character(character);
+	d.characters.unshift(character);
+	f.update_characters_list();
+},
+load_character:async function(filename) {
+	return await f.fetch_json(`YOUR_DATA/characters/${filename}`);
+},
+load_characters:async function(){
+	try{
+		d.characters=[];
+		const files=await f.list_files('YOUR_DATA/characters');
+		// Загружаем всех персонажей параллельно
+		const characterPromises=files.map(file=>
+			this.load_character(file)
+		);
+		const characters=await Promise.all(characterPromises);
+		// Добавляем всех персонажей в массив
+		d.characters.unshift(...characters);
+		return characters;
+	}catch(error){
+		console.error('Ошибка загрузки персонажей:', error);
+		throw error;
+	}
 }
 };
 

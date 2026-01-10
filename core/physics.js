@@ -139,11 +139,13 @@ L n L q L q H  U n U n L q U n
                 });
                 d.save.room.data.scrollable.appendChild(d.save.room.data.buttons_div);
                 d.overlay.appendChild(d.save.room.data.scrollable);
-                d.save.room.data.buttons.new_game.addEventListener('click',()=>{
-                    f.change_room('intro0');
+                d.save.room.data.buttons.singleplayer.addEventListener('click',()=>{
+                    d.is_singleplayer=true;
+                    f.change_room('character_selection');
                 });
-                d.save.room.data.buttons.continue.addEventListener('click',()=>{
-                    f.change_room('continue');
+                d.save.room.data.buttons.multiplayer.addEventListener('click',()=>{
+                    d.is_singleplayer=false;
+                    f.change_room('character_selection');
                 });
                 d.save.room.data.buttons.settings.addEventListener('click',()=>{
                     f.change_room('settings');
@@ -166,6 +168,67 @@ L n L q L q H  U n U n L q U n
                 d.save.room.data.buttons.exit.addEventListener('click',()=>{
                     alert("⚠️ ERROR 400: Bad Request");
                     self.close();
+                });
+            }
+            f.rotate_sky(0.005,0.01,0);
+        }
+        if(d.save.room.id=='character_selection'){
+            if(d.save.room.preparation){
+                f.set_sky('images/skies/glitch','png');
+                f.set_music('music/main_menu.mp3');
+                f.set_interface_visibility(false);
+                d.save.room.data={
+                    scrollable:f.create_element_from_HTML(`<div class='scrollable'/>`),
+                    div1:f.create_element_from_HTML(`<div class="center-horizontal-items"/>`),
+                    title:f.create_element_from_HTML(f.get_transparent_space_text(d.language.rooms[d.save.room.id].title)),
+                    drop_zone:f.wrap_in_frame(f.create_element_from_HTML(`<div class='drop_zone center'><div style='text-align:center;'>${f.get_transparent_space_text(d.language.rooms[d.save.room.id].drop_zone)}</div></div>`)),
+                    div2:f.create_element_from_HTML(`<div class="center wrap"/>`),
+                    buttons:f.dict_to_buttons(d.language.rooms[d.save.room.id].buttons),
+                    characters_list_div:f.create_element_from_HTML(`<div style='display:contents'></div>`),
+                };
+                d.overlay.appendChild(d.save.room.data.scrollable);
+                d.save.room.data.scrollable.appendChild(d.save.room.data.div1);
+                d.save.room.data.div1.appendChild(d.save.room.data.drop_zone);
+                d.save.room.data.div1.appendChild(f.get_br());
+                d.save.room.data.div1.appendChild(f.get_br());
+                d.save.room.data.div1.appendChild(d.save.room.data.buttons.create);
+                d.save.room.data.div1.appendChild(f.get_br());
+                d.save.room.data.div1.appendChild(f.get_br());
+                d.save.room.data.div1.appendChild(f.get_symbolic_hr());
+                d.save.room.data.div1.appendChild(d.save.room.data.title);
+                d.save.room.data.div1.appendChild(f.get_symbolic_hr());
+                d.save.room.data.div1.appendChild(f.get_br());
+                d.save.room.data.div1.appendChild(d.save.room.data.characters_list_div);
+                d.overlay.appendChild(d.save.room.data.div2);
+                d.save.room.data.div2.appendChild(d.save.room.data.buttons.back);
+
+                f.load_characters().then(()=>{
+                    f.update_characters_list();
+                });
+
+                f.add_event_listener('get_json',d.save.room.data.drop_zone,(character)=>{
+                    f.save_character_update_list(character);
+                });
+                d.save.room.data.buttons.create.addEventListener('click',()=>{
+                    let nickname=prompt(d.language.prompts.enter_nickname);
+                    if(nickname===null){
+                        return;
+                    }
+                    let character={
+                        nickname:nickname,
+                        interface:{
+                            hotbar:{
+                                active_slot_index:0,
+                                slot_count:10,
+                            },
+                        },
+                        walk_delay:0,
+                        max_walk_delay:2
+                    };
+                    f.save_character_update_list(character);
+                });
+                d.save.room.data.buttons.back.addEventListener('click',()=>{
+                    f.change_room('main_menu');
                 });
             }
             f.rotate_sky(0.005,0.01,0);
@@ -475,8 +538,7 @@ L n L q L q H  U n U n L q U n
                     {
                         coordinates:[35*d.logical_symbol_size,-25*d.logical_symbol_size],
                         collider:[],
-                        walk_delay:0,
-                        max_walk_delay:2,
+                        walk_delay:0
                     }
                 );
                 d.save.room.data.ground.collider=f.text_to_collider(d.save.room.data.ground.text);

@@ -1,6 +1,6 @@
 window.CODERROR.__originals__.data={
 /**версия CODERROR'а*/
-version:'(1)0.37.2',
+version:'(1)0.38.0',
 /**целевой TPS (количество итераций физики мира в секунду)*/
 fixed_TPS:60,
 /**фактический TPS*/
@@ -35,6 +35,10 @@ save:{
         touch_wall:{}
     }
 },
+/**доступные персонажи*/
+characters:[],
+/**находится ли игрок во вкладке одиночной игры или мультиплеера*/
+is_singleplayer:true,
 FS_DB_NAME:'coderror-file-system',
 FS_STORE_NAME:'handles',
 FS_KEY:'directory'

@@ -56,6 +56,25 @@ d.app.ticker.add(()=>{
 				});
 			}
 		}
+		if(d.save.room.id=='character_selection'){
+			if(!d.save.room.preparation){
+				f.visual_effect(0);
+				if(f.check_hover(d.save.room.data.drop_zone)){
+					f.change_button_border_color(d.save.room.data.drop_zone,'#f0f');
+				}
+				else{
+					f.change_button_border_color(d.save.room.data.drop_zone,'#fff');
+				}
+				Object.entries(d.save.room.data.buttons).forEach(([name,el])=>{
+					if(f.check_hover(el)){
+						f.change_button_color(el,f.get_random_true_str_color());
+					}
+					else{
+						f.change_button_color(el,'#fff');
+					}
+				});
+			}
+		}
 		if(d.save.room.id=='authors'){
 			if(!d.save.room.preparation){
 				f.visual_effect(0);

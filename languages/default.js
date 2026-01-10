@@ -13,7 +13,8 @@ window.CODERROR.__originals__.data.languages.default={
 			return`ℹ️ текущая комната: <div class="inherit_colors" style="color:#f0f">${room}</div>`;
 		},
 		settings_saved:`✔️ настройки сохранены`,
-		settings_loaded:`✔️ настройки загружены`
+		settings_loaded:`✔️ настройки загружены`,
+		character_saved:`✔️ персонаж сохранён`,
 	},
 	alerts:{
 		file_saved:(name)=>{return`файл возможно был сохранён в папку загрузок с именем "${name}"`}
@@ -23,6 +24,9 @@ window.CODERROR.__originals__.data.languages.default={
 	},
 	errors:{
 		common:(error)=>{return`❌ <div class="inherit_colors" style="color:#f00">Ошибка: ${error}</div>`},
+	},
+	prompts:{
+		enter_nickname:`Введите ник персонажа:`
 	},
 	settings:{
 		interface:{
@@ -88,13 +92,21 @@ window.CODERROR.__originals__.data.languages.default={
 	rooms:{
 		main_menu:{
 			buttons:{
-				new_game:`рискнуть начать новую игру`,
-				continue:`бесцельно продолжить`,
+				singleplayer:`играть в одиночестве`,
+				multiplayer:`подключиться к серваку (заглушка)`,
 				settings:`иллюзия контроля`,
 				authors:`пантеон творцов`,
-				room_editor:`редактор комнат`,
+				room_editor:`редактор комнат (заглушка)`,
 				donation:`поддержать разработчика`,
 				exit:`вылет`
+			}
+		},
+		character_selection:{
+			title:`выбор персонажа`,
+			drop_zone:`зона\nзагрузки\nперсонажа`,
+			buttons:{
+				back:`назад`,
+				create:`создать нового персонажа`
 			}
 		},
 		authors:{

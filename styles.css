@@ -59,6 +59,10 @@ pre{
 	height:min-content;
 	display:inline-block;
 }
+.center-horizontal-items{
+	display:block;
+	text-align:center;
+}
 .center-horizontal{
 	width:max-content;
 	margin-left:auto;
