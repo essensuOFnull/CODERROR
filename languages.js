@@ -6,6 +6,7 @@ default:{
 		'⦑color:#909⦒仨与与仨刀仁仨・口千・力仨与户升工艮':`возможно нарисует текстуры в будущем.`,
 		'⦑color:#00f⦒Theb.ai, DeepSeek':`помощь в программировании.`
 	},
+	splashes:["во имя шизы!","t.me/essensuOFnull","феникс"],
 	settings:{
 		interface:{
 			name:`настройки интерфейса`,

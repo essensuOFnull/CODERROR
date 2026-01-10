@@ -201,7 +201,7 @@ if(!window.location.search.includes('child=1')){
 			app.init().then(()=>{
 				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.22.0';
+				window.version='(1)0.22.1';
 				/*добавление в разметку canvas-а pixijs*/
 				wrapper.appendChild(app.view);
 				/*добавление в разметку html-overlay*/
@@ -449,8 +449,7 @@ if(!window.location.search.includes('child=1')){
 				}
 				/*возвращает один из ИСТИНЫХ цветов*/
 				function get_random_true_str_color(){
-					const colors=['#000','#00f','#0f0','#0ff','#f00','#f0f','#ff0','#fff'];
-					return colors[Math.floor(Math.random()*colors.length)];
+					return get_random_element(['#000','#00f','#0f0','#0ff','#f00','#f0f','#ff0','#fff']);
 				}
 				/*увеличивает z-index на 1*/
 				function increment_z_index(element){
@@ -820,6 +819,7 @@ if(!window.location.search.includes('child=1')){
 				/*применяет к игре настройки из window.settings*/
 				function apply_settings(){
 					apply_language(window.settings.interface.language);
+					apply_random_splash();
 					set_font_size(window.settings.interface.font_size);
 					set_max_content_size(window.settings.interface.max_content_width,window.settings.interface.max_content_height);
 					change_room(room);
@@ -902,14 +902,21 @@ if(!window.location.search.includes('child=1')){
 					document.addEventListener('mousedown', handler);
 					});
 				}
+				/*принимает список и возвращает случайный элемент*/
+				function get_random_element(list){
+					return list[Math.floor(Math.random()*list.length)];
+				}
+				/*устанавливает случайный сплеш*/
+				function apply_random_splash(){
+					window.splash=get_random_element(window.language.splashes);
+				}
 				/*финальная настройка*/
 				let room_data;
-				apply_language(window.settings.interface.language);
-				set_max_content_size(window.settings.interface.max_content_width,window.settings.interface.max_content_height);
-				change_room('main_menu');
+				room='main_menu'
+				apply_settings();
 				/*главный цикл*/
 				app.ticker.add(()=>{
-					document.title=`CODERROR ${window.version} FPS: ${app.ticker.FPS.toFixed(2)}`;
+					document.title=`CODERROR ${window.version} FPS: ${app.ticker.FPS.toFixed(2)} - ${window.splash}`;
 					if(room=='main_menu'){
 						if(preparation){
 							set_music('music/main_menu.ogg');
