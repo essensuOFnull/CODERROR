@@ -2,17 +2,14 @@
 let f=window.CODERROR.CHEATING.functions,
 d=window.CODERROR.CHEATING.data;
 
-/**целевой TPS (количество итераций физики мира в секунду)*/
-d.FIXED_TPS=60;
-let MS_PER_UPDATE=1000/d.FIXED_TPS; // Шаг в миллисекундах
+let MS_PER_UPDATE=1000/d.fixed_TPS; // Шаг в миллисекундах
 let previous_time=performance.now();
 let lag=0;
 let tps_count=0;
 let last_measure=performance.now();
 setInterval(()=>{
     let now=performance.now();
-    /**фактический TPS*/
-    d.real_TPS=Math.round(tps_count*1000/(now-last_measure));
+    d.TPS=Math.round(tps_count*1000/(now-last_measure))||0;
     tps_count=0;
     last_measure=now;
 },1000);
@@ -27,7 +24,7 @@ function update_game_logic(){
             f.print_to_chat(d.language.notifications.current_room(d.save.room.id));
         }
         tps_count++;
-        document.title=`CODERROR ${d.version} TPS: ${d.real_TPS} FPS: ${d.app.ticker.FPS.toFixed(2)} - ${d.splash}`;
+        document.title=`CODERROR ${d.version} TPS: ${d.TPS} FPS: ${d.FPS} - ${d.splash}`;
         /*переключение слотов хотбара*/
         if(document.getElementById('hotbar')){
             if(d.activated_actions.has('previous_hotbar_slot')){

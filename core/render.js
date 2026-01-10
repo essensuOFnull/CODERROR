@@ -2,8 +2,15 @@
 let f=window.CODERROR.CHEATING.functions,
 d=window.CODERROR.CHEATING.data;
 
+let frame_count=0;
+setInterval(()=>{
+	d.FPS=frame_count;
+	frame_count=0;
+},1000);
+
 d.app.ticker.add(()=>{
 	if(window.has_focus){
+		frame_count++;
 		/*обновление канваса three*/
 		f.update_three_scene();
 		/*кнопки интекрфейса игрока*/
