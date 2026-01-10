@@ -84,6 +84,7 @@
     <link rel="icon" type="image/png">
 </head>
 <body>
+    <input type="file" id="json_input" hidden multiple/>
     <script>
         //Проверяем, является ли это окно основным
         if(!window.location.search.includes('child=1')){
@@ -137,7 +138,7 @@
                 });
                 app.init().then(()=>{
                     /*версия CODERROR'а*/
-                    window.version='(1)0.10.1';
+                    window.version='(1)0.12.0';
                     /*добавление в разметку canvas-а pixijs*/
                     document.body.appendChild(app.view);
                     /*добавление в разметку html-overlay*/
@@ -493,9 +494,49 @@
                         change_button_border_color(button,color);
                         change_button_text_color(button,color);
                     }
+                    /*проверяет перетаскивают ли файл над объектом*/
+                    const dragoverStates=new WeakMap();
+                    function check_dragover(element){
+                        if (!element.__dragoverHandlersAdded){
+                            const handlers={
+                                dragenter:(event)=>{
+                                    event.preventDefault();
+                                    if(!dragoverStates.get(element)){
+                                        element.classList.add('dragover');
+                                        dragoverStates.set(element,true);
+                                    }
+                                },
+                                dragover:(event)=>{
+                                    event.preventDefault();
+                                    if(!dragoverStates.get(element)){
+                                        element.classList.add('dragover');
+                                        dragoverStates.set(element,true);
+                                    }
+                                },
+                                dragleave:(event)=>{
+                                    if(!event.relatedTarget||!element.contains(event.relatedTarget)){
+                                        element.classList.remove('dragover');
+                                        dragoverStates.set(element,false);
+                                    }
+                                },
+                                drop:(event)=>{
+                                    event.preventDefault();
+                                    element.classList.remove('dragover');
+                                    dragoverStates.set(element,false);
+                                }
+                            };
+                            element.addEventListener('dragenter',handlers.dragenter);
+                            element.addEventListener('dragover',handlers.dragover);
+                            element.addEventListener('dragleave',handlers.dragleave);
+                            element.addEventListener('drop',handlers.drop);
+                            element.__dragoverHandlersAdded=true;
+                            Object.assign(element,{__dragoverHandlers:handlers});
+                        }
+                        return dragoverStates.get(element)||false;
+                    }
                     /*проверяет наведена ли мышь на элемент*/
                     function check_hover(element){
-                        return element.matches(':hover');
+                        return(element.matches(':hover')||check_dragover(element));
                     }
                     /*возвращает новый br элемент*/
                     function get_br(){
@@ -568,6 +609,23 @@ L U L q L q H  L q L q L q L q
 L   L q L q H] L_/ L_/ L q L_/
 L n L q L q H  U n U n L q U n
 \_/ \_/ L_/ L] U U U U \_/ U U`.trim();
+                    let json_handler;
+                    let json_input=document.getElementById('json_input');
+                    json_input.addEventListener('change', async (e) => {
+                        try {
+                            const files = Array.from(e.target.files);
+                            const dicts = await jsons_to_dict_list(files);
+                            const merged = smart_merge(dicts);
+                            
+                            // Вызываем переопределяемую функцию
+                            json_handler(merged);
+                            
+                            // Сбрасываем значение для повторного выбора
+                            json_input.value = '';
+                        } catch (error) {
+                            console.error('Ошибка:', error);
+                        }
+                    });
                     change_room('main_menu');
                     /*главный цикл*/
                     app.ticker.add(()=>{
@@ -683,13 +741,6 @@ L n L q L q H  U n U n L q U n
                                 };
                                 overlay.appendChild(room_data.div);
                                 room_data.div.appendChild(room_data.drop_zone);
-                                room_data.drop_zone.addEventListener('dragover',(e)=>{
-                                    e.preventDefault();
-                                    change_button_border_color(room_data.drop_zone,'#f0f');
-                                });
-                                room_data.drop_zone.addEventListener('dragleave',()=>{
-                                    change_button_border_color(room_data.drop_zone,'#fff');
-                                });
                                 room_data.drop_zone.addEventListener('drop',async(e)=>{
                                     e.preventDefault();
                                     change_button_border_color(room_data.drop_zone,'#fff');
@@ -697,9 +748,19 @@ L n L q L q H  U n U n L q U n
                                     const data = smart_merge(dicts);
                                     console.log(data);
                                 });
+                                json_handler=(object)=>{
+                                    console.log(object);
+                                };
+                                room_data.drop_zone.addEventListener('click',()=>json_input.click());
                                 preparation=false;
                             }
                             visual_effect(0);
+                            if(check_hover(room_data.drop_zone)){
+                                change_button_border_color(room_data.drop_zone,'#f0f');
+                            }
+                            else{
+                                change_button_border_color(room_data.drop_zone,'#fff');
+                            }
                         }
                         window.PERMITTED={ 
                             set_font_size
