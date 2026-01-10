@@ -761,13 +761,13 @@ set_select_options:function(selectElement,options) {
 /**создает select с рамкой*/
 create_select_with_frame:function(options,removable=false){
     let select=f.create_element_from_HTML('<select/>');
-    set_select_options(select,options);
+    f.set_select_options(select,options);
     select.style.margin='calc(-1 * var(--symbol_size))';
     select.style.padding='var(--symbol_size)';
     select.style.marginRight='0';
     select.style.cursor='pointer';
     select.style.background='#00000000';
-    let frame=wrap_in_frame(select,`<button style='background:#000;'/>`,removable);
+    let frame=f.wrap_in_frame(select,`<button style='background:#000;'/>`,removable);
     frame.style.pointerEvents='none';
     return[frame,select];
 },
@@ -826,7 +826,7 @@ create_textarea_with_frame:function(placeholder='',removable=false){
     textarea.style.cursor='pointer';
     textarea.style.background='#00000000';
     textarea.placeholder=placeholder;
-    let frame=wrap_in_frame(textarea,`<button style='background:#000;'/>`,removable);
+    let frame=f.wrap_in_frame(textarea,`<button style='background:#000;'/>`,removable);
     frame.addEventListener('click',(e)=>{
         textarea.focus();
     })
@@ -869,7 +869,7 @@ set_volume:function(volume){
 },
 /**меняет текст кастомной кнопки*/
 change_button_text:function(button,text){
-    button.querySelector('#frame_content').innerHTML=get_transparent_space_text(text);
+    button.querySelector('#frame_content').innerHTML=f.get_transparent_space_text(text);
 },
 /**ожидает пользовательский ввод и возвращает promise*/
 wait_user_input:function(){

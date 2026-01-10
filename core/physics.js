@@ -286,10 +286,10 @@ L n L q L q H  U n U n L q U n
                                     f.change_button_border_color(button,'#fff');
                                 });
                                 button.addEventListener('click',()=>{
-                                    change_button_text(button,d.language.rooms[d.save.room.id].messages.input);
+                                    f.change_button_text(button,d.language.rooms[d.save.room.id].messages.input);
                                     setTimeout(()=>{
-                                        wait_user_input().then((result)=>{
-                                            change_button_text(button,result);
+                                        f.wait_user_input().then((result)=>{
+                                            f.change_button_text(button,result);
                                             button.value=result;
                                         });
                                     },100);
@@ -318,18 +318,18 @@ L n L q L q H  U n U n L q U n
             /*завершение предсоздания интерфейса*/
             d.overlay.appendChild(d.save.room.data.div2);
             d.save.room.data.div2.appendChild(d.save.room.data.buttons.apply);
-            d.save.room.data.div2.appendChild(get_space());
+            d.save.room.data.div2.appendChild(f.get_space());
             d.save.room.data.div2.appendChild(d.save.room.data.buttons.back);
-            d.save.room.data.div2.appendChild(get_space());
+            d.save.room.data.div2.appendChild(f.get_space());
             d.save.room.data.div2.appendChild(d.save.room.data.buttons.save);
             f.add_event_listener('get_json',d.save.room.data.drop_zone,(data)=>{
-                d.settings=smart_merge([d.settings,data],9);
+                d.settings=f.smart_merge([d.settings,data],9);
                 f.apply_settings();
             });
             d.save.room.data.buttons.back.addEventListener('click',()=>{
                 f.change_room('main_menu');
             });
-            d.save.room.data.buttons.d.save.addEventListener('click',()=>{
+            d.save.room.data.buttons.save.addEventListener('click',()=>{
                 f.save_as_json(d.settings,'settings.json');
             });
             d.save.room.data.buttons.apply.addEventListener('click',()=>{
@@ -337,7 +337,7 @@ L n L q L q H  U n U n L q U n
                 for(let select of d.save.room.data.settings_divs.interface.language.querySelectorAll('select')){
                     language_list.push(select.value);
                 }
-                language_list=remove_duplicates(language_list);
+                language_list=f.remove_duplicates(language_list);
                 d.settings.interface.language=language_list;
                 for(let[option_id,option]of Object.entries(d.save.room.data.settings_divs.control)){
                     if(option_id!='bind_to_layout'){
@@ -347,7 +347,7 @@ L n L q L q H  U n U n L q U n
                                 control_list.push(button.value);
                             }
                         }
-                        d.settings.control[option_id]=remove_duplicates(control_list);
+                        d.settings.control[option_id]=f.remove_duplicates(control_list);
                     }
                 }
                 f.apply_settings();
