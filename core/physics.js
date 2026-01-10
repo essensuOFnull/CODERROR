@@ -475,7 +475,7 @@ L n L q L q H  U n U n L q U n
 				d.save.temp.room.data.div2.appendChild(d.save.temp.room.data.buttons.save);
 				f.add_event_listener('get_json',d.save.temp.room.data.drop_zone,(data)=>{
 					try{
-						d.settings=f.smart_merge([d.settings,data],9);
+						d.settings=_.merge({},d.settings,data);
 						f.apply_settings();
 						f.print_to_chat(d.language.notifications.settings_loaded);
 					}catch(e){

@@ -1,6 +1,6 @@
 window.CODERROR.__originals__.data={
 /**версия CODERROR'а*/
-version:'(1)0.38.1',
+version:'(1)0.38.2',
 /**целевой TPS (количество итераций физики мира в секунду)*/
 fixed_TPS:60,
 /**фактический TPS*/

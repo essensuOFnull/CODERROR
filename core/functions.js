@@ -624,37 +624,6 @@ jsons_to_dict_list:async function(files){
 	}
 	return data;
 },
-/**соединяет объекты в 1 более общий, перезаписывая старые значения новыми*/
-smart_merge:function(config_list,max_depth=2){
-	let merge=(target,source,depth=1)=>{
-		/*Если достигли предела глубины - возвращаем source*/
-		if(depth>=max_depth)return{...source};
-		/*Создаем новый объект для результатов*/
-		let result={...target};
-		/*Перебираем ключи исходного объекта*/
-		for(let key of Object.keys(source)) {
-			let sourceValue=source[key];
-			let targetValue=target[key];
-			/*Если оба значения - объекты (не массивы)*/
-			if(typeof sourceValue==='object'&& 
-				!Array.isArray(sourceValue)&&
-				typeof targetValue==='object'&& 
-				!Array.isArray(targetValue)){
-				/*Рекурсивное слияние с увеличением глубины*/
-				result[key]=merge(targetValue,sourceValue,depth+1);
-			}else{
-				/*Заменяем значение*/
-				result[key]=sourceValue;
-			}
-		}
-		return result;
-	};
-	let result=config_list[0];
-	for(let i=1;i<config_list.length;i++){
-		result=merge(result,config_list[i]);
-	}
-	return result;
-},
 /**создаёт кастомные обработчики событий*/
 add_event_listener:function(name,element,function_part){
 	/*Удаляем старые обработчики перед добавлением новых*/
@@ -675,7 +644,7 @@ add_event_listener:function(name,element,function_part){
 			e.preventDefault();
 			try{
 				let dicts=await f.jsons_to_dict_list(e.dataTransfer.files);
-				let merged=f.smart_merge(dicts);
+				let merged=_.merge({},...dicts);
 				function_part(merged);
 			}catch(error){
 				console.error('Ошибка:',error);
@@ -690,7 +659,7 @@ add_event_listener:function(name,element,function_part){
 			try{
 				let files=Array.from(e.target.files);
 				let dicts=await f.jsons_to_dict_list(files);
-				let merged=f.smart_merge(dicts);
+				let merged=_.merge({},...dicts);
 				function_part(merged);
 				jsonInput.value='';
 			}catch(error){
@@ -739,7 +708,7 @@ apply_language:function(name_list){
 	for(name of name_list){
 		languages_list.push(d.languages[name]);
 	}
-	d.language=f.smart_merge(languages_list,99);
+	d.language=_.merge({},...languages_list);
 },
 /**принимает словарь текста и превращает его в кнопки*/
 dict_to_buttons:function(dict){
@@ -1684,12 +1653,11 @@ prepare:function(preparation_func){
 /**завершить подготовку комнаты*/
 finish_preparation:function(){
 	if(d.loadable_save_data){
-		d.save=f.smart_merge([d.save,d.loadable_save_data],99);
+		d.save=_.merge({},d.save,d.loadable_save_data);
 		d.loadable_save_data=null;
 		f.update_interface();
 	}
 	d.save.temp.room.preparation=false;
-	console.log(d.save);
 }
 };
 
