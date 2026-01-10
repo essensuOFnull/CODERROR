@@ -206,106 +206,169 @@
                         generate_favicon();
                     },1000/5);
                     /*функция генерации кода разметки pre с отсутствием фона у пробелов*/
-                    function get_transparent_space_text(text,color='#fff',background='#000'){
-                        const escapeHtml=(char)=>{
-                            const escapes={
-                                '<':'&lt;',
-                                '>':'&gt;',
-                                '&':'&amp;',
-                                '"':'&quot;',
-                                "'":'&#39;'
+                    function get_transparent_space_text(text, color = '#fff', background = '#000') {
+                        const escapeHtml = (char) => {
+                            const escapes = {
+                                '<': '&lt;',
+                                '>': '&gt;',
+                                '&': '&amp;',
+                                '"': '&quot;',
+                                "'": '&#39;'
                             };
-                            return escapes[char]||char;
+                            return escapes[char] || char;
                         };
-                        const areStylesEqual=(a,b)=>{
-                            const aKeys=Object.keys(a);
-                            const bKeys=Object.keys(b);
-                            if(aKeys.length!==bKeys.length)return false;
-                            for(const key of aKeys){
-                                if(a[key]!==b[key])return false;
+
+                        const areStylesEqual = (a, b) => {
+                            const aKeys = Object.keys(a);
+                            const bKeys = Object.keys(b);
+                            if (aKeys.length !== bKeys.length) return false;
+                            for (const key of aKeys) {
+                                if (a[key] !== b[key]) return false;
                             }
                             return true;
                         };
-                        const tokenRegex=/(⦑[^⦒]*⦒)|(\n)|( )|(.)/g;
-                        const tokens=[];
+
+                        const tokenRegex = /(⦑[^⦒]*⦒)|(\n)|( )|(.)/g;
+                        const tokens = [];
                         let match;
-                        while((match=tokenRegex.exec(text))!==null){
-                            if(match[1])tokens.push({type:'tag',value:match[1]});
-                            else if(match[2])tokens.push({type:'newline'});
-                            else if(match[3])tokens.push({type:'space'});
-                            else if(match[4])tokens.push({type:'char',value:match[4]});
+                        while ((match = tokenRegex.exec(text)) !== null) {
+                            if (match[1]) tokens.push({ type: 'tag', value: match[1] });
+                            else if (match[2]) tokens.push({ type: 'newline' });
+                            else if (match[3]) tokens.push({ type: 'space' });
+                            else if (match[4]) tokens.push({ type: 'char', value: match[4] });
                         }
-                        let currentStyles={color,background};
-                        let output=[];
-                        let currentNonSpace={styles:null,content:[]};
-                        let currentSpace=[];
-                        const flushNonSpace=()=>{
-                            if(currentNonSpace.content.length===0)return;
-                            const styleStr=Object.entries(currentNonSpace.styles).map(([k,v])=>`${k}:${v}`).join(';');
-                            const content=currentNonSpace.content.map(escapeHtml).join('');
-                            output.push(`<pre style="${styleStr}">${content}</pre>`);
-                            currentNonSpace.content=[];
-                            currentNonSpace.styles=null;
+
+                        const initialStyles = { color, background };
+                        let currentStyles = { ...initialStyles };
+                        let output = [];
+                        let currentNonSpace = { styles: null, content: [] };
+                        let currentSpace = [];
+
+                        const flushNonSpace = () => {
+                            if (currentNonSpace.content.length === 0) return;
+                            
+                            // Всегда добавляем наследование, если стили не изменены
+                            const baseStyles = { color: 'inherit', background: 'inherit' };
+                            const mergedStyles = !areStylesEqual(currentNonSpace.styles, initialStyles) 
+                                ? { ...currentNonSpace.styles }
+                                : baseStyles;
+
+                            const styleStr = `style="${Object.entries(mergedStyles).map(([k, v]) => `${k}:${v}`).join(';')}"`;
+                            const content = currentNonSpace.content.map(escapeHtml).join('');
+                            output.push(`<pre ${styleStr}>${content}</pre>`);
+                            currentNonSpace.content = [];
+                            currentNonSpace.styles = null;
                         };
-                        const flushSpace=()=>{
-                            if(currentSpace.length===0)return;
-                            const mergedStyles={...currentStyles,background:'transparent'};
-                            const styleStr=Object.entries(mergedStyles).map(([k,v])=>`${k}:${v}`).join(';');
-                            const content=currentSpace.map(escapeHtml).join('');
-                            output.push(`<pre style="${styleStr}">${content}</pre>`);
-                            currentSpace=[];
+
+                        const flushSpace = () => {
+                            if (currentSpace.length === 0) return;
+                            
+                            // Только прозрачный фон и цвет если изменен
+                            const spaceStyles = {
+                                background: 'transparent',
+                                ...(currentStyles.color !== initialStyles.color && { color: currentStyles.color })
+                            };
+                            
+                            const styleStr = Object.keys(spaceStyles).length > 0 
+                                ? `style="${Object.entries(spaceStyles).map(([k, v]) => `${k}:${v}`).join(';')}"`
+                                : '';
+                            
+                            const content = currentSpace.map(escapeHtml).join('');
+                            output.push(`<pre ${styleStr}>${content}</pre>`);
+                            currentSpace = [];
                         };
-                        for(const token of tokens){
-                            switch(token.type){
-                                case'tag':{
-                                    const tagContent=token.value.slice(1,-1).trim();
-                                    const[property,value]=tagContent.split(':').map(p=>p.trim());
-                                    if(property&&value)currentStyles[property]=value;
+
+                        for (const token of tokens) {
+                            switch (token.type) {
+                                case 'tag': {
+                                    const tagContent = token.value.slice(1, -1).trim();
+                                    
+                                    if (tagContent === 'reset') {
+                                        currentStyles = { ...initialStyles };
+                                    } else {
+                                        const [property, value] = tagContent.split(':').map(p => p.trim());
+                                        if (property && value) currentStyles[property] = value;
+                                    }
+                                    
                                     flushNonSpace();
                                     flushSpace();
                                     break;
                                 }
-                                case'newline':
+                                case 'newline':
                                     flushNonSpace();
                                     flushSpace();
                                     output.push('<br>');
                                     break;
-                                case'space':
+                                case 'space':
                                     flushNonSpace();
                                     currentSpace.push(' ');
                                     break;
-                                case'char':
+                                case 'char':
                                     flushSpace();
-                                    if(currentNonSpace.styles&&areStylesEqual(currentStyles,currentNonSpace.styles)){
+                                    if (currentNonSpace.styles && areStylesEqual(currentStyles, currentNonSpace.styles)) {
                                         currentNonSpace.content.push(token.value);
-                                    }else{
+                                    } else {
                                         flushNonSpace();
-                                        currentNonSpace.styles={...currentStyles};
+                                        currentNonSpace.styles = { ...currentStyles };
                                         currentNonSpace.content.push(token.value);
                                     }
                                     break;
                             }
                         }
+
                         flushNonSpace();
                         flushSpace();
-                        return output.join('');
+
+                        return `<div style="display:contents;color:${color};background:${background}">${output.join('')}</div>`;
+                    }
+                    /*принимает разметку, возвращает полноценный элемент*/
+                    function create_element_from_HTML(html){
+                        const template=document.createElement('template');
+                        template.innerHTML=html.trim();
+                        const fragment=template.content;
+                        // Проверяем, есть ли ровно один дочерний элемент
+                        if(fragment.childNodes.length===1&&fragment.firstChild.nodeType===Node.ELEMENT_NODE){
+                            return fragment.firstChild;
+                        }else{
+                            // Создаём контейнер с display: contents
+                            const container=document.createElement('div');
+                            container.style.display='contents';
+                            // Перемещаем все узлы из фрагмента в контейнер
+                            while(fragment.firstChild){
+                                container.appendChild(fragment.firstChild);
+                            }
+                            return container;
+                        }
+                    }
+                    /*возвращает один из ИСТИНЫХ цветов*/
+                    function get_random_true_str_color(){
+                        const colors=['#000','#00f','#0f0','#0ff','#f00','#f0f','#ff0','#fff'];
+                        return colors[Math.floor(Math.random()*colors.length)];
                     }
                     /*финальная настройка*/
+                    let room_data;
+                    let logo_text=String.raw`
+/T\ /T\ PT\ P] PT\ PT\ /T\ PT\
+L U L q L q H  L q L q L q L q
+L   L q L q H] L_/ L_/ L q L_/
+L n L q L q H  U n U n L q U n
+\_/ \_/ L_/ L] U U U U \_/ U U`.trim();
                     change_room(0);
                     /*главный цикл*/
                     app.ticker.add(()=>{
                         document.title=`CODERROR FPS: ${app.ticker.FPS.toFixed(2)}`;
                         if(room==0){
                             if(preparation){
-                                overlay.innerHTML=get_transparent_space_text(`by essensuOFnull`,color='#c8c8c8')+`<div class="center-horizontal">`+get_transparent_space_text(String.raw`
-/T\ /T\ PT\ P] PT\ PT\ /T\ PT\
-L U L q L q H  L q L q L q L q
-L   L q L q H] L_/ L_/ L q L_/
-L n L q L q H  U n U n L q U n
-\_/ \_/ L_/ L] U U U U \_/ U U`.trim())+`</div>`;
+                                room_data={
+                                    info:create_element_from_HTML(get_transparent_space_text(`by essensuOFnull`,'#c8c8c8')),
+                                    logo:create_element_from_HTML(`<div class="center-horizontal">${get_transparent_space_text(logo_text)}</div>`)
+                                };
+                                overlay.appendChild(room_data.info);
+                                overlay.appendChild(room_data.logo);
                                 preparation=false;
                             }
                             visual_effect(0);
+                            room_data.logo.firstChild.style.color=get_random_true_str_color();
                         }
                         window.PERMITTED={ 
                             set_font_size
