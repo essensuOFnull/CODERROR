@@ -127,6 +127,9 @@ textarea{
 		box-shadow:none;
 	}
 }
+input[type="range"]{
+	accent-color:#f0f;
+}
 	</style>
 	<link rel="icon" type="image/png">
 </head>
@@ -195,7 +198,7 @@ if(!window.location.search.includes('child=1')){
 			app.init().then(()=>{
 				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.20.0';
+				window.version='(1)0.20.1';
 				/*добавление в разметку canvas-а pixijs*/
 				wrapper.appendChild(app.view);
 				/*добавление в разметку html-overlay*/
@@ -835,37 +838,41 @@ if(!window.location.search.includes('child=1')){
 				let current_music_path='';
 				let music_volume=0.5;
 				let audio_initialized=false;
+				/*для того чтобы музыка начинала проигрываться после нажатия на любое место страницы*/
 				function init_audio(){
-				    if(!audio_initialized){
-				        audio_initialized=true;
-				        document.removeEventListener('click',init_audio);
-				        if(current_music){
-				            current_music.play().catch(handle_play_error);
-				        }
-				    }
+					if(!audio_initialized){
+						audio_initialized=true;
+						document.removeEventListener('click',init_audio);
+						if(current_music){
+							current_music.play().catch(handle_play_error);
+						}
+					}
 				}
 				document.addEventListener('click',init_audio);
+				/*принимает путь до музыки и включает её*/
 				function set_music(path){
-				    if(current_music_path===path)return;
-				    if(current_music){
-				        current_music.pause();
-				        current_music=null;
-				    }
-				    current_music=new Audio(path);
-				    current_music.volume=music_volume;
-				    current_music.loop=true;
-				    current_music_path=path;
-				    if(audio_initialized){
-				        current_music.play().catch(handle_play_error);
-				    }
+					if(current_music_path===path)return;
+					if(current_music){
+						current_music.pause();
+						current_music=null;
+					}
+					current_music=new Audio(path);
+					current_music.volume=music_volume;
+					current_music.loop=true;
+					current_music_path=path;
+					if(audio_initialized){
+						current_music.play().catch(handle_play_error);
+					}
 					console.log(`𝄞 сейчас играет: ${path} ♫`);
 				}
+				/*выводит сообщение об ошибке в случае её возникновения*/
 				function handle_play_error(error){
-				    console.error('Playback error:',error);
+					console.error('Playback error:',error);
 				}
+				/*устанавливает громкость*/
 				function set_volume(volume){
-				    music_volume=Math.max(0,Math.min(1,volume));
-				    if(current_music)current_music.volume=music_volume;
+					music_volume=Math.max(0,Math.min(1,volume));
+					if(current_music)current_music.volume=music_volume;
 				}
 				/*финальная настройка*/
 				let room_data;
@@ -1041,6 +1048,17 @@ L n L q L q H  U n U n L q U n
 											frame.addEventListener('mouseout',()=>{
 												change_button_border_color(frame,'#fff');
 											});
+										}
+									}
+									if(section_id=='audio'){
+										if(option_id=='music_volume'){
+											let range_input=create_element_from_HTML(`<input type="range" min="0" max="1" step="0.01" value="${window.settings[section_id][option_id]}"/>`);
+											range_input.addEventListener('input',()=>{
+												range_input.setAttribute('value',range_input.value);
+												set_volume(range_input.value);
+												window.settings[section_id][option_id]=range_input.value;
+											});
+											values.appendChild(range_input);
 										}
 									}
 									/**/
