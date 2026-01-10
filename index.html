@@ -35,6 +35,10 @@
             width:100vw;
             height:100vh;
             pointer-events:auto; /* Разрешить взаимодействие с HTML-элементами */
+            /*чтобы центрирование по вертикали работало*/
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
         }
         pre{
             color:#fff;
@@ -47,6 +51,24 @@
             width:max-content;
             margin-left:auto;
             margin-right:auto;
+        }
+        .center-vertical {
+            flex: 1 1 auto; /* Занимает всё доступное пространство */
+            display: flex;
+            align-items: center; /* Центрирование по вертикали */
+        }
+        .center {
+            flex: 1 1 auto; /* Занимает всё доступное пространство */
+            display: flex;
+            align-items: center; /* Центрирование по вертикали */
+            justify-content: center; /* Центрирование по горизонтали */
+        }
+        button{
+            background-color:transparent;
+            color:#fff;
+            border: none;
+            cursor: pointer !important;
+  outline: none;
         }
     </style>
     <link rel="icon" type="image/png">
@@ -345,6 +367,123 @@
                         const colors=['#000','#00f','#0f0','#0ff','#f00','#f0f','#ff0','#fff'];
                         return colors[Math.floor(Math.random()*colors.length)];
                     }
+                    /*оборачивает элемент в button с символьной рамкой*/
+                    function wrapElementWithBorderButton(element) {
+                        // Создаем кнопку и элементы для рамки
+                        const button = document.createElement('button');
+                        const borderContainer = document.createElement('div');
+                        const contentWrapper = document.createElement('div');
+                        
+                        // Настраиваем стили кнопки
+                        button.style.display = 'inline-block';
+                        button.style.position = 'relative';
+                        button.style.padding = '0';
+                        button.style.border = 'none';
+                        button.style.background = 'none';
+                        button.style.fontFamily = 'monospace';
+                        button.style.fontSize = '6.75pt';
+                        button.style.lineHeight = '1';
+
+                        // Клонируем исходный элемент
+                        const clonedElement = element.cloneNode(true);
+                        const originalStyles = window.getComputedStyle(element);
+                        
+                        // Рассчитываем размеры
+                        const getSize = (size) => parseFloat(originalStyles[size]) || 0;
+                        const widthPt = getSize('width');
+                        const heightPt = getSize('height');
+
+                        // Вычисляем количество символов
+                        const charsWide = Math.round(widthPt / 6.75);
+                        const charsTall = Math.round(heightPt / 6.75);
+
+                        // Генерируем рамку
+                        const horizontal = '-'.repeat(Math.max(0, charsWide - 2));
+                        const vertical = '|' + ' '.repeat(Math.max(0, charsWide - 2)) + '|';
+                        
+                        borderContainer.textContent = 
+                            `+${horizontal}.\n` + 
+                            `${vertical}\n`.repeat(Math.max(0, charsTall - 2)) +
+                            `\`${horizontal}'`;
+
+                        // Настраиваем стили
+                        borderContainer.style.whiteSpace = 'pre';
+                        borderContainer.style.position = 'absolute';
+                        borderContainer.style.pointerEvents = 'none';
+                        
+                        contentWrapper.style.position = 'relative';
+                        contentWrapper.style.zIndex = '1';
+                        
+                        // Компоновка элементов
+                        contentWrapper.appendChild(clonedElement);
+                        button.appendChild(borderContainer);
+                        button.appendChild(contentWrapper);
+
+                        // Заменяем исходный элемент кнопкой
+                        element.parentNode.replaceChild(button, element);
+                        
+                        return button;
+                    }
+                    /*увеличивает z-index на 1*/
+                    function increment_z_index(element){
+                        element.style.zIndex=parseInt(element.style.zIndex||0)+1+'';
+                    }
+                    /*оборачивает элемент в кнопку с символьной рамкой*/
+                    function wrap_in_button(content) {
+                        let button = document.createElement('button');
+                        button.style.position='relative';
+                        button.style.overflow='hidden';
+                        let grid=document.createElement('div');
+                        grid.style.display = 'grid';
+                        grid.style.gridTemplateAreas = `"a . b" ". c ." "d . e"`;
+                        grid.style.gridTemplateColumns = 'repeat(3,min-content)'; // Исправлено на fr
+                        grid.style.gridTemplateRows = 'repeat(3,min-content)';    // вместо min-content
+                        grid.style.gap = '0';
+                        grid.style.position = 'relative';
+                        grid.style.alignItems = 'center'; // Выравнивание по центру
+                        grid.style.justifyItems = 'center';
+
+                        // Создание элементов с правильными областями
+                        const elements = {
+                            a: create_element_from_HTML(`<pre>+</pre>`),
+                            b: create_element_from_HTML(`<pre>.</pre>`),
+                            c: document.createElement('div'),
+                            d: create_element_from_HTML(`<pre>\`</pre>`),
+                            e: create_element_from_HTML(`<pre>'</pre>`)
+                        };
+
+                        // Настройка центрального элемента
+                        elements.c.appendChild(content);
+                        elements.c.style.gridArea = 'c';
+                        elements.c.style.whiteSpace = 'nowrap';
+
+                        // Привязка всех элементов к grid-areas
+                        Object.entries(elements).forEach(([area, el]) => {
+                            el.style.gridArea = area;
+                            grid.appendChild(el);
+                        });
+                        button.appendChild(grid);
+                        increment_z_index(grid);
+                        let horizontal=`<pre style="position:absolute;white-space:nowrap;">${'-'.repeat(666)}</pre>`
+                        let vertical=`<pre style="position:absolute;white-space:nowrap;">${'|<br>'.repeat(444)}</pre>`
+                        let top=create_element_from_HTML(horizontal);
+                        top.style.top=0;
+                        top.style.left=0;
+                        let bottom=create_element_from_HTML(horizontal);
+                        bottom.style.bottom=0;
+                        bottom.style.left=0;
+                        let left=create_element_from_HTML(vertical);
+                        left.style.top=0;
+                        left.style.left=0;
+                        let right=create_element_from_HTML(vertical);
+                        right.style.top=0;
+                        right.style.right=0;
+                        button.appendChild(top);
+                        button.appendChild(bottom);
+                        button.appendChild(left);
+                        button.appendChild(right);
+                        return button;
+                    }
                     /*финальная настройка*/
                     let room_data;
                     let logo_text=String.raw`
@@ -360,11 +499,15 @@ L n L q L q H  U n U n L q U n
                         if(room==0){
                             if(preparation){
                                 room_data={
-                                    info:create_element_from_HTML(get_transparent_space_text(`by essensuOFnull`,'#c8c8c8')),
-                                    logo:create_element_from_HTML(`<div class="center-horizontal">${get_transparent_space_text(logo_text)}</div>`)
+                                    info:create_element_from_HTML(`<div>${get_transparent_space_text(`by essensuOFnull`,'#c8c8c8')}</div>`),
+                                    logo:create_element_from_HTML(`<div class="center-horizontal">${get_transparent_space_text(logo_text)}</div>`),
+                                    buttons_div:create_element_from_HTML(`<div class="center"/>`),
+                                    button_new_game:wrap_in_button(create_element_from_HTML(get_transparent_space_text(`рискнуть начать новую игру`)))
                                 };
                                 overlay.appendChild(room_data.info);
                                 overlay.appendChild(room_data.logo);
+                                room_data.buttons_div.appendChild(room_data.button_new_game);
+                                overlay.appendChild(room_data.buttons_div);
                                 preparation=false;
                             }
                             visual_effect(0);
