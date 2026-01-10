@@ -201,7 +201,7 @@ if(!window.location.search.includes('child=1')){
 			app.init().then(()=>{
 				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.24.2';
+				window.version='(1)0.25.0';
 				/*добавление в разметку canvas-а pixijs*/
 				wrapper.appendChild(app.view);
 				/*добавление в разметку html-overlay*/
@@ -966,11 +966,53 @@ if(!window.location.search.includes('child=1')){
 						}
 					};
 				}
+				/*отрисовывает текст в symbols_grid*/
+				function print_text_to_symbols_grid(text,x,y,color=0xFFFFFF){
+					x=Math.floor(x);
+					y=Math.floor(y);
+					let current_x=x,current_y=y;
+					for(let symbol of text){
+						if(current_x>=0&&current_x<symbols_grid[0].length&&current_y>=0&&current_y<symbols_grid.length){
+							let pixi_symbol=symbols_grid[current_y][current_x];
+							pixi_symbol.text=symbol;
+							pixi_symbol.tint=color;
+						}
+						if(symbol=='\n'){
+							current_x=x;
+							current_y++;
+						}
+						else{
+							current_x++;
+						}
+					}
+				}
+				/*превращает текст в коллайдер в зависимости от размера шрифта*/
+				function text_to_collider(text,void_symbols=['',' ']){
+			        let lines=text.split("\n"),collider=[];
+			        for(let line of lines){
+			            let temp_row=[];
+			            for(let char of line){
+							temp_row.push(...Array(symbol_size).fill(!void_symbols.includes(char)));
+						}
+						for(let y=0;y<symbol_size;y++){
+							collider.push([...temp_row]);
+						}
+					}
+			        return collider;
+				}
+				/*очищает symbols_grid*/
+				function clear_symbols_grid(){
+					for(let y=0;y<symbols_grid.length;y++){
+						for(let x=0;x<symbols_grid[y].length;x++){
+							symbols_grid[y][x].text='';
+						}
+					}
+				}
 				/*финальная настройка*/
 				document.addEventListener('contextmenu',(e)=>{
-				    e.preventDefault();/*отключаем контекстные меню глобально. я сам ими пользовался для вызова консоли, но они могут помешать игре, если что-то забинжено на правую кнопку мыши*/
+					e.preventDefault();/*отключаем контекстные меню глобально. я сам ими пользовался для вызова консоли, но они могут помешать игре, если что-то забинжено на правую кнопку мыши*/
 				});
-				let room_data;
+				let room_data,player;
 				room='main_menu'
 				apply_settings();
 				let input_tracker=setup_input_tracker();
@@ -1075,7 +1117,6 @@ L n L q L q H  U n U n L q U n
 						else{
 							change_button_color(room_data.buttons.back,'#fff');
 						}
-							
 					}
 					if(room=='settings'){
 						if(preparation){
@@ -1285,10 +1326,141 @@ L n L q L q H  U n U n L q U n
 							video.addEventListener('ended',()=>{
 								clear_pixijs();
 								update_symbols_grid();
-								change_room('main_menu');
+								change_room('recycle_bin');
 							});
 							preparation=false;
 						}
+					}
+					if(room=='recycle_bin'){
+						if(preparation){
+							room_data={
+								ground:{
+									text:'   ░▒▓*#-~\n ░▒▓~~-~#=\\\n    ░▒▓#=*-\\__\n              \\^\n                \\\n                 \\\n                 |\n                 |\n                 |\n                  \\\n                  <_\n                    \\\n                     \\\n                      \\\n                       7\n                       \\\n                        \\_\n                          L\n                           \\__\n                              \\\n                               7\n                              /\n                              \\\n                               |\n                               |\n                               |\n                               |\n                              /\n                             |\n                             |\n                             /\n                            /\n                           /\n                        __/\n                       /  \n                      <\n                       \\\n                        7\n                       /         ____\n                      F         /    \\_ \n                      ]         L      \\___\n                     /          /          l\n                     |         F           |\n                     |         L           `\n                     |         /            L____\n                     |         \\______           L\n                     )          \\     \\____       \\_\n                     )          <____      \\_       L_____\n                     \\          /    \\       \\            L_\n                     Г         F    , \\_     |              \\__\n                     \\         \\ /`< , _|    |                /\n                      Y         Y   Z,/     _/               <______\n                      |         `  `  |    |_\n                      /         /     |      \\\n                     /         Г      \\_\n                     |         L       _|\n                     /          \\       \n                     >          <\n                     >          <\n                     >          <\n                     \\          /\n                     Y          Y\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I__________I_____',
+									collider:[]},
+								camera:[0,0]
+							};
+							player={
+								coordinates:[35*symbol_size,-25*symbol_size],
+								collider:[],
+								walk_delay:0,
+								max_walk_delay:2,
+							};
+							room_data.ground.collider=text_to_collider(room_data.ground.text);
+							console.log(room_data.ground.collider);
+							preparation=false;
+						}
+						/*очистка*/
+						clear_symbols_grid();
+						/*настройки камеры*/
+						function focus_camera_on_player(){
+							room_data.camera=[player.coordinates[0]-(Math.floor(columns/2)*symbol_size),player.coordinates[1]-(Math.floor(rows/2)*symbol_size)];
+						}
+						focus_camera_on_player();
+						/*отрисовка карты*/
+						print_text_to_symbols_grid(room_data.ground.text,0-room_data.camera[0]/symbol_size,0-room_data.camera[1]/symbol_size);
+						/*расчет коллайдеров*/
+						function update_player_collider(){
+							player.collider=[[player.coordinates[0],player.coordinates[1]],[player.coordinates[0]+symbol_size,player.coordinates[1]+symbol_size]];
+						}
+						/*расчет коллизии*/
+						let nothing_below,nothing_left,nothing_right,nothing_higher;
+						function update_collision(ground_collider=room_data.ground.collider){
+					        update_player_collider();
+					        nothing_below=true;
+					        nothing_left=true;
+					        nothing_right=true;
+					        nothing_higher=true;
+							for(let y=player.collider[0][1];y<player.collider[1][1];y++){
+								for(let x=player.collider[0][0];x<player.collider[1][0];x++){
+									let coordinates=[x,y+1];
+									if(coordinates.every(num=>num>=0)){
+										try{
+											if(ground_collider[coordinates[1]][coordinates[0]]){
+					                            nothing_below=false;
+											}
+										}catch{}
+									}
+					                coordinates=[x,y-1];
+									if(coordinates.every(num=>num>=0)){
+										try{
+											if(ground_collider[coordinates[1]][coordinates[0]]){
+					                            nothing_higher=false;
+											}
+										}catch{}
+									}
+									coordinates=[x+1,y];
+									if(coordinates.every(num=>num>=0)){
+										try{
+											if(ground_collider[coordinates[1]][coordinates[0]]){
+					                            nothing_right=false;
+											}
+										}catch{}
+									}
+					                coordinates=[x-1,y];
+									if(coordinates.every(num=>num>=0)){
+										try{
+					                        if(ground_collider[coordinates[1]][coordinates[0]]){
+					                            nothing_left=false;
+											}
+										}catch{}
+									}
+								}
+							}
+						}
+						update_collision();
+						/*расчет скина игрока*/
+						let fractional=[false,false];
+						for(let i=0;i<=1;i++){
+							if(player.coordinates[i]/symbol_size!=Math.floor(player.coordinates[i]/symbol_size)){
+								fractional[i]=true;
+							}
+						}
+						let player_skin='';
+						if(fractional[0]){
+							if(fractional[1]){
+								player_skin='▗▖\n▝▘';
+							}else{
+								player_skin='▐▌';
+							}
+						}else{
+							if(fractional[1]){
+								player_skin='▄\n▀';
+							}else{
+								player_skin='█';
+							}
+						}
+						/*обработка движения*/
+						if(player.walk_delay<=0){
+							if(nothing_right&&activated_actions.has('right')){
+								player.coordinates[0]=Math.round(player.coordinates[0]+0.5*symbol_size);
+								player.walk_delay=player.max_walk_delay;
+								update_collision();
+							}
+							if(nothing_left&&activated_actions.has('left')){
+								player.coordinates[0]=Math.round(player.coordinates[0]-0.5*symbol_size);
+								player.walk_delay=player.max_walk_delay;
+								update_collision();
+							}
+						}else{
+							player.walk_delay--;
+						}
+						if(nothing_higher&&activated_actions.has('jump')){
+							player.coordinates[1]=Math.round(player.coordinates[1]-0.5*symbol_size);
+							update_collision();
+						}else if(nothing_below){
+							player.coordinates[1]=Math.round(player.coordinates[1]+0.5*symbol_size);
+							update_collision();
+						}
+						/*отрисовка игрока*/
+						focus_camera_on_player();
+						let rendering_coordinates=[player.coordinates[0]-room_data.camera[0],player.coordinates[1]-room_data.camera[1]];
+						if(fractional[0]){
+							rendering_coordinates[0]--;
+						}
+						if(fractional[1]){
+							rendering_coordinates[1]--;
+						}
+						print_text_to_symbols_grid(player_skin,rendering_coordinates[0]/symbol_size,rendering_coordinates[1]/symbol_size);
 					}
 					window.PERMITTED={ 
 						set_font_size,
