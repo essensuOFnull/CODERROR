@@ -9,6 +9,12 @@
 	font-family:'CODERROR';
 	src:url('fonts/CODERROR16x16GNUUnifont.ttf') format('truetype');
 }
+.pixel-rendering *{
+	image-rendering:pixelated;
+}
+.smooth-rendering *{
+	image-rendering:auto;
+}
 *{
 	margin:0;
 	padding:0;
@@ -18,6 +24,7 @@
 	font-size:var(--symbol_size);
 	line-height:1em;
 	pointer-events:auto; /* Разрешить взаимодействие с HTML-элементами */
+	image-rendering:var(--image_rendering);
 }
 html,body{
 	width:100%;
@@ -136,8 +143,8 @@ input[type="checkbox"]{
 	background-image:url('images/interface/inventory/slot.png');
 	background-size:contain;
 	background-repeat:no-repeat;
-	width:30px;
-	height:30px;
+	width:32px;
+	height:32px;
 	position:relative;
 }
 .row{
@@ -223,7 +230,7 @@ if(!window.location.search.includes('child=1')){
 			app.init().then(()=>{
 				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.28.1';
+				window.version='(1)0.29.1';
 				/*добавление в разметку canvas-а pixijs*/
 				wrapper.appendChild(app.view);
 				/*добавление в разметку html-overlay*/
@@ -282,6 +289,8 @@ if(!window.location.search.includes('child=1')){
 				const update_size=()=>{
 					app.renderer.resize(wrapper.clientWidth,wrapper.clientHeight);
 					update_symbols_grid();
+					/*меняем способ масштабирования в зависимости от масштаба: если больше нормы - пиксельный, меньше - размытый*/
+					styleSheet.insertRule(`:root{--image_rendering:${window.devicePixelRatio>=1?'pixelated':'auto'} !important;}`,styleSheet.cssRules.length);
 				};
 				function visual_effect(number){
 					/*заполняет случайными символами*/
@@ -842,7 +851,7 @@ if(!window.location.search.includes('child=1')){
 				function apply_settings(){
 					apply_language(window.settings.interface.language);
 					apply_random_splash();
-					set_font_size(window.settings.interface.font_size);
+					//set_font_size(window.settings.interface.font_size);
 					set_max_content_size(window.settings.interface.max_content_width,window.settings.interface.max_content_height);
 					change_room(room);
 				}

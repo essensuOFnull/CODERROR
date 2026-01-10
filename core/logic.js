@@ -338,7 +338,7 @@ L n L q L q H  U n U n L q U n
 		}
 	}
 	window.PERMITTED={ 
-		set_font_size,
+		//set_font_size,
 		apply_language,
 		set_max_content_size,
 		apply_random_splash,
