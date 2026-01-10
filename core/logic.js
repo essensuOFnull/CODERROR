@@ -26,7 +26,8 @@ L U L q L q H  L q L q L q L q
 L   L q L q H] L_/ L_/ L q L_/
 L n L q L q H  U n U n L q U n
 \_/ \_/ L_/ L] U U U U \_/ U U`.trim())}</div>`),
-				buttons_div:create_element_from_HTML(`<div class="center column"/>`),
+				scrollable:create_element_from_HTML(`<div class="scrollable"/>`),
+				buttons_div:create_element_from_HTML(`<div class="center column fill-parent"/>`),
 				buttons:dict_to_buttons(window.language.rooms[room].buttons),
 				bug_counter:0
 			};
@@ -37,7 +38,8 @@ L n L q L q H  U n U n L q U n
 				room_data.buttons_div.appendChild(el);
 				room_data.buttons_div.appendChild(get_br());
 			});
-			overlay.appendChild(room_data.buttons_div);
+			room_data.scrollable.appendChild(room_data.buttons_div);
+			overlay.appendChild(room_data.scrollable);
 			room_data.buttons.exit.addEventListener('click',()=>{
 				alert("⚠️ ERROR 400: Bad Request");
 				self.close();
@@ -262,6 +264,7 @@ L n L q L q H  U n U n L q U n
 			overlay.appendChild(get_br());
 			overlay.appendChild(generate_hotbar());
 			update_active_hotbar_slot_frame();
+			clear_symbols_grid();
 			preparation=false;
 		}
 		if(window.activated_actions.has('previous_hotbar_slot')){

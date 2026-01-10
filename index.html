@@ -71,6 +71,10 @@ pre{
 	align-items: center; /* Центрирование по вертикали */
 	justify-content: center; /* Центрирование по горизонтали */
 }
+.fill-parent{
+	width:100%;
+	height:100%;
+}
 .column{
 	flex-direction:column;
 }
@@ -87,11 +91,28 @@ button{
 	background:#00000066;
 }
 .scrollable{
-	overflow-y:scroll;
-	overflow-x:scroll;
+	overflow-y:auto;
+	overflow-x:auto;
 	width:100%;
 	height:100%;
 	scrollbar-color:#fff #000;
+}
+.scrollable *{
+	min-width:min-content;
+	min-height:min-content;
+}
+.symbolic_hr{
+	width:100%;
+	min-width:0;
+	min-height:0;
+	height:max-content;
+}
+.symbolic_hr pre{
+	contain:strict;
+	width:100%;
+	height:var(--symbol_size);
+	overflow:hidden;
+	white-space:nowrap;
 }
 #wrapper{
 	position:relative;
@@ -224,7 +245,7 @@ if(!window.location.search.includes('child=1')){
 			app.init().then(()=>{
 				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.29.2';
+				window.version='(1)0.29.3';
 				/*добавление в разметку canvas-а pixijs*/
 				wrapper.appendChild(app.view);
 				/*добавление в разметку html-overlay*/
@@ -819,7 +840,7 @@ if(!window.location.search.includes('child=1')){
 				}
 				/*создает hr из -*/
 				function get_symbolic_hr(){
-					return create_element_from_HTML(`<div style='overflow:hidden;width:100%;height:max-content'><pre style='white-space:nowrap'>${'-'.repeat(666)}</pre></div>`);
+					return create_element_from_HTML(`<div class='symbolic_hr'><pre>${'-'.repeat(666)}</pre></div>`);
 				}
 				/*принимает список названий языков и применяет их (чем больше индекс, тем выше приоритет)*/
 				function apply_language(name_list){
