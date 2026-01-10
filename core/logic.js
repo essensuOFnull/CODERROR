@@ -51,6 +51,9 @@ L n L q L q H  U n U n L q U n
 			room_data.buttons.new_game.addEventListener('click',()=>{
 				change_room('intro0');
 			});
+			room_data.buttons.room_editor.addEventListener('click',()=>{
+				change_room('room_editor');
+			});
 			preparation=false;
 		}
 	}
@@ -251,6 +254,14 @@ L n L q L q H  U n U n L q U n
 				}
 				apply_settings();
 			});
+			preparation=false;
+		}
+	}
+	if(room=='room_editor'){
+		if(preparation){
+			overlay.appendChild(get_br());
+			overlay.appendChild(generate_hotbar());
+			update_active_hotbar_slot_frame();
 			preparation=false;
 		}
 	}

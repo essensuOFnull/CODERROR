@@ -133,6 +133,29 @@ input[type="range"]{
 input[type="checkbox"]{
 	accent-color:#f0f;
 }
+.hotbar_slot{
+	background-image:url('images/interface/inventory/slot.png');
+	background-size:contain;
+	background-repeat:no-repeat;
+	width:30px;
+	height:30px;
+	position:relative;
+}
+.row{
+	display:flex;
+}
+.centered,#active_hotbar_slot_frame{
+	position:absolute;
+	top:50%;
+	left:50%;
+	/* коррекция положения элемента */
+	transform:translate(-50%, -50%);
+}
+#active_hotbar_slot_frame{
+	width:32px;
+	height:32px;
+	z-index:5;
+}
 	</style>
 	<link rel="icon" type="image/png">
 </head>
@@ -201,7 +224,7 @@ if(!window.location.search.includes('child=1')){
 			app.init().then(()=>{
 				let wrapper=document.getElementById('wrapper');
 				/*версия CODERROR'а*/
-				window.version='(1)0.26.1';
+				window.version='(1)0.27.0';
 				/*добавление в разметку canvas-а pixijs*/
 				wrapper.appendChild(app.view);
 				/*добавление в разметку html-overlay*/
@@ -1072,6 +1095,30 @@ if(!window.location.search.includes('child=1')){
 							}
 						}
 					}
+				}
+				/*устанавливает рамку на активный слот хотбара*/
+				let active_hotbar_slot_index=0;
+				function update_active_hotbar_slot_frame(){
+					let active_hotbar_slot_frame=document.getElementById('active_hotbar_slot_frame');
+					if(!active_hotbar_slot_frame){
+						active_hotbar_slot_frame=create_element_from_HTML(`<img id="active_hotbar_slot_frame" src="images/interface/inventory/active_slot_frame.png"/>`);
+					}
+					document.querySelector(`.hotbar_slot[data-index="${active_hotbar_slot_index}"]`).appendChild(active_hotbar_slot_frame);
+				}
+				/*генерирует хотбар*/
+				function generate_hotbar(slot_count=10){
+					let hotbar=create_element_from_HTML(`<div id="hotbar" class="row"></div>`);
+					for(let i=0;i<slot_count;i++){
+						let slot=document.createElement('div');
+						slot.dataset.index=i;
+						slot.classList.add('hotbar_slot');
+						slot.addEventListener('click',function(e){
+							active_hotbar_slot_index=this.dataset.index;
+							update_active_hotbar_slot_frame();
+						});
+						hotbar.appendChild(slot);
+					}
+					return hotbar;
 				}
 				/*финальная настройка*/
 				document.addEventListener('contextmenu',(e)=>{
