@@ -90,25 +90,8 @@ d.app.ticker.add(()=>{
 			f.focus_camera_on_player();
 			/*отрисовка карты*/
 			f.print_text_to_symbols_grid(d.save.temp.room.data.ground.text,0-d.save.temp.camera[0]/d.symbol_size,0-d.save.temp.camera[1]/d.symbol_size);
-			/*расчет скина игрока*/
-			let fractional=[false,false];
-			for(let i=0;i<=1;i++){
-				if(d.save.world.players[d.save.player.nickname].position.coordinates[i]/d.logical_symbol_size!=Math.floor(d.save.world.players[d.save.player.nickname].position.coordinates[i]/d.logical_symbol_size)){
-					fractional[i]=true;
-				}
-			}
-			let player_skin='';
-			player_skin=(fractional[0]?(fractional[1]?'▗▖\n▝▘':'▐▌'):(fractional[1]?'▄\n▀':'█'));
 			/*отрисовка игрока*/
-			f.focus_camera_on_player();
-			let rendering_coordinates=[f.logical_to_screen(d.save.world.players[d.save.player.nickname].position.coordinates[0])-d.save.temp.camera[0],f.logical_to_screen(d.save.world.players[d.save.player.nickname].position.coordinates[1])-d.save.temp.camera[1]];
-			if(fractional[0]){
-				rendering_coordinates[0]--;
-			}
-			if(fractional[1]){
-				rendering_coordinates[1]--;
-			}
-			f.print_text_to_symbols_grid(player_skin,rendering_coordinates[0]/d.symbol_size,rendering_coordinates[1]/d.symbol_size);
+			f.render_player();
 		}
 	}
 });

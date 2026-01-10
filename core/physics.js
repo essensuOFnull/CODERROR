@@ -220,6 +220,7 @@ L n L q L q H  U n U n L q U n
 				}
 				let character={
 					nickname:nickname,
+					is_symbolic:true,
 					interface:{
 						hotbar:{
 							active_slot_index:0,

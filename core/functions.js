@@ -3,7 +3,7 @@ let d=window.CODERROR.__originals__.data;
 
 window.CODERROR.__originals__.functions={
 /**инициализирует камеру three*/
-init_three_camera:function(){
+init_three_camera(){
 	d.three_camera=new THREE.PerspectiveCamera(
 		50,
 		d.wrapper.clientWidth/d.wrapper.clientHeight,
@@ -13,7 +13,7 @@ init_three_camera:function(){
 	d.three_camera.position.z=1;/*Камера внутри куба*/
 },
 /**создаёт материалы*/
-create_skybox_materials:function(path_part,extension,is_sphere) {
+create_skybox_materials(path_part,extension,is_sphere) {
 	let sides = ['right','left','top','bottom','front','back'];
 	if(is_sphere){
 		return sides.map(side => {
@@ -83,7 +83,7 @@ create_skybox_materials:function(path_part,extension,is_sphere) {
 	}
 },
 /**устанавливает небо*/
-set_sky:function(path_part,extension,is_sphere=false) {
+set_sky(path_part,extension,is_sphere=false) {
 	let new_sky_path=`${path_part}/.${extension}`;
 	if(new_sky_path==d.current_sky_path)return
 	/*Удаляем старый skybox с освобождением ресурсов*/
@@ -116,7 +116,7 @@ set_sky:function(path_part,extension,is_sphere=false) {
 	d.current_sky_path=new_sky_path;
 },
 /**Инициализация текстуры и спрайта*/
-init_three_scene:function(){
+init_three_scene(){
 	d.background_texture=PIXI.Texture.from(d.three_renderer.domElement);
 	d.background_texture.baseTexture.autoUpdate=false;
 	d.background_sprite=new PIXI.Sprite(d.background_texture);
@@ -126,23 +126,23 @@ init_three_scene:function(){
 	d.app.stage.addChildAt(d.background_sprite,0);
 },
 /**Функция обновления сцены three*/
-update_three_scene:function(){
+update_three_scene(){
 	/*Обновляем Three.js сцену*/
 	d.three_renderer.render(d.three_scene,d.three_camera);
 	/*Принудительное обновление текстуры в PixiJS*/
 	d.background_texture.baseTexture.update();
 },
-rotate_sky:function(x,y,z){
+rotate_sky(x,y,z){
 	if(!d.skybox)return;
 	d.skybox.rotation.x+=x;
 	d.skybox.rotation.y+=y;
 	d.skybox.rotation.z+=z;
 },
-set_sky_rotation:function(x,y,z){
+set_sky_rotation(x,y,z){
 	if(!d.skybox)return;
 	d.skybox.rotation.set(x,y,z);
 },
-print_to_chat:function(message){
+print_to_chat(message){
 	let message_element=f.create_element_from_HTML(`<div>${message}</div>`);
 	message_element.classList.add('message');
 	d.chat_preview.appendChild(message_element);
@@ -150,21 +150,21 @@ print_to_chat:function(message){
 		message_element.remove();
 	});
 },
-change_room:function(room,preparation=true,reset_overlay=true){
+change_room(room,preparation=true,reset_overlay=true){
 	_.set(d,`save.world.players.${d.save.player.nickname}.position.room_id`,room);
 	_.set(d,'save.temp.room.preparation',preparation);
 	if(!reset_overlay)return
 	d.overlay.innerHTML=``;
 },
 /**инициализирует матрицу символов*/
-init_symbols_grid:function(){
+init_symbols_grid(){
 	d.symbols_grid=[];
 	d.columns=0;
 	d.rows=0;
 	f.set_font_size(d.symbol_size||16);
 },
 /**обновляет размеры матрицы символов*/
-update_symbols_grid:function(){
+update_symbols_grid(){
 	let newColumns=Math.ceil(d.app.renderer.width/d.symbol_size);
 	let newRows=Math.ceil(d.app.renderer.height/d.symbol_size);
 	/*Ресайз существующей сетки*/
@@ -216,7 +216,7 @@ update_symbols_grid:function(){
 	d.columns=newColumns;
 	d.rows=newRows;
 },
-set_font_size:function(size_in_pixels){
+set_font_size(size_in_pixels){
 	d.symbol_size=size_in_pixels;
 	d.styleSheet.insertRule(":root{--symbol_size:"+d.symbol_size+"px !important;}",d.styleSheet.cssRules.length);
 	d.pixi_text_style=new PIXI.TextStyle({
@@ -227,7 +227,7 @@ set_font_size:function(size_in_pixels){
 	});
 	f.update_symbols_grid();
 },
-update_size:function() {
+update_size() {
 	/*Получаем актуальные размеры контейнера*/
 	let width=d.wrapper.clientWidth;
 	let height=d.wrapper.clientHeight;
@@ -250,7 +250,7 @@ update_size:function() {
 	d.app.stage.removeChild(d.background_sprite);
 	f.init_three_scene();
 },
-visual_effect:function(number){
+visual_effect(number){
 	/*заполняет случайными символами*/
 	if(number==0){
 		for(let y=0;y<d.symbols_grid.length;y++){
@@ -282,7 +282,7 @@ visual_effect:function(number){
 		}
 	}
 },
-init_printable_symbols:function(){
+init_printable_symbols(){
 	d.printable_symbols='';
 	let ranges=[
 		[0x0020,0x007F], /*Basic Latin (ASCII)*/
@@ -304,13 +304,13 @@ init_printable_symbols:function(){
 		}
 	}
 },
-get_random_char:function(){
+get_random_char(){
 	return d.printable_symbols[Math.floor(Math.random()*99)];
 },
-get_random_color:function(){
+get_random_color(){
 	return Math.floor(Math.random()*0xFFFFFF);
 },
-generate_favicon:function(){
+generate_favicon(){
 	/*Очищаем холст*/
 	d.favicon.ctx.clearRect(0,0,d.favicon.size,d.favicon.size);
 	/*Настройки текста*/
@@ -323,7 +323,7 @@ generate_favicon:function(){
 	},'image/png');
 },
 /**функция генерации кода разметки pre с отсутствием фона у пробелов*/
-get_transparent_space_text:function(text,color='#fff',background='#000'){
+get_transparent_space_text(text,color='#fff',background='#000'){
 	let escapeHtml=(char)=>{
 		let escapes={
 			'<':'&lt;',
@@ -424,7 +424,7 @@ get_transparent_space_text:function(text,color='#fff',background='#000'){
 	return`<div style="display:contents;color:${color};background:${background}">${output.join('')}</div>`;
 },
 /**принимает разметку, возвращает полноценный элемент*/
-create_element_from_HTML:function(html){
+create_element_from_HTML(html){
 	let template=document.createElement('template');
 	template.innerHTML=html.trim();
 	let fragment=template.content;
@@ -442,15 +442,15 @@ create_element_from_HTML:function(html){
 	return container;
 },
 /**возвращает один из ИСТИНЫХ цветов*/
-get_random_true_str_color:function(){
+get_random_true_str_color(){
 	return f.get_random_element(['#000','#00f','#0f0','#0ff','#f00','#f0f','#ff0','#fff']);
 },
 /**увеличивает z-index на 1*/
-increment_z_index:function(element){
+increment_z_index(element){
 	element.style.zIndex=parseInt(element.style.zIndex||0)+1+'';
 },
 /**оборачивает элемент в кнопку с символьной рамкой*/
-wrap_in_frame:function(content,container_type='<button/>',removable=false) {
+wrap_in_frame(content,container_type='<button/>',removable=false) {
 	let button = f.create_element_from_HTML(container_type);
 	button.style.position='relative';
 	button.style.overflow='hidden';
@@ -519,15 +519,15 @@ wrap_in_frame:function(content,container_type='<button/>',removable=false) {
 	return button;
 },
 /**создает кнопку на основе текста*/
-create_button_from_text:function(text,removable=false){
+create_button_from_text(text,removable=false){
 	return f.wrap_in_frame(f.create_element_from_HTML(f.get_transparent_space_text(text)),'<button/>',removable);
 },
 /**меняет цвет рамки кнопки*/
-change_button_border_color:function(button,color){
+change_button_border_color(button,color){
 	button.style.color=color;
 },
 /**меняет цвет текста кнопки*/
-change_button_text_color:function(button,color){
+change_button_text_color(button,color){
 	let targetElement=button.querySelector('#frame_content');
 	let firstChild=targetElement.firstElementChild;
 	if(firstChild){
@@ -537,12 +537,12 @@ change_button_text_color:function(button,color){
 	}
 },
 /**меняет цвет рамки и текста кнопки*/
-change_button_color:function(button,color){
+change_button_color(button,color){
 	f.change_button_border_color(button,color);
 	f.change_button_text_color(button,color);
 },
 /**проверяет перетаскивают ли файл над объектом*/
-check_dragover:function(element){
+check_dragover(element){
 	if (!element.__dragoverHandlersAdded){
 		let handlers={
 			dragenter:(event)=>{
@@ -581,15 +581,15 @@ check_dragover:function(element){
 	return d.dragover_states.get(element)||false;
 },
 /**проверяет наведена ли мышь на элемент*/
-check_hover:function(element){
+check_hover(element){
 	return(element.matches(':hover')||f.check_dragover(element));
 },
 /**возвращает новый br элемент*/
-get_br:function(){
+get_br(){
 	return document.createElement('br');
 },
 /**превращает json файл в объект (требует async await)*/
-json_to_dict:function(file){
+json_to_dict(file){
 	return new Promise((resolve,reject)=>{
 		let reader=new FileReader();
 		reader.onload=e=>{
@@ -613,7 +613,7 @@ jsons_to_dict_list:async function(files){
 	return data;
 },
 /**создаёт кастомные обработчики событий*/
-add_event_listener:function(name,element,function_part){
+add_event_listener(name,element,function_part){
 	/*Удаляем старые обработчики перед добавлением новых*/
 	f.remove_event_listener(name,element);
 	let handlers={
@@ -671,7 +671,7 @@ add_event_listener:function(name,element,function_part){
 	}
 },
 /**удаляет кастомные обработчики событий*/
-remove_event_listener:function(name,element){
+remove_event_listener(name,element){
 	let stored=d.event_handlers.get(element);
 	if(!stored||stored.name!==name)return
 	/*Удаляем все обработчики событий*/
@@ -685,11 +685,11 @@ remove_event_listener:function(name,element){
 	d.event_handlers.delete(element);
 },
 /**создает hr из -*/
-get_symbolic_hr:function(){
+get_symbolic_hr(){
 	return f.create_element_from_HTML(`<div class='symbolic_hr'><pre>${'-'.repeat(666)}</pre></div>`);
 },
 /**принимает список названий языков и применяет их (чем больше индекс, тем выше приоритет)*/
-apply_language:function(name_list){
+apply_language(name_list){
 	name_list=['default'].concat(name_list);
 	let languages_list=[];
 	for(name of name_list){
@@ -698,7 +698,7 @@ apply_language:function(name_list){
 	d.language=_.merge({},...languages_list);
 },
 /**принимает словарь текста и превращает его в кнопки*/
-dict_to_buttons:function(dict){
+dict_to_buttons(dict){
 	let buttons=structuredClone(dict);
 	for(let key in buttons){
 		buttons[key]=f.create_button_from_text(buttons[key]);
@@ -706,13 +706,13 @@ dict_to_buttons:function(dict){
 	return buttons;
 },
 /**устанавливает ограничение максимального размера содержимого игры, "100%" отключает ограничение*/
-set_max_content_size:function(max_width,max_height){
+set_max_content_size(max_width,max_height){
 	d.wrapper.style.width=`min(100%,${max_width})`;
 	d.wrapper.style.height=`min(100%,${max_height})`;
 	f.update_size();
 },
 /**принимает select и список и устанавливает ему эти значения*/
-set_select_options:function(selectElement,options) {
+set_select_options(selectElement,options) {
 	selectElement.innerHTML='';
 	options.forEach(optionText=>{
 		let option=document.createElement('option');
@@ -721,7 +721,7 @@ set_select_options:function(selectElement,options) {
 	});
 },
 /**создает select с рамкой*/
-create_select_with_frame:function(options,removable=false){
+create_select_with_frame(options,removable=false){
 	let select=f.create_element_from_HTML('<select/>');
 	f.set_select_options(select,options);
 	select.style.margin='calc(-1 * var(--symbol_size))';
@@ -734,15 +734,15 @@ create_select_with_frame:function(options,removable=false){
 	return[frame,select];
 },
 /**создает прозрачный пробел для горизонтального отступа*/
-get_space:function(){
+get_space(){
 	return f.create_element_from_HTML(`<pre style='background:#00000000'> </pre>`);
 },
 /**превращает объект в строку*/
-object_to_string:function(object){
+object_to_string(object){
 	return JSON.stringify(object);
 },
 /**Функция для сохранения объекта как JSON файл*/
-save_as_json:function(data,filename){
+save_as_json(data,filename){
 	/*Преобразуем объект в JSON строку*/
 	let jsonString=f.object_to_string(data);
 	/*Создаем Blob из JSON строки*/
@@ -764,7 +764,7 @@ save_as_json:function(data,filename){
 	alert(d.language.alerts.file_saved(filename));
 },
 /**удаляет из списка повторяющиеся значения, оставляя в нём только их последние вхождения*/
-remove_duplicates:function(arr){
+remove_duplicates(arr){
 	let seen=new Set();
 	let result=[];
 	/*Идем по массиву в обратном порядке*/
@@ -779,7 +779,7 @@ remove_duplicates:function(arr){
 	return result.reverse();
 },
 /**применяет к игре настройки из d.settings*/
-apply_settings:function(){
+apply_settings(){
 	f.apply_language(d.settings.interface.language);
 	f.set_volume(d.settings.audio.music_volume);
 	f.apply_random_splash();
@@ -788,7 +788,7 @@ apply_settings:function(){
 	f.change_room(d.save.world.players[d.save.player.nickname].position.room_id);
 },
 /**создает textarea с рамкой*/
-create_textarea_with_frame:function(placeholder='',removable=false){
+create_textarea_with_frame(placeholder='',removable=false){
 	let textarea=f.create_element_from_HTML('<textarea/>');
 	textarea.style.cursor='pointer';
 	textarea.style.background='#00000000';
@@ -800,7 +800,7 @@ create_textarea_with_frame:function(placeholder='',removable=false){
 	return[frame,textarea];
 },
 /**для того чтобы музыка начинала проигрываться после нажатия на любое место страницы*/
-init_audio:function(){
+init_audio(){
 	if(d.audio_initialized)return;
 	d.audio_initialized=true;
 	document.removeEventListener('click',f.init_audio);
@@ -808,7 +808,7 @@ init_audio:function(){
 	d.current_music.play().catch(f.handle_play_error);
 },
 /**принимает путь до музыки и включает её*/
-set_music:function(path){
+set_music(path){
 	if(d.current_music_path===path)return;
 	if(d.current_music){
 		d.current_music.pause();
@@ -824,20 +824,20 @@ set_music:function(path){
 	f.print_to_chat(d.language.notifications.current_music(path));
 },
 /**выводит сообщение об ошибке вывода музыки в случае её возникновения*/
-handle_play_error:function(error){
+handle_play_error(error){
 	console.error('Playback error:',error);
 },
 /**устанавливает громкость*/
-set_volume:function(volume){
+set_volume(volume){
 	d.music_volume=Math.max(0,Math.min(1,volume));
 	if(d.current_music)d.current_music.volume=d.music_volume;
 },
 /**меняет текст кастомной кнопки*/
-change_button_text:function(button,text){
+change_button_text(button,text){
 	button.querySelector('#frame_content').innerHTML=f.get_transparent_space_text(text);
 },
 /**ожидает пользовательский ввод и возвращает promise*/
-wait_user_input:function(){
+wait_user_input(){
 	return new Promise((resolve)=>{
 		let handler=(e)=>{
 			if(d.ignored_keys.includes(e.code))return
@@ -863,20 +863,20 @@ wait_user_input:function(){
 	});
 },
 /**принимает список и возвращает случайный элемент*/
-get_random_element:function(list){
+get_random_element(list){
 	return list[Math.floor(Math.random()*list.length)];
 },
 /**устанавливает случайный сплеш*/
-apply_random_splash:function(){
+apply_random_splash(){
 	d.splash=f.get_random_element(d.language.splashes);
 },
 /**очищает сцену pixijs*/
-clear_pixijs:function(stage=d.app.stage){
+clear_pixijs(stage=d.app.stage){
 	stage.removeChildren();
 	d.current_sky_path=null;
 },
 /**отслеживает нажатия и отжатия клавиш*/
-update_activated_actions:function(){
+update_activated_actions(){
 	d.activated_actions.clear();
 	Object.entries(d.settings.control).forEach(([control_id,control])=>{
 		if(control_id!='bind_to_layout'){
@@ -889,7 +889,7 @@ update_activated_actions:function(){
 		}
 	});
 },
-setup_input_tracker:function(){
+setup_input_tracker(){
 	let getKey=(e)=>{
 		if(e.type.startsWith('key')){
 			return d.settings.control.bind_to_layout?e.key:e.code;
@@ -925,7 +925,7 @@ setup_input_tracker:function(){
 	};
 },
 /**отрисовывает текст в d.symbols_grid*/
-print_text_to_symbols_grid:function(text,x,y,color=0xFFFFFF){
+print_text_to_symbols_grid(text,x,y,color=0xFFFFFF){
 	x=Math.floor(x);
 	y=Math.floor(y);
 	let current_x=x,current_y=y;
@@ -945,7 +945,7 @@ print_text_to_symbols_grid:function(text,x,y,color=0xFFFFFF){
 	}
 },
 /**превращает текст в коллайдер в зависимости от размера шрифта*/
-text_to_collider:function(text,void_symbols=['',' ']){
+text_to_collider(text,void_symbols=['',' ']){
 	let lines=text.split("\n"),collider=[];
 	for(let line of lines){
 		let temp_row=[];
@@ -959,7 +959,7 @@ text_to_collider:function(text,void_symbols=['',' ']){
 	return collider;
 },
 /**очищает d.symbols_grid*/
-clear_symbols_grid:function(){
+clear_symbols_grid(){
 	for(let y=0;y<d.symbols_grid.length;y++){
 		for(let x=0;x<d.symbols_grid[y].length;x++){
 			d.symbols_grid[y][x].text='';
@@ -987,19 +987,19 @@ load_script:async function(path) {
 	}
 },
 /**переводит логические координаты в координаты на экране*/
-logical_to_screen:function(num){
+logical_to_screen(num){
 	return num/d.logical_symbol_size*d.symbol_size;
 },
 /**настройки камеры*/
-focus_camera_on_player:function(){
+focus_camera_on_player(){
 	d.save.temp.camera=[f.logical_to_screen(d.save.world.players[d.save.player.nickname].position.coordinates[0])-(Math.floor(d.columns/2)*d.symbol_size),f.logical_to_screen(d.save.world.players[d.save.player.nickname].position.coordinates[1])-(Math.floor(d.rows/2)*d.symbol_size)];
 },
 /**расчет коллайдеров*/
-update_player_collider:function(){
+update_player_collider(){
 	d.save.world.players[d.save.player.nickname].position.collider=[[d.save.world.players[d.save.player.nickname].position.coordinates[0],d.save.world.players[d.save.player.nickname].position.coordinates[1]],[d.save.world.players[d.save.player.nickname].position.coordinates[0]+d.logical_symbol_size,d.save.world.players[d.save.player.nickname].position.coordinates[1]+d.logical_symbol_size]];
 },
 /**расчет коллизии*/
-update_collision:function(ground_collider=d.save.temp.ground.collider){
+update_collision(ground_collider=d.save.temp.ground.collider){
 	f.update_player_collider();
 	let nickname=d.save.player.nickname,
 	touch_wall=`save.world.players.${nickname}.position.touch_wall`,
@@ -1036,7 +1036,7 @@ update_collision:function(ground_collider=d.save.temp.ground.collider){
 	}
 },
 /**устанавливает рамку на активный слот хотбара*/
-update_active_hotbar_slot_frame:function(){
+update_active_hotbar_slot_frame(){
 	if(d.save.player.interface.hotbar.slot_count==0)return;
 	let active_hotbar_slot_frame=document.getElementById('active_hotbar_slot_frame');
 	if(!active_hotbar_slot_frame){
@@ -1045,7 +1045,7 @@ update_active_hotbar_slot_frame:function(){
 	document.querySelector(`.hotbar_slot[data-index="${d.save.player.interface.hotbar.active_slot_index}"]`).appendChild(active_hotbar_slot_frame);
 },
 /**генерирует хотбар*/
-generate_hotbar:function(player=d.save.player,functional=true){
+generate_hotbar(player=d.save.player,functional=true){
 	let hotbar=f.create_element_from_HTML(`<div class="row"></div>`);
 	if(functional){
 		hotbar.id='hotbar';
@@ -1064,7 +1064,7 @@ generate_hotbar:function(player=d.save.player,functional=true){
 	}
 	return hotbar;
 },
-generate_esc_menu:function(){
+generate_esc_menu(){
 	let esc_menu=f.create_element_from_HTML(`<div id="esc_menu"></div>`);
 	let button_to_main_menu=f.create_button_from_text(d.language.interface.buttons.to_main_menu);
 	button_to_main_menu.addEventListener('click',()=>{
@@ -1078,7 +1078,7 @@ generate_esc_menu:function(){
 	return esc_menu;
 },
 /**генерирует интерфейс*/
-update_interface:function(){
+update_interface(){
 	if(!d.interface){
 		console.warn('update_interface: interface is not ready yet');
 		return;
@@ -1089,11 +1089,11 @@ update_interface:function(){
 	d.interface.appendChild(f.generate_esc_menu());
 },
 /**включает/отключает интерфейс*/
-set_interface_visibility:function(is_visible){
+set_interface_visibility(is_visible){
 	d.interface.style.visibility=(is_visible?'visible':'collapse');
 },
 /**активирует прошлый слот хотбара*/
-activate_previous_hotbar_slot:function(){
+activate_previous_hotbar_slot(){
 	d.save.player.interface.hotbar.active_slot_index--;
 	if(d.save.player.interface.hotbar.active_slot_index<0){
 		d.save.player.interface.hotbar.active_slot_index=d.save.player.interface.hotbar.slot_count-1;
@@ -1101,14 +1101,14 @@ activate_previous_hotbar_slot:function(){
 	f.update_active_hotbar_slot_frame();
 },
 /**активирует следующий слот хотбара*/
-activate_next_hotbar_slot:function(){
+activate_next_hotbar_slot(){
 	d.save.player.interface.hotbar.active_slot_index++;
 	if(d.save.player.interface.hotbar.active_slot_index>=d.save.player.interface.hotbar.slot_count){
 		d.save.player.interface.hotbar.active_slot_index=0;
 	}
 	f.update_active_hotbar_slot_frame();
 },
-open_handles_DB:function() {
+open_handles_DB() {
 	return new Promise((resolve, reject) => {
 		const req = indexedDB.open(d.FS_DB_NAME, 1);
 		req.onupgradeneeded = (e) => {
@@ -1119,7 +1119,7 @@ open_handles_DB:function() {
 		req.onerror = () => reject(req.error);
 	});
 },
-save_handle_to_DB:function(handle) {
+save_handle_to_DB(handle) {
 	return f.open_handles_DB().then(db => new Promise((resolve, reject) => {
 		try{
 			const tx = db.transaction(d.FS_STORE_NAME, 'readwrite');
@@ -1132,7 +1132,7 @@ save_handle_to_DB:function(handle) {
 		}
 	}));
 },
-get_handle_from_DB:function() {
+get_handle_from_DB() {
 	return f.open_handles_DB().then(db => new Promise((resolve, reject) => {
 		try{
 			const tx = db.transaction(d.FS_STORE_NAME, 'readonly');
@@ -1145,7 +1145,7 @@ get_handle_from_DB:function() {
 		}
 	}));
 },
-verify_permission:function(handle, withWrite) {
+verify_permission(handle, withWrite) {
 	const opts = {};
 	if (withWrite) opts.mode = 'readwrite';
 	// Возвращаем Promise<boolean>
@@ -1163,7 +1163,7 @@ verify_permission:function(handle, withWrite) {
 		return Promise.resolve(false);
 	}
 },
-init_file_access:function(){
+init_file_access(){
 	// Функция возвращает Promise, чтобы вызвать её из main.js и продолжать после получения дескриптора
 	return new Promise((resolve,reject)=>{
 		// Если API не поддерживается — выходим молча
@@ -1203,7 +1203,7 @@ init_file_access:function(){
 	});
 },
 // Вызывать в обработчике пользовательского события (click) — picker требует user activation
-request_directory_via_user_gesture:function(){
+request_directory_via_user_gesture(){
 	return new Promise((resolve,reject)=>{
 		if(!window.showDirectoryPicker)return resolve(null);
 		window.showDirectoryPicker().then(handle=>{
@@ -1223,7 +1223,7 @@ request_directory_via_user_gesture:function(){
 	});
 },
 /**проверяет существует ли файл*/
-file_exists:function(relPath){
+file_exists(relPath){
 	return new Promise((resolve,reject)=>{
 		if(!d.directory_handle)return reject(new Error('Directory handle is not available'));
 		const parts=relPath.split('/').filter(Boolean);
@@ -1257,7 +1257,7 @@ file_exists:function(relPath){
 	});
 },
 /**читает содержимое текстового файла, возвращает null если файл не существует*/
-read_file:function(relPath){
+read_file(relPath){
 	return new Promise((resolve,reject)=>{
 		if(!d.directory_handle)return reject(new Error('Directory handle is not available'));
 		const parts=relPath.split('/').filter(Boolean);
@@ -1293,7 +1293,7 @@ read_file:function(relPath){
 	});
 },
 /**записывает содержимое в текстовый файл (с автоматическим созданием директорий)*/
-write_file:function(relPath,contents){
+write_file(relPath,contents){
 	return new Promise((resolve,reject)=>{
 		if(!d.directory_handle)return reject(new Error('Directory handle is not available'));
 		const parts=relPath.split('/').filter(Boolean);
@@ -1322,7 +1322,7 @@ write_file:function(relPath,contents){
 	});
 },
 /**создает папку*/
-create_directory:function(relPath){
+create_directory(relPath){
 	return new Promise((resolve,reject)=>{
 		if(!d.directory_handle)return reject(new Error('Directory handle is not available'));
 		const parts=relPath.split('/').filter(Boolean);
@@ -1340,7 +1340,7 @@ create_directory:function(relPath){
 	});
 },
 /**удаляет файл*/
-remove_file:function(relPath){
+remove_file(relPath){
 	return new Promise((resolve,reject)=>{
 		if(!d.directory_handle)return reject(new Error('Directory handle is not available'));
 		const parts=relPath.split('/').filter(Boolean);
@@ -1363,7 +1363,7 @@ remove_file:function(relPath){
 	});
 },
 /**рекурсивно удаляет папку с содержимым*/
-remove_directory:function(relPath){
+remove_directory(relPath){
 	return new Promise((resolve,reject)=>{
 		if(!d.directory_handle)return reject(new Error('Directory handle is not available'));
 		const parts=relPath.split('/').filter(Boolean);
@@ -1397,7 +1397,7 @@ remove_directory:function(relPath){
 	});
 },
 /**возвращает список названий файлов в указанной директории (папки игнорируются)*/
-list_files:function(relPath=""){
+list_files(relPath=""){
 	return new Promise((resolve,reject)=>{
 		if(!d.directory_handle)return reject(new Error('Directory handle is not available'));
 		const parts=relPath.split('/').filter(Boolean);
@@ -1438,7 +1438,7 @@ list_files:function(relPath=""){
 		next(0);
 	});
 },
-fetch_json:function(path){
+fetch_json(path){
 	return fetch(path)
 	.then(response=>{
 		if(!response.ok){
@@ -1453,7 +1453,7 @@ fetch_json:function(path){
 	});
 },
 /**загружает языки из папки languages*/
-load_languages:function(){
+load_languages(){
 	return f.list_files('languages').then(files=>{
 		let languages_div=document.getElementById('languages_div');
 		languages_div.innerHTML='';
@@ -1473,7 +1473,7 @@ load_languages:function(){
 		return Promise.all(promises);
 	});
 },
-character_to_element:function(character){
+character_to_element(character){
 	let div1=f.create_element_from_HTML(`<div></div>`);
 	div1.appendChild(f.create_element_from_HTML(f.get_transparent_space_text(character.nickname)));
 	div1.appendChild(f.get_br());
@@ -1486,7 +1486,7 @@ character_to_element:function(character){
 	});
 	return button;
 },
-create_characters_list:function(){
+create_characters_list(){
 	let characters_list=f.create_element_from_HTML('<div id="characters_list" class="column"></div>');
 	for(let character of d.characters){
 		let character_element=f.character_to_element(character);
@@ -1496,15 +1496,15 @@ create_characters_list:function(){
 	}
 	return characters_list;
 },
-save_character:function(character){
+save_character(character){
 	f.write_file(`YOUR_DATA/characters/${character.nickname}.json`,f.object_to_string(character)).then(()=>{
 		f.print_to_chat(d.language.notifications.character_saved);
 	});
 },
-update_characters_list:function(){
+update_characters_list(){
 	d.save.temp.room.data.characters_list_div.replaceChildren(f.create_characters_list());
 },
-save_character_update_list:function(character){
+save_character_update_list(character){
 	f.save_character(character);
 	d.characters.unshift(character);
 	f.update_characters_list();
@@ -1529,7 +1529,7 @@ load_characters:async function(){
 		throw error;
 	}
 },
-world_to_element:function(world){
+world_to_element(world){
 	let div1=f.create_element_from_HTML(`<div></div>`);
 	div1.appendChild(f.create_element_from_HTML(f.get_transparent_space_text(world.name)));
 	let button=f.wrap_in_frame(div1);
@@ -1543,7 +1543,7 @@ world_to_element:function(world){
 	});
 	return button;
 },
-create_worlds_list:function(){
+create_worlds_list(){
 	let worlds_list=f.create_element_from_HTML('<div id="worlds_list" class="column"></div>');
 	for(let world of d.worlds){
 		let world_element=f.world_to_element(world);
@@ -1553,15 +1553,15 @@ create_worlds_list:function(){
 	}
 	return worlds_list;
 },
-save_world:function(world){
+save_world(world){
 	f.write_file(`YOUR_DATA/worlds/${world.name}.json`,f.object_to_string(world)).then(()=>{
 		f.print_to_chat(d.language.notifications.world_saved);
 	});
 },
-update_worlds_list:function(){
+update_worlds_list(){
 	d.save.temp.room.data.worlds_list_div.replaceChildren(f.create_worlds_list());
 },
-save_world_update_list:function(world){
+save_world_update_list(world){
 	f.save_world(world);
 	d.worlds.unshift(world);
 	f.update_worlds_list();
@@ -1585,18 +1585,18 @@ load_worlds:async function(){
 	}
 },
 /**загружает сохранение*/
-load_save:function(data){
+load_save(data){
 	d.loadable_save_data=_.cloneDeep(data);
 	f.change_room(d.save.world.players[d.save.player.nickname].position.room_id);
 },
 /**начать подготову комнаты*/
-prepare:function(preparation_func){
+prepare(preparation_func){
 	if(!d.save.temp.room.preparation)return
 	preparation_func();
 	f.finish_preparation();
 },
 /**завершить подготовку комнаты*/
-finish_preparation:function(){
+finish_preparation(){
 	if(d.loadable_save_data){
 		d.save=_.merge({},d.save,d.loadable_save_data);
 		d.loadable_save_data=null;
@@ -1624,6 +1624,122 @@ set_empty_player(){
 		}
 	}
 },
+render_player(player=_.get(d,'save.player')){
+	let basePath=`save.world.players.${player.nickname}`,
+	player_nickname=_.get(player,`nickname`);
+	//Символическое представление игрока
+	if(_.get(player,`is_symbolic`)){
+		/*расчет скина игрока*/
+		const fractional=[false,false];
+		for(let i=0;i<=1;i++){
+			const coord=_.get(d,`${basePath}.position.coordinates[${i}]`);
+			if(coord/d.logical_symbol_size!==Math.floor(coord/d.logical_symbol_size)){
+				fractional[i]=true;
+			}
+		}
+		const player_skin=(fractional[0]?(fractional[1]?'▗▖\n▝▘':'▐▌'):(fractional[1]?'▄\n▀':'█'));
+		/*отрисовка игрока*/
+		f.focus_camera_on_player();
+		const coord0=_.get(d,`${basePath}.position.coordinates[0]`);
+		const coord1=_.get(d,`${basePath}.position.coordinates[1]`);
+		let rendering_coordinates=[f.logical_to_screen(coord0)-(_.get(d,'save.temp.camera[0]')||d.save.temp.camera&&d.save.temp.camera[0]||0),f.logical_to_screen(coord1)-(_.get(d,'save.temp.camera[1]')||d.save.temp.camera&&d.save.temp.camera[1]||0)];
+		if(fractional[0]) rendering_coordinates[0]--;
+		if(fractional[1]) rendering_coordinates[1]--;
+		f.print_text_to_symbols_grid(player_skin,rendering_coordinates[0]/d.symbol_size,rendering_coordinates[1]/d.symbol_size);
+	}
+	//Ник над персонажем — создаётся один раз и потом только перемещается
+	if(!d.nickname_labels)d.nickname_labels=new Map();
+	//Вычисляем центр верхней границы коллайдера в логических координатах
+	let collider=`${basePath}.position.collider`,
+	x=(_.get(d,`${collider}[0][0]`)+_.get(d,`${collider}[1][0]`))/2,
+	y=_.get(d,`${collider}[0][1]`);
+	//Переводим в экранные пиксели
+	let screen_x=Math.round(f.logical_to_screen(x)-_.get(d,'save.temp.camera[0]',0)),
+	screen_y=Math.round(f.logical_to_screen(y)-_.get(d,'save.temp.camera[1]',0));
+	//Смещаем надпись над головой на расстояние d.symbol_size
+	screen_y-=d.symbol_size;
+
+	let label = d.nickname_labels.get(player_nickname);
+	if(!label){
+		// Создаём контейнер с фоном и текстом (полупрозрачный чёрный фон, alpha = 0.5)
+		let container = new PIXI.Container();
+		let font_size = d.symbol_size;
+		let nick_text = player_nickname ? String(player_nickname) : '';
+		let text = new PIXI.Text(nick_text, {
+			fontFamily: 'CODERROR',
+			fontSize: font_size,
+			fill: 0xFFFFFF,
+			align: 'center'
+		});
+
+		// Use a conservative resolution (based on devicePixelRatio) instead of a large fixed value
+		text.resolution = Math.max(1, Math.round(window.devicePixelRatio || 1));
+		text.roundPixels = true;
+		if(text.anchor) text.anchor.set(0.5, 1);
+		else text.pivot.set(text.width/2, text.height);
+
+		let paddingX = Math.ceil(d.symbol_size * 0.4);
+		let paddingY = Math.ceil(d.symbol_size * 0.25);
+		let bounds = text.getLocalBounds();
+		let bg = new PIXI.Graphics();
+
+		bg.beginFill(0x000000, 0.5);
+		bg.drawRoundedRect(-bounds.width/2 - paddingX, -bounds.height - paddingY, bounds.width + paddingX*2, bounds.height + paddingY*1.5, Math.max(2, paddingY));
+		bg.endFill();
+
+		container.addChild(bg);
+		container.addChild(text);
+
+		// store references and paddings for later updates
+		container._bg = bg;
+		container._text = text;
+		container._paddingX = paddingX;
+		container._paddingY = paddingY;
+
+		// Cache as bitmap: text and background are mostly static -> rasterize once
+		// This reduces per-frame GPU/text texture updates significantly
+		try{
+			text.cacheAsBitmap = true;
+			bg.cacheAsBitmap = true;
+			container.cacheAsBitmap = true;
+		}catch(e){
+			// Some PIXI builds/environments may not support this property — ignore failures
+			console.warn('cacheAsBitmap not available for nickname label', e);
+		}
+
+		d.app.stage.addChild(container);
+		d.nickname_labels.set(player_nickname, container);
+		label = container;
+	} else {
+		// If nickname text changed (rare), update text and re-cache the bitmap
+		let t = label._text;
+		let desired = player_nickname ? String(player_nickname) : '';
+		if(t.text !== desired){
+			try{
+				t.cacheAsBitmap = false;
+			}catch(e){}
+			t.text = desired;
+			// redraw background size to fit new bounds
+			let paddingX = label._paddingX || Math.ceil(d.symbol_size * 0.4);
+			let paddingY = label._paddingY || Math.ceil(d.symbol_size * 0.25);
+			let bounds = t.getLocalBounds();
+			label._bg.clear();
+			label._bg.beginFill(0x000000, 0.5);
+			label._bg.drawRoundedRect(-bounds.width/2 - paddingX, -bounds.height - paddingY, bounds.width + paddingX*2, bounds.height + paddingY*1.5, Math.max(2, paddingY));
+			label._bg.endFill();
+			try{
+				t.cacheAsBitmap = true;
+				label._bg.cacheAsBitmap = true;
+				label.cacheAsBitmap = true;
+			}catch(e){}
+		}
+	}
+
+	// Only update position if it actually changed — avoids marking transforms every frame
+	if(label.position.x !== screen_x || label.position.y !== screen_y){
+		label.position.set(screen_x, screen_y);
+	}
+}
 };
 
 let f=window.CODERROR.__originals__.functions;
