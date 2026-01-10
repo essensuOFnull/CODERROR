@@ -250,6 +250,14 @@ L n L q L q H  U n U n L q U n
                                     f.change_button_border_color(frame,'#fff');
                                 });
                             }
+                            if(option_id=='pause_on_blur'){
+                                let checkbox=f.create_element_from_HTML(`<input type="checkbox">`);
+                                checkbox.checked=d.settings[section_id][option_id];
+                                checkbox.addEventListener('change',function(){
+                                    d.settings[section_id][option_id]=checkbox.checked;
+                                });
+                                values.appendChild(checkbox);
+                            }
                         }
                         if(section_id=='audio'){
                             if(option_id=='music_volume'){

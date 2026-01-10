@@ -6,7 +6,7 @@ interface:{
 	max_content_width:`100%`,
 	max_content_height:`100%`,
 	/*останавливать ли процессы игры при потери фокуса окна*/
-	pause_on_blur:true,
+	pause_on_blur:true
 },
 audio:{
 	music_volume:0.5,
