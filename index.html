@@ -130,7 +130,7 @@
                 });
                 app.init().then(()=>{
                     /*версия CODERROR'а*/
-                    window.version='(1)0.10.0';
+                    window.version='(1)0.10.1';
                     /*добавление в разметку canvas-а pixijs*/
                     document.body.appendChild(app.view);
                     /*добавление в разметку html-overlay*/
@@ -547,6 +547,10 @@
                     function check_hover(element){
                         return element.matches(':hover');
                     }
+                    /*возвращает новый br элемент*/
+                    function get_br(){
+                        return document.createElement('br');
+                    }
                     /*финальная настройка*/
                     let room_data;
                     let logo_text=String.raw`
@@ -581,8 +585,8 @@ L n L q L q H  U n U n L q U n
                                 overlay.appendChild(room_data.logo);
                                 change_button_color(room_data.buttons.exit,'#f00');
                                 Object.entries(room_data.buttons).forEach(([name,el])=>{
-                                    el.style.marginBottom='var(--symbol_size)';
                                     room_data.buttons_div.appendChild(el);
+                                    room_data.buttons_div.appendChild(get_br());
                                 });
                                 overlay.appendChild(room_data.buttons_div);
                                 room_data.buttons.exit.addEventListener('click',()=>{
@@ -630,7 +634,7 @@ L n L q L q H  U n U n L q U n
                                     authors:[
                                         `⦑color:#f0f⦒essensuOFnull⦑reset⦒ - инициатор, автор идей, программист.`,
                                         `⦑color:#3c0055⦒Skayjf⦑reset⦒ - возможно нарисует текстуры в будущем.`,
-                                        `⦑color:#00f⦒Theb.ai⦑reset⦒, ⦑color:#00f⦒DeepSeek⦑reset⦒ - помощь в программистовании.`
+                                        `⦑color:#00f⦒Theb.ai⦑reset⦒, ⦑color:#00f⦒DeepSeek⦑reset⦒ - помощь в программировании.`
                                     ],
                                     buttons:{
                                         back:create_button_from_text(`назад`)
@@ -639,8 +643,8 @@ L n L q L q H  U n U n L q U n
                                 overlay.appendChild(room_data.div);
                                 for(let i=0;i<room_data.authors.length;i++){
                                     room_data.authors[i]=create_element_from_HTML(`<div>${get_transparent_space_text(room_data.authors[i])}</div>`);
+                                    room_data.div.appendChild(get_br());
                                     room_data.div.appendChild(room_data.authors[i]);
-                                    room_data.authors[i].style.marginTop=`var(--symbol_size)`;
                                 }
                                 room_data.div.appendChild(room_data.buttons.back);
                                 room_data.buttons.back.style.marginTop='auto';
