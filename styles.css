@@ -199,7 +199,7 @@ input[type="checkbox"]{
 	transform:translateX(-50%);/* Сдвигаем элемент назад на половину его ширины */
 }
 .hotbar_slot{
-	background-image:url('images/interface/inventory/slot.png');
+	background-image:url('images/interface/inventory/slot.webp');
 	background-size:contain;
 	background-repeat:no-repeat;
 	width:32px;
