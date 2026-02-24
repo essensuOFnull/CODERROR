@@ -124,8 +124,8 @@ function update_game_logic(){
 	}
 	if(room_id=='main_menu'){
 		f.prepare(()=>{
-			f.set_sky('images/skies/glitch','png');
-			f.set_music('music/main_menu.mp3');
+			f.set_sky('images/skies/glitch','webp');
+			f.set_music('music/main_menu.webm');
 			f.set_interface_visibility(false);
 			d.save.temp.room.data={
 				info:f.create_element_from_HTML(`<div>${f.get_transparent_space_text(`CODERROR (1)${d.manifest.version} by essensuOFnull`,'#c8c8c8')}</div>`),
@@ -191,8 +191,8 @@ L n L q L q H  U n U n L q U n
 	}
 	if(room_id=='character_selection'){
 		f.prepare(()=>{
-			f.set_sky('images/skies/glitch','png');
-			f.set_music('music/main_menu.mp3');
+			f.set_sky('images/skies/glitch','webp');
+			f.set_music('music/main_menu.webm');
 			f.set_interface_visibility(false);
 			d.save.temp.room.data={
 				scrollable:f.create_element_from_HTML(`<div class='scrollable'/>`),
@@ -253,8 +253,8 @@ L n L q L q H  U n U n L q U n
 	}
 	if(room_id=='world_selection'){
 		f.prepare(()=>{
-			f.set_sky('images/skies/glitch','png');
-			f.set_music('music/main_menu.mp3');
+			f.set_sky('images/skies/glitch','webp');
+			f.set_music('music/main_menu.webm');
 			f.set_interface_visibility(false);
 			d.save.temp.room.data={
 				scrollable:f.create_element_from_HTML(`<div class='scrollable'/>`),
@@ -307,8 +307,8 @@ L n L q L q H  U n U n L q U n
 	}
 	if(room_id=='authors'){
 		f.prepare(()=>{
-			f.set_sky('images/skies/glitch_anime_girls','png',false);
-			f.set_music('music/main_menu.mp3');
+			f.set_sky('images/skies/glitch_anime_girls','webp',false);
+			f.set_music('music/main_menu.webm');
 			f.set_interface_visibility(false);
 			d.save.temp.room.data={
 				scrollable:f.create_element_from_HTML(`<div class="scrollable"/>`),
@@ -341,8 +341,8 @@ L n L q L q H  U n U n L q U n
 	}
 	if(room_id=='settings'){
 		f.prepare(()=>{
-			f.set_sky('images/skies/glitch','png');
-			f.set_music('music/main_menu.mp3');
+			f.set_sky('images/skies/glitch','webp');
+			f.set_music('music/main_menu.webm');
 			f.set_interface_visibility(false);
 			d.save.temp.room.data={
 				scrollable:f.create_element_from_HTML(`<div class='scrollable'/>`),
@@ -543,7 +543,7 @@ L n L q L q H  U n U n L q U n
 	}
 	if(room_id=='intro0'){
 		f.prepare(()=>{
-			f.set_music('music/Errorscape.mp3');
+			f.set_music('music/Errorscape.webm');
 			f.set_interface_visibility(false);
 			f.clear_pixijs();
 			let video=document.createElement('video');
@@ -570,8 +570,8 @@ L n L q L q H  U n U n L q U n
 	}
 	if(room_id=='recycle_bin'){
 		f.prepare(()=>{
-			f.set_sky('images/skies/glitch','png');
-			f.set_music('music/Errorscape.mp3');
+			f.set_sky('images/skies/glitch','webp');
+			f.set_music('music/Errorscape.webm');
 			f.set_interface_visibility(true);
 			d.save.temp.room.data={
 				ground:{
