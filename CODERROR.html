@@ -9,9 +9,9 @@
 	<script src="libs/jss-preset-default.min.js"></script>
 	<script src="core/styles.js"></script>
 	<script>
-		// create a new JSS instance with the default preset (no modules system required)
-		const jssInstance = jss.create(jssPresetDefault.default());
-		const sheet = jssInstance.createStyleSheet(window.styles).attach();
+		// create a global JSS instance and attach styles created from the styles factory
+		window.jssInstance = jss.create(jssPresetDefault.default());
+		window.jssSheet = window.jssInstance.createStyleSheet(window.stylesFactory(window.styleTokens)).attach();
 	</script>
 
 	<div id="loading">

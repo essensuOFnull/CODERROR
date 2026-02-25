@@ -29,7 +29,8 @@ d.app.ticker.add(()=>{
 			d.save.temp.room.data.logo.firstChild.style.color=f.get_random_true_str_color();
 			Object.entries(d.save.temp.room.data.buttons).forEach(([name,el])=>{
 				if(name=='exit'){
-					el.style.marginLeft=`calc(var(--symbol_size) * ${-0.5+Math.floor(Math.random()*2)})`;
+					const _mul = -0.5+Math.floor(Math.random()*2);
+					el.style.marginLeft = (d.symbol_size * _mul) + 'px';
 					if(f.check_hover(el)){
 						f.visual_effect(1);
 						d.save.temp.room.data.bug_counter=100;

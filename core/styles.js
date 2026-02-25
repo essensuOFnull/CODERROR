@@ -1,26 +1,31 @@
-window.styles = {
-  '@global': {
-    '@font-face': {
-      fontFamily: 'CODERROR',
-      src: 'url("fonts/CODERROR16x16GNUUnifont.ttf") format("truetype")'
-    },
+// style tokens and factory for JSS
+window.styleTokens = window.styleTokens || { symbol_size: 16, image_rendering: (window.devicePixelRatio>=1?'pixelated':'auto') };
+window.stylesFactory = function(t){
+  const s = t.symbol_size;
+  const img = t.image_rendering;
+  return {
+    '@global': {
+      '@font-face': {
+        fontFamily: 'CODERROR',
+        src: 'url("fonts/CODERROR16x16GNUUnifont.ttf") format("truetype")'
+      },
     '@keyframes message_fade_out': {
       '0%': { opacity: 1 },
       '50%': { opacity: 1 },
       '100%': { opacity: 0 }
     },
-    '@keyframes epic-pulse': {
+      '@keyframes epic-pulse': {
       '0%': {
         transform: 'scale(0.98)',
-        boxShadow: '0 0 calc(var(--symbol_size) / 2) calc(var(--symbol_size) / 4) gold'
+        boxShadow: `0 0 ${s/2}px ${s/4}px gold`
       },
       '90%': {
         transform: 'scale(1.01)',
-        boxShadow: '0 0 calc(var(--symbol_size) * 2) calc(var(--symbol_size) / 2) #ff0'
+        boxShadow: `0 0 ${s*2}px ${s/2}px #ff0`
       },
       '100%': {
         transform: 'scale(0.98)',
-        boxShadow: '0 0 calc(var(--symbol_size) / 2) calc(var(--symbol_size) / 4) gold'
+        boxShadow: `0 0 ${s/2}px ${s/4}px gold`
       }
     },
     '*': {
@@ -29,10 +34,10 @@ window.styles = {
       fontFamily: "'CODERROR'",
       letterSpacing: 0,
       userSelect: 'none',
-      fontSize: 'var(--symbol_size)',
+      fontSize: s + 'px',
       lineHeight: '1em',
       pointerEvents: 'auto',
-      imageRendering: 'var(--image_rendering)'
+      imageRendering: img
     },
     'html, body': {
       width: '100%',
@@ -108,8 +113,8 @@ window.styles = {
       outline: 'none'
     },
     '.drop_zone': {
-      width: 'calc(var(--symbol_size) * 12)',
-      height: 'calc(var(--symbol_size) * 12)',
+      width: (s*12) + 'px',
+      height: (s*12) + 'px',
       background: '#00000066'
     },
     '.scrollable': {
@@ -132,7 +137,7 @@ window.styles = {
     '.symbolic_hr pre': {
       contain: 'strict',
       width: '100%',
-      height: 'var(--symbol_size)',
+      height: s + 'px',
       overflow: 'hidden',
       whiteSpace: 'nowrap'
     },
@@ -182,7 +187,7 @@ window.styles = {
       left: 0,
       width: 'inherit',
       height: 'inherit',
-      padding: 'var(--symbol_size)',
+      padding: s + 'px',
       pointerEvents: 'none'
     },
     '#chat_preview': {
@@ -195,7 +200,7 @@ window.styles = {
       flexDirection: 'column',
       width: '50%',
       height: 'max-content',
-      margin: 'var(--symbol_size)',
+      margin: s + 'px',
       pointerEvents: 'none'
     },
     '#chat_preview .message': {
@@ -228,11 +233,7 @@ window.styles = {
       left: '50%',
       transform: 'translate(-50%, -50%)'
     },
-    '#active_hotbar_slot_frame': {
-      width: 32,
-      height: 32,
-      zIndex: 5
-    },
+    '#active_hotbar_slot_frame': { width:32, height:32, zIndex:5 },
     '#esc_menu': {
       visibility: 'collapse',
       position: 'absolute',
@@ -242,11 +243,7 @@ window.styles = {
       height: '100%',
       pointerEvents: 'none'
     },
-    '#button_to_main_menu': {
-      position: 'absolute !important',
-      bottom: 'var(--symbol_size)',
-      right: 'var(--symbol_size)'
-    },
+    '#button_to_main_menu': { position:'absolute !important', bottom: s + 'px', right: s + 'px' },
     '.inherit_colors': {
       display: 'contents'
     },
@@ -254,39 +251,20 @@ window.styles = {
       color: 'inherit',
       background: 'inherit'
     },
-    '.epic-donation-button': {
-      animation: 'epic-pulse 500ms ease-in-out infinite',
-      borderRadius: 'calc(var(--symbol_size) / 2)'
-    },
-    '#cursor': {
-      position: 'fixed',
-      left: 0,
-      top: 0,
-      willChange: 'transform',
-      zIndex: 9999,
-      width: 'auto',
-      height: 'auto',
-      pointerEvents: 'none'
-    },
-    '#loading': {
-      display: 'none',
-      width: '100%',
-      height: '100%',
-      background: '#000',
-      zIndex: 9998,
-      position: 'absolute',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)'
-    },
-    '#loading img': {
-      position: 'absolute',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)'
-    },
-    '#loading, #loading *': {
-      pointerEvents: 'none'
+    '.epic-donation-button': { animation:'epic-pulse 500ms ease-in-out infinite', borderRadius: (s/2) + 'px' },
+    '#cursor': { position:'fixed', left:0, top:0, willChange:'transform', zIndex:9999, width:'auto', height:'auto', pointerEvents:'none' },
+    '#loading': { display:'none', width:'100%', height:'100%', background:'#000', zIndex:9998, position:'absolute', top:'50%', left:'50%', transform:'translate(-50%, -50%)' },
+    '#loading img': { position:'absolute', top:'50%', left:'50%', transform:'translate(-50%, -50%)' },
+    '#loading, #loading *': { pointerEvents:'none' }
     }
+  };
+};
+
+// helper to update tokens and recreate sheet (used by app to avoid CSS vars)
+window.updateStyleTokens = function(newTokens){
+  window.styleTokens = Object.assign({}, window.styleTokens, newTokens);
+  if(window.jssInstance && window.jssSheet && window.stylesFactory){
+    try{ window.jssInstance.removeStyleSheet(window.jssSheet); }catch(e){}
+    window.jssSheet = window.jssInstance.createStyleSheet(window.stylesFactory(window.styleTokens)).attach();
   }
 };

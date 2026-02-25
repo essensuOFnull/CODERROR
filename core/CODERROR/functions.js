@@ -419,7 +419,7 @@ set_text_data(x, y, text, textColor = 0xFFFFFF, bgColor = 0x000000, bgAlpha = 0)
 set_font_size(size_in_pixels,first_init=false) {
 	if(d.symbol_size!=size_in_pixels){
 		d.symbol_size = size_in_pixels;
-		d.styleSheet.insertRule(":root{--symbol_size:" + d.symbol_size + "px !important;}", d.styleSheet.cssRules.length);
+		if(window.updateStyleTokens) window.updateStyleTokens({ symbol_size: d.symbol_size });
 		
 		if(!first_init){
 			// Пересоздаем атлас с новым размером
@@ -436,8 +436,8 @@ update_size() {
     /*Обновляем размеры рендерера PixiJS*/
     d.app.renderer.resize(width,height);
     f.update_symbols_grid();
-    /*Обновляем способ масштабирования изображений*/
-    d.styleSheet.insertRule(`:root{--image_rendering:${window.devicePixelRatio>=1?'pixelated':'auto'} !important;}`,d.styleSheet.cssRules.length);
+	/*Обновляем способ масштабирования изображений*/
+	if(window.updateStyleTokens) window.updateStyleTokens({ image_rendering: window.devicePixelRatio>=1?'pixelated':'auto' });
     /*Обновляем Three.js камеру и рендерер*/
     d.three_camera.aspect=width/height;
     d.three_camera.updateProjectionMatrix();
@@ -1233,8 +1233,8 @@ set_select_options(selectElement,options) {
 create_select_with_frame(options,removable=false){
 	let select=f.create_element_from_HTML('<select/>');
 	f.set_select_options(select,options);
-	select.style.margin='calc(-1 * var(--symbol_size))';
-	select.style.padding='var(--symbol_size)';
+	select.style.margin = (-1 * d.symbol_size) + 'px';
+	select.style.padding = d.symbol_size + 'px';
 	select.style.marginRight='0';
 	select.style.cursor='pointer';
 	select.style.background='#00000000';
