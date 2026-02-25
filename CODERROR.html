@@ -3,9 +3,17 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<link rel="stylesheet" href="styles.css">
 </head>
 <body>
+	<script src="libs/jss.min.js"></script>
+	<script src="libs/jss-preset-default.min.js"></script>
+	<script src="core/styles.js"></script>
+	<script>
+		// create a new JSS instance with the default preset (no modules system required)
+		const jssInstance = jss.create(jssPresetDefault.default());
+		const sheet = jssInstance.createStyleSheet(window.styles).attach();
+	</script>
+
 	<div id="loading">
 		<img src="images/interface/loading.webp"/>
 	</div>
