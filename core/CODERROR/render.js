@@ -11,7 +11,7 @@ setInterval(()=>{
 d.app.ticker.add(()=>{
 	/*переменные для укорочения кода*/
 	let nickname=d.save.player.nickname,
-	room_id=_.get(d,`save.world.players.${nickname}.position.room_id`);
+	room_id=_.get(d,['save','world','players',nickname,'position','room_id']);
 	
 	if(!window.has_focus&&d.settings.interface.pause_on_blur)return
 	frame_count++;
@@ -98,6 +98,13 @@ d.app.ticker.add(()=>{
 	if(room_id=='room_editor'){
 		if(!d.save.temp.room.preparation){
 
+		}
+	}
+	if(!d.save.temp.room.preparation){
+		/*применяем мерцание к кнопки выхода в главное меню если она есть*/
+		let button_to_main_menu=_.get(d,['button_to_main_menu']);
+		if(button_to_main_menu){
+			f.apply_standard_buttons_style({button_to_main_menu});
 		}
 	}
 	f.render_symbols_grid();

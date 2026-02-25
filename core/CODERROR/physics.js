@@ -22,7 +22,7 @@ d.lock_inventory=false;
 function update_game_logic(){
 	/*переменные для укорочения кода*/
 	let nickname=d.save.player.nickname,
-	room_id=_.get(d,`save.world.players.${nickname}.position.room_id`);
+	room_id=_.get(d,['save','world','players',nickname,'position','room_id']);
 
 	f.change_title(`CODERROR (1)${d.manifest.version} TPS: ${d.TPS} FPS: ${d.FPS} - ${d.splash}`);
 	if(!window.has_focus&&d.settings.interface.pause_on_blur)return

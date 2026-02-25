@@ -1582,6 +1582,7 @@ generate_esc_menu(){
 		f.change_room('main_menu');
 	});
 	button_to_main_menu.id='button_to_main_menu';
+	d.button_to_main_menu=button_to_main_menu;
 	esc_menu.appendChild(button_to_main_menu);
 	return esc_menu;
 },

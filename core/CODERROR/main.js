@@ -76,8 +76,8 @@ f.check_font_loaded('CODERROR').then(() => {
 			if(!d.cursor_config[cursor_type]) cursor_type = 'default';
 
 			// Вычисляем целевые координаты (без записи в layout)
-			const x = d.mouse.x_global - _.get(d, `cursor_config.${cursor_type}.hotspot_x`);
-			const y = d.mouse.y_global - _.get(d, `cursor_config.${cursor_type}.hotspot_y`);
+			const x = d.mouse.x_global - _.get(d,['cursor_config', cursor_type, 'hotspot_x']);
+			const y = d.mouse.y_global - _.get(d,['cursor_config', cursor_type, 'hotspot_y']);
 			d._cursorTargetX = Math.round(x);
 			d._cursorTargetY = Math.round(y);
 			// Помечаем, что позицию курсора надо применить на следующем кадре рендера
@@ -85,7 +85,7 @@ f.check_font_loaded('CODERROR').then(() => {
 
 			// Обновление изображения курсора только при смене типа
 			if(d.cursor_type === cursor_type) return;
-			let cursor_file_path = _.get(d, `cursor_config.${cursor_type}.file`);
+			let cursor_file_path = _.get(d,['cursor_config', cursor_type, 'file']);
 			d.cursor.src = cursor_file_path ? `${d.cursor_folder_path}/${cursor_file_path}` : '';
 			d.cursor_type = cursor_type;
 		});
