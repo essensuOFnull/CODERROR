@@ -94,6 +94,11 @@ d.app.ticker.add(()=>{
 			f.render_player();
 		}
 	}
+	if(room_id=='room_editor'){
+		if(!d.save.temp.room.preparation){
+
+		}
+	}
 	f.render_symbols_grid();
 
 	// Применяем позицию кастомного курсора
