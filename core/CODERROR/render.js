@@ -22,84 +22,9 @@ d.app.ticker.add(()=>{
 	if(button_to_main_menu){
 		f.change_button_color(button_to_main_menu,(f.check_hover(button_to_main_menu)?f.get_random_true_str_color():'#fff'));
 	}
-	/*комнаты*/
-	if(room_id=='main_menu'){
-		if(!d.save.temp.room.preparation){
-			f.visual_effect(0);
-			d.save.temp.room.data.logo.firstChild.style.color=f.get_random_true_str_color();
-			Object.entries(d.save.temp.room.data.buttons).forEach(([name,el])=>{
-				if(name=='exit'){
-					const _mul = -0.5+Math.floor(Math.random()*2);
-					el.style.marginLeft = (d.symbol_size * _mul) + 'px';
-					if(f.check_hover(el)){
-						f.visual_effect(1);
-						d.save.temp.room.data.bug_counter=100;
-					}
-					else{
-						if(d.save.temp.room.data.bug_counter<=0){
-							f.visual_effect(2);
-						}else{
-							d.save.temp.room.data.bug_counter--;
-						}
-					}
-				}else if(name=='donation'){
-					f.change_button_text_color(el,(f.check_hover(el)?f.get_random_true_str_color():'#fff'));
-				}else{
-					f.change_button_color(el,(f.check_hover(el)?f.get_random_true_str_color():'#fff'));
-				}
-			});
-		}
-	}
-	if(room_id=='character_selection'){
-		if(!d.save.temp.room.preparation){
-			f.visual_effect(0);
-			f.apply_standard_drop_zone_style();
-			f.apply_standard_buttons_style();
-		}
-	}
-	if(room_id=='world_selection'){
-		if(!d.save.temp.room.preparation){
-			f.visual_effect(0);
-			f.apply_standard_drop_zone_style();
-			f.apply_standard_buttons_style();
-		}
-	}
-	if(room_id=='authors'){
-		if(!d.save.temp.room.preparation){
-			f.visual_effect(0);
-			f.change_button_color(d.save.temp.room.data.buttons.back,(f.check_hover(d.save.temp.room.data.buttons.back)?f.get_random_true_str_color():'#fff'));
-		}
-	}
-	if(room_id=='settings'){
-		if(!d.save.temp.room.preparation){
-			f.visual_effect(0);
-			f.apply_standard_drop_zone_style();
-			f.apply_standard_buttons_style();
-		}
-	}
-	if(room_id=='continue'){
-		if(!d.save.temp.room.preparation){
-			f.visual_effect(0);
-			f.apply_standard_drop_zone_style();
-			f.apply_standard_buttons_style();
-		}
-	}
-	if(room_id=='recycle_bin'){
-		if(!d.save.temp.room.preparation){
-			/*очистка*/
-			f.clear_symbols_grid();
-			f.focus_camera_on_player();
-			/*отрисовка карты*/
-			f.print_text_to_symbols_grid(d.save.temp.room.data.ground.text,0-d.save.temp.camera[0]/d.symbol_size,0-d.save.temp.camera[1]/d.symbol_size);
-			/*отрисовка игрока*/
-			f.render_player();
-		}
-	}
-	if(room_id=='room_editor'){
-		if(!d.save.temp.room.preparation){
-
-		}
-	}
+	/*вызовем логику отрисовки текущей комнаты*/
+	eval(d.current_room_render);
+	/*действия, которые надо совершить вне зависимости от комнаты*/
 	if(!d.save.temp.room.preparation){
 		/*применяем мерцание к кнопки выхода в главное меню если она есть*/
 		let button_to_main_menu=_.get(d,['button_to_main_menu']);
@@ -108,8 +33,7 @@ d.app.ticker.add(()=>{
 		}
 	}
 	f.render_symbols_grid();
-
-	// Применяем позицию кастомного курсора
+	/*Применяем позицию кастомного курсора*/
 	if(d._cursorNeedsUpdate){
 		d.cursor.style.transform=`translate3d(${d._cursorTargetX}px, ${d._cursorTargetY}px, 0)`;
 		d._cursorNeedsUpdate=false;

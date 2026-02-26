@@ -1,0 +1,40 @@
+f.prepare(()=>{
+	f.set_sky('images/skies/glitch','webp');
+	f.set_music('music/Errorscape.webm');
+	f.set_interface_visibility(true);
+	d.save.temp.room.data={
+		ground:{
+			text:'   ░▒▓*#-~\n ░▒▓~~-~#=\\\n    ░▒▓#=*-\\__\n              \\^\n                \\\n                 \\\n                 |\n                 |\n                 |\n                  \\\n                  <_\n                    \\\n                     \\\n                      \\\n                       7\n                       \\\n                        \\_\n                          L\n                           \\__\n                              \\\n                               7\n                              /\n                              \\\n                               |\n                               |\n                               |\n                               |\n                              /\n                             |\n                             |\n                             /\n                            /\n                           /\n                        __/\n                       /  \n                      <\n                       \\\n                        7\n                       /         ____\n                      F         /    \\_ \n                      ]         L      \\___\n                     /          /          l\n                     |         F           |\n                     |         L           `\n                     |         /            L____\n                     |         \\______           L\n                     )          \\     \\____       \\_\n                     )          <____      \\_       L_____\n                     \\          /    \\       \\            L_\n                     Г         F    , \\_     |              \\__\n                     \\         \\ /`< , _|    |                /\n                      Y         Y   Z,/     _/               <______\n                      |         `  `  |    |_\n                      /         /     |      \\\n                     /         Г      \\_\n                     |         L       _|\n                     /          \\       \n                     >          <\n                     >          <\n                     >          <\n                     \\          /\n                     Y          Y\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I          I\n                     I__________I_____',
+			collider:[]},
+		camera:[0,0]
+	};
+	d.save.world.players[d.save.player.nickname].position.coordinates=[35*d.logical_symbol_size,-25*d.logical_symbol_size];
+	d.save.world.players[d.save.player.nickname].position.collider=[];
+	d.save.player.walk_delay=0;
+	d.save.temp.ground={};
+	d.save.temp.ground.collider=f.text_to_collider(d.save.temp.room.data.ground.text);
+});
+f.rotate_sky(0.005,0.01,0);
+f.update_collision();
+/*обработка движения*/
+if(d.save.player.walk_delay<=0){
+	if(!d.save.world.players[d.save.player.nickname].position.touch_wall.right&&d.activated_actions.has('right')){
+		d.save.world.players[d.save.player.nickname].position.coordinates[0]=Math.round(d.save.world.players[d.save.player.nickname].position.coordinates[0]+0.5*d.logical_symbol_size);
+		d.save.player.walk_delay=d.save.player.max_walk_delay;
+		f.update_collision();
+	}
+	if(!d.save.world.players[d.save.player.nickname].position.touch_wall.left&&d.activated_actions.has('left')){
+		d.save.world.players[d.save.player.nickname].position.coordinates[0]=Math.round(d.save.world.players[d.save.player.nickname].position.coordinates[0]-0.5*d.logical_symbol_size);
+		d.save.player.walk_delay=d.save.player.max_walk_delay;
+		f.update_collision();
+	}
+}else{
+	d.save.player.walk_delay--;
+}
+if(!d.save.world.players[d.save.player.nickname].position.touch_wall.higher&&d.activated_actions.has('jump')){
+	d.save.world.players[d.save.player.nickname].position.coordinates[1]=Math.round(d.save.world.players[d.save.player.nickname].position.coordinates[1]-0.5*d.logical_symbol_size);
+	f.update_collision();
+}else if(!d.save.world.players[d.save.player.nickname].position.touch_wall.below){
+	d.save.world.players[d.save.player.nickname].position.coordinates[1]=Math.round(d.save.world.players[d.save.player.nickname].position.coordinates[1]+0.5*d.logical_symbol_size);
+	f.update_collision();
+}
