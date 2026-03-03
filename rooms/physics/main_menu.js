@@ -38,7 +38,7 @@ L n L q L q H  U n U n L q U n
 		f.change_room('authors');
 	});
 	d.save.temp.room.data.buttons.room_editor.addEventListener('click',()=>{
-		f.change_room('room_editor_select');
+		f.change_room('room_editor_selection');
 	});
 	if(d.need_directory_permission){
 		let select_folder_button = f.create_button('ВЫБРАТЬ ПАПКУ');

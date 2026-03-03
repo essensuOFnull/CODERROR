@@ -120,6 +120,14 @@ window.CODERROR.__originals__.data.languages.default={
 				create:`создать новый мир`
 			}
 		},
+		room_editor_selection:{
+			title:`выбор комнаты`,
+			drop_zone:`зона\nзагрузки\nкомнаты`,
+			buttons:{
+				back:`назад`,
+				create:`создать новую комнату`
+			}
+		},
 		authors:{
 			buttons:{
 				back:`назад`
