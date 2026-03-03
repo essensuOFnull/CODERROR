@@ -213,6 +213,7 @@ change_room(room,preparation=true,reset_overlay=true){
 		// Устанавливаем флаг ТОЛЬКО после того, как оба файла загружены
 		Promise.all([physicsPromise, renderPromise]).then(() => {
 			d.room_files_loaded = room;
+			f.print_to_chat(d.language.notifications.current_room(room));
 		});
 	}
 },

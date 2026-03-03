@@ -26,9 +26,6 @@ function update_game_logic(){
 
 	f.change_title(`CODERROR (1)${d.manifest.version} TPS: ${d.TPS} FPS: ${d.FPS} - ${d.splash}`);
 	if(!window.has_focus&&d.settings.interface.pause_on_blur)return
-	if(d.save.temp.room.preparation){
-		f.print_to_chat(d.language.notifications.current_room(room_id));
-	}
 	tps_count++;
 	/*переключение слотов хотбара*/
 	if(document.getElementById('hotbar')){
