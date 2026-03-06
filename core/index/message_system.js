@@ -42,8 +42,8 @@ message_bus.on('get_midi_outputs', async () => {
 });
 // Где-то при старте приложения (один раз регистрируем синтезатор)
 JZZ.synth.Tiny.register('Web Audio Synth');
-
-message_bus.on('play_midi', async ({ byteArray }) => {
+let currentPlayer=null;
+function play_midi(byteArray){
     try {
         // Открываем MIDI-выход синтезатора
         const synthOut = JZZ().openMidiOut('Web Audio Synth');
@@ -54,12 +54,36 @@ message_bus.on('play_midi', async ({ byteArray }) => {
         // Создаём плеер и подключаем
         const player = smf.player();
         player.connect(synthOut);
+
+        // Сохраняем ссылку на текущий плеер
+        currentPlayer = player;
+
+        // Устанавливаем обработчик окончания воспроизведения
+        player.onEnd = function() {
+            play_midi(byteArray);
+        };
+        
         player.play();
 
         return { success: true };
     } catch (e) {
         console.error('Ошибка воспроизведения:', e);
         return { success: false, error: e.message };
+    }
+}
+message_bus.on('play_midi', async ({ byteArray }) => {
+    play_midi(byteArray);
+});
+// Обработчик остановки
+message_bus.on('stop_midi', () => {
+    if (currentPlayer) {
+        currentPlayer.stop();
+        currentPlayer = null;
+        console.log('Воспроизведение остановлено');
+        return { success: true };
+    } else {
+        console.log('Нет активного воспроизведения');
+        return { success: false, error: 'No active playback' };
     }
 });
 let f=window.f;

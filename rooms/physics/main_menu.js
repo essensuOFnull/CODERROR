@@ -1,9 +1,6 @@
 f.prepare(()=>{
 	f.set_sky('images/skies/glitch','webp');
-	//f.set_music('music/main_menu.webm');
-	f.read_file('midi/TouHou_ the Embodiment of Scarlet Devil - U.N.  Owen was her_.mid', false).then((midiData)=>{
-		f.play_midi(midiData,Object.keys(d.midi_outputs)[0]);
-	});
+	f.set_music('music/main_menu.webm');
 	f.set_interface_visibility(false);
 	d.save.temp.room.data={
 		info:f.create_element_from_HTML(`<div>${f.get_transparent_space_text(`CODERROR (1)${d.manifest.version} by essensuOFnull`,'#c8c8c8')}</div>`),

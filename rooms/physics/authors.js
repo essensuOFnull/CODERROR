@@ -1,6 +1,6 @@
 f.prepare(()=>{
 	f.set_sky('images/skies/glitch_anime_girls','webp',false);
-	f.set_music('music/main_menu.webm');
+	f.set_music('midi/TouHou_ the Embodiment of Scarlet Devil - U.N.  Owen was her_.mid');
 	f.set_interface_visibility(false);
 	d.save.temp.room.data={
 		scrollable:f.create_element_from_HTML(`<div class="scrollable"/>`),
