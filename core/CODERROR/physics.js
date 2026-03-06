@@ -68,6 +68,8 @@ function update_game_logic(){
 	if(room_id=='disclaimer'){
 		f.prepare(()=>{
 			f.init_audio();
+			f.get_midi_inputs();
+			f.get_midi_outputs();
 			f.set_interface_visibility(false);
 			d.save.temp.room.data={
 				scrollable:f.create_element_from_HTML(`<div class='scrollable'/>`),

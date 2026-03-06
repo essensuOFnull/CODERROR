@@ -150,40 +150,41 @@ file_exists(relPath){
 	});
 },
 /**читает содержимое текстового файла, возвращает null если файл не существует*/
-read_file(relPath){
-	return new Promise((resolve,reject)=>{
-		if(!d.directory_handle)return reject(new Error('Directory handle is not available'));
-		const parts=relPath.split('/').filter(Boolean);
-		let dir=d.directory_handle;
-		const next=(i)=>{
-			if(i>=parts.length-1){
-				dir.getFileHandle(parts[parts.length-1])
-				.then(fileHandle=>fileHandle.getFile())
-				.then(file=>file.text())
-				.then(resolve)
-				.catch(error=>{
-					if(error.name==='NotFoundError'){
-						resolve(null);
-					}else{
-						reject(error);
-					}
-				});
-				return;
-			}
-			dir.getDirectoryHandle(parts[i])
-			.then(newDir=>{
-				dir=newDir;
-				next(i+1);
-			}).catch(error=>{
-				if(error.name==='NotFoundError'){
-					resolve(null);
-				}else{
-					reject(error);
-				}
-			});
-		};
-		next(0);
-	});
+read_file(relPath, asText = true) {
+    return new Promise((resolve, reject) => {
+        if (!d.directory_handle) return reject(new Error('Directory handle is not available'));
+        const parts = relPath.split('/').filter(Boolean);
+        let dir = d.directory_handle;
+        const next = (i) => {
+            if (i >= parts.length - 1) {
+                dir.getFileHandle(parts[parts.length - 1])
+                    .then(fileHandle => fileHandle.getFile())
+                    .then(file => asText ? file.text() : file.arrayBuffer())
+                    .then(resolve)
+                    .catch(error => {
+                        if (error.name === 'NotFoundError') {
+                            resolve(null);
+                        } else {
+                            reject(error);
+                        }
+                    });
+                return;
+            }
+            dir.getDirectoryHandle(parts[i])
+                .then(newDir => {
+                    dir = newDir;
+                    next(i + 1);
+                })
+                .catch(error => {
+                    if (error.name === 'NotFoundError') {
+                        resolve(null);
+                    } else {
+                        reject(error);
+                    }
+                });
+        };
+        next(0);
+    });
 },
 /**записывает содержимое в текстовый файл (с автоматическим созданием директорий)*/
 write_file(relPath, contents) {
@@ -562,6 +563,39 @@ get_available_fonts() {
     
     document.body.removeChild(div);
     return available;
+},
+/**инициализирует доступ к midi-устройствам*/
+async init_midi(){
+	try{
+		d.midi_access=await navigator.requestMIDIAccess();
+	}catch(e){
+		console.error('Ошибка доступа к MIDI:',error);
+	}
+},
+/**получает список midi устройств ввода*/
+async get_midi_inputs(){
+	await f.init_midi();
+	if(!d.midi_access){
+		return{};
+	}else{
+		let inputs={};
+		for(let input of d.midi_access.inputs.values()){
+			inputs[`${input.id}`]={
+				name:input.name
+			};
+		}
+		return inputs;
+	}
+},
+/**получает список midi устройств вывода*/
+async get_midi_outputs() {
+    await f.init_midi();
+    if (!d.midi_access) return {};
+    let outputs = {};
+    for (let output of d.midi_access.outputs.values()) {
+        outputs[output.id] = { name: output.name };
+    }
+    return outputs;
 }
 }
 let f = window.f;

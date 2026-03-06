@@ -2123,8 +2123,8 @@ init_file_access(){
 file_exists(relPath){
 	return window.message_bus.send('file_exists',{relPath});
 },
-read_file(relPath){
-	return window.message_bus.send('read_file',{relPath});
+read_file(relPath, asText = true) {
+    return window.message_bus.send('read_file', { relPath, asText });
 },
 write_file(relPath, content) {
     return window.message_bus.send('write_file', {relPath, content});
@@ -2149,11 +2149,37 @@ current_room_physics(){
 current_room_render(){
 	// Функция переопределяется в change_room
 },
-
+/**получает информацию о системе*/
 get_system_info(){
 	window.message_bus.send('get_system_info',{}).then(system_info=>{
 		d.system_info=system_info;
 	});
+},
+/**получает список названий midi-устройств*/
+get_midi_inputs(){
+	window.message_bus.send('get_midi_inputs',{}).then(midi_inputs=>{
+		d.midi_inputs=midi_inputs;
+		console.log('Доступные MIDI входы:',d.midi_inputs);
+	});
+},
+get_midi_outputs() {
+    window.message_bus.send('get_midi_outputs', {}).then(outputs => {
+        d.midi_outputs = outputs;
+        console.log('Доступные MIDI выходы:',d.midi_outputs);
+    });
+},
+/**
+ * Воспроизвести MIDI-файл на указанном устройстве
+ * @param {Uint8Array|ArrayBuffer} byteArray - содержимое .mid файла
+ * @param {string} deviceId - идентификатор выходного MIDI-устройства
+ */
+play_midi(byteArray, deviceId){
+    window.message_bus.send('play_midi',{byteArray,deviceId})
+        .catch(err=>console.error('Ошибка при запуске MIDI:',err));
+},
+/**Остановить текущее воспроизведение MIDI*/
+stop_midi(){
+    window.message_bus.send('stop_midi',{}).catch(err => console.error('Ошибка при остановке MIDI:', err));
 },
 /** Определяет тип GPU с улучшенной логикой */
 determine_GPU_type(systemInfo) {
