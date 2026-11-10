@@ -9,7 +9,7 @@ export const bogMachine = {
   nature: 'god',
   parent: 'part1',
   tags: ['entity', 'god', 'podmirye', 'bog-machine', 'rain'],
-  links: ['podmirye', 'dive', 'shinjo', 'essence', 'sun-god'],
+  links: ['podmirye', 'dive', 'shinjo', 'sun-god'],
   hidden: false,
   blocks: [
     { t: 'strong', text: 'Бог.' },

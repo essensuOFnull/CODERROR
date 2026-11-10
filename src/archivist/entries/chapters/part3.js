@@ -28,6 +28,7 @@ import { kormilitsa } from '../gods/kormilitsa.js';
 import { artifact } from '../gods/artifact.js';
 
 import { essence } from '../supreme/essence.js';
+import { essenceBackstory } from '../records/essence-backstory.js';
 import { essenceDump } from '../locations/essence-dump.js';
 import { dumpMeeting } from '../scenes/dump-meeting.js';
 import { neurochip } from '../items/neurochip.js';
@@ -113,6 +114,7 @@ export const part3 = [
 	artifact,
 
 	essence,
+	essenceBackstory,
 	essenceDump,
 	dumpMeeting,
 	neurochip,
