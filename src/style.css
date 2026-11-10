@@ -1,0 +1,50 @@
+@font-face {
+	font-family: 'Terminus';
+	src: url('./fonts/TerminusTTFWindows-4.49.3.ttf') format('truetype');
+	font-weight: normal;
+	font-style: normal;
+}
+
+@keyframes logoGradientMove {
+	0% {
+		background-position: 0% 0%;
+	}
+
+	100% {
+		background-position: 200% 200%;
+	}
+}
+
+html,
+body,
+#root,
+#root>* {
+	margin: 0;
+	padding: 0;
+	border: none;
+	background: #000;
+	width: 100vw;
+	height: 100vh;
+	position: absolute;
+	left: 0;
+	top: 0;
+}
+
+* {
+	font-family: 'Terminus';
+}
+
+/* src/components/style.css */
+.cm-editor {
+  background: transparent !important;
+  height: 100%;
+}
+
+.cm-scroller {
+  overflow: auto;
+}
+
+.cm-gutters {
+  background: transparent !important;
+  border-right: none !important;
+}
