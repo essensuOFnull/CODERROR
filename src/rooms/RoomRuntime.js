@@ -16,7 +16,7 @@ function randomFor(seed, x, y, salt = '') {
 }
 
 export class RoomRuntime {
-  constructor(definition, seed = Math.floor(Math.random() * 0x100000000), glyphs = []) {
+  constructor(definition, seed = Math.floor(Math.random() * 0x100000000), glyphs = [], data = {}) {
     if (!definition || !Array.isArray(definition.layers)) {
       throw new TypeError('Room definition must provide a layers array');
     }
@@ -24,6 +24,7 @@ export class RoomRuntime {
     this.definition = definition;
     this.seed = seed >>> 0;
     this.glyphs = glyphs;
+    this.data = data;
     this.chunkSize = definition.chunkSize ?? 32;
     if (!Number.isInteger(this.chunkSize) || this.chunkSize < 1) {
       throw new RangeError('Room chunkSize must be a positive integer');
@@ -54,6 +55,7 @@ export class RoomRuntime {
             y: worldY,
             seed: this.seed,
             glyphs: this.glyphs,
+            data: this.data,
             random: (salt) => randomFor(this.seed, worldX, worldY, salt),
           }) ?? null;
         }
@@ -67,6 +69,12 @@ export class RoomRuntime {
     const localX = ((x % this.chunkSize) + this.chunkSize) % this.chunkSize;
     const localY = ((y % this.chunkSize) + this.chunkSize) % this.chunkSize;
     return chunk[localY * this.chunkSize + localX];
+  }
+
+  setData(data) {
+    this.data = data;
+    this.chunks.clear();
+    this.approached.clear();
   }
 
   getCell(x, y) {

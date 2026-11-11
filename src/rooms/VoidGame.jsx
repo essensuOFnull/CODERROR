@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { invoke, isTauri } from '@tauri-apps/api/core';
 import { useEngine } from '../context/EngineContext.jsx';
 import { RoomRuntime } from './RoomRuntime.js';
 import voidRoom, { surfaceAt } from './void/index.js';
@@ -12,13 +13,48 @@ const GRAVITY = 26;
 const HORIZONTAL_ACCELERATION = 30;
 const AIR_ACCELERATION = 12;
 
+function formatBytes(bytes) {
+  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} ГиБ`;
+  if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(0)} МиБ`;
+  return `${(bytes / 1024).toFixed(0)} КиБ`;
+}
+
 export default function VoidGame({ cellWidth, cellHeight, onExit }) {
   const engine = useEngine();
   const [notice, setNotice] = useState('');
   const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [installVolume, setInstallVolume] = useState(null);
+  const [scanPhase, setScanPhase] = useState('checking');
+  const [scanStatus, setScanStatus] = useState('');
+  const [sourceLabel, setSourceLabel] = useState('СИНТЕТИЧЕСКИЕ ДАННЫЕ');
+  const roomRef = useRef(null);
+  const terrainDirtyRef = useRef(false);
+  const scanReadyRef = useRef(false);
   const keys = useRef(new Set());
   const jumpRequested = useRef(false);
   const noticeTimer = useRef(null);
+
+  const locateInstallVolume = async () => {
+    setScanPhase('checking');
+    setScanStatus('');
+    try {
+      const volume = await invoke('get_install_ntfs_volume');
+      setInstallVolume(volume);
+      setScanPhase('consent');
+    } catch (error) {
+      setScanStatus(`Не удалось определить NTFS-диск приложения: ${String(error)}`);
+      setScanPhase('error');
+    }
+  };
+
+  useEffect(() => {
+    if (!isTauri()) {
+      setScanStatus('Запуск игры доступен только в настольном приложении CODERROR.');
+      setScanPhase('error');
+      return;
+    }
+    locateInstallVolume();
+  }, []);
 
   useEffect(() => {
     const seed = Math.floor(Math.random() * 0x100000000);
@@ -28,7 +64,11 @@ export default function VoidGame({ cellWidth, cellHeight, onExit }) {
     if (playerGlyphs.length !== PLAYER_GLYPHS.length) {
       throw new Error('The font atlas is missing square CJK glyphs for the player');
     }
-    const room = new RoomRuntime(voidRoom, seed, glyphs);
+    const room = new RoomRuntime(voidRoom, seed, glyphs, {
+      recoveredFragments: [],
+      scanCompleted: false,
+    });
+    roomRef.current = room;
     const player = {
       x: 0.5,
       y: surfaceAt(0, seed) - PLAYER_HALF_HEIGHT - 0.001,
@@ -105,6 +145,7 @@ export default function VoidGame({ cellWidth, cellHeight, onExit }) {
     };
 
     const unsubscribeTick = engine.onTick((deltaMs) => {
+      if (!scanReadyRef.current) return;
       const dt = Math.min(deltaMs / 1000, 0.04);
 
       const left = keys.current.has('ArrowLeft') || keys.current.has('KeyA');
@@ -142,8 +183,9 @@ export default function VoidGame({ cellWidth, cellHeight, onExit }) {
       const fractionY = cameraFloatY - cameraY;
 
       grid.setCameraOffset(-fractionX * cellWidth, -fractionY * cellHeight);
-      if (cameraX !== lastCameraX || cameraY !== lastCameraY) {
+      if (terrainDirtyRef.current || cameraX !== lastCameraX || cameraY !== lastCameraY) {
         drawTerrain(cameraX, cameraY);
+        terrainDirtyRef.current = false;
       }
 
       const left = renderedX - PLAYER_HALF_WIDTH;
@@ -193,6 +235,7 @@ export default function VoidGame({ cellWidth, cellHeight, onExit }) {
       engine.pixiGrid?.setCameraOffset(0, 0);
       engine.pixiGrid?.setVoidEffects(false);
       room.dispose();
+      roomRef.current = null;
       engine.batch(() => {
         for (let y = 0; y < engine.height; y++) {
           for (let x = 0; x < engine.width; x++) {
@@ -231,19 +274,112 @@ export default function VoidGame({ cellWidth, cellHeight, onExit }) {
     };
   }, [onExit]);
 
+  const scanInstallVolume = async () => {
+    if (!installVolume || scanPhase === 'scanning') return;
+    setScanPhase('scanning');
+    setScanStatus(`Чтение свободных кластеров диска ${installVolume.id}…`);
+    try {
+      const report = await invoke('scan_ntfs_free_space', { volumeId: installVolume.id });
+      const room = roomRef.current;
+      if (!room) throw new Error('Игровая комната ещё не готова принять данные диска.');
+      const availableGlyphs = new Set(room.glyphs);
+      const recoveredFragments = report.fragments.map(({ text, offset }) => ({
+        text,
+        offset,
+        terrainChars: Array.from(text).filter((character) => (
+          !/\s/u.test(character) && availableGlyphs.has(character)
+        )),
+      }));
+      room.setData({ recoveredFragments, scanCompleted: true });
+      terrainDirtyRef.current = true;
+      scanReadyRef.current = true;
+      setSourceLabel(`${report.volumeId} // ${recoveredFragments.length} ФРАГМ.`);
+      setScanStatus(
+        `Прочитано ${formatBytes(report.bytesScanned)} свободного пространства; `
+        + `найдено текстовых фрагментов: ${recoveredFragments.length}.`,
+      );
+      setScanPhase('ready');
+    } catch (error) {
+      setScanStatus(`Сканирование ${installVolume.id} не удалось: ${String(error)}`);
+      setScanPhase('error');
+    }
+  };
+
+  const declineDiskRead = () => {
+    setScanStatus('Без чтения диска установки игра не запустится.');
+    setScanPhase('denied');
+  };
+
   return (
     <section className="void-game" aria-label="Локация Пустота">
       <div className="void-game__status">
         <span>ПУСТОТА</span>
         <span>ЧАНК 32×32</span>
-        <span>СИНТЕТИЧЕСКИЕ ДАННЫЕ</span>
+        <span>{sourceLabel}</span>
         <span>{Math.floor(position.x)} : {Math.floor(position.y)}</span>
       </div>
       {notice && <div className="void-game__notice" role="status">{notice}</div>}
-      <div className="void-game__controls">
-        A / D или ← / → — идти&nbsp; · &nbsp;Space / W / ↑ — прыгнуть
-        <button type="button" onClick={onExit}>В меню (Esc)</button>
-      </div>
+      {scanPhase === 'ready' && scanStatus && (
+        <div className="void-game__scan-status" role="status">{scanStatus}</div>
+      )}
+      {scanPhase === 'ready' && (
+        <div className="void-game__controls">
+          A / D или ← / → — идти&nbsp; · &nbsp;Space / W / ↑ — прыгнуть
+          <button type="button" onClick={onExit}>В меню (Esc)</button>
+        </div>
+      )}
+      {scanPhase !== 'ready' && (
+        <div className="void-game__gate" role="dialog" aria-modal="true" aria-labelledby="void-gate-title">
+          <div className="void-game__gate-panel">
+            <h2 id="void-gate-title">ВХОД В ПУСТОТУ</h2>
+            {scanPhase === 'checking' && <p>Определяем диск, на котором установлена игра…</p>}
+            {scanPhase === 'consent' && installVolume && (
+              <>
+                <p>
+                  Игра установлена на <strong>{installVolume.id}</strong> · {installVolume.label}.
+                  Для входа требуется прочитать свободное пространство этого NTFS-диска.
+                </p>
+                <p>
+                  Будет прочитано до 32 МиБ только на чтение. Восстановленные фрагменты могут
+                  содержать личные данные и станут частью игрового ландшафта; они останутся
+                  только в памяти игры и не будут отправлены или записаны на диск.
+                  На SSD после TRIM удалённые данные могут быть недоступны.
+                </p>
+                <div className="void-game__gate-actions">
+                  <button type="button" onClick={scanInstallVolume}>Разрешить чтение и начать</button>
+                  <button type="button" onClick={declineDiskRead}>Не разрешать</button>
+                </div>
+              </>
+            )}
+            {scanPhase === 'scanning' && (
+              <>
+                <p>Читаем свободные кластеры {installVolume?.id}. Игра начнётся после завершения.</p>
+                <p>{scanStatus}</p>
+              </>
+            )}
+            {scanPhase === 'denied' && (
+              <>
+                <p>Для начала игры необходимо разрешить чтение диска установки.</p>
+                <div className="void-game__gate-actions">
+                  <button type="button" onClick={() => setScanPhase('consent')}>Вернуться к запросу</button>
+                  <button type="button" onClick={onExit}>В меню</button>
+                </div>
+              </>
+            )}
+            {scanPhase === 'error' && (
+              <>
+                <p>{scanStatus}</p>
+                <div className="void-game__gate-actions">
+                  <button type="button" onClick={installVolume ? scanInstallVolume : locateInstallVolume}>
+                    Повторить
+                  </button>
+                  <button type="button" onClick={onExit}>В меню</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </section>
   );
 }

@@ -14,6 +14,7 @@ const fragments = [
   'обрывок памяти',
 ];
 const strataColors = [0x343b49, 0x465367, 0x586579, 0x6a587b, 0x455f72];
+const recoveredColors = [0x72aeb5, 0x9e91b5, 0xc49b70, 0x6f94bf];
 
 export function surfaceAt(x, seed) {
   const baseline = Math.floor(16 + Math.sin(seed * 0.00001) * 1.5);
@@ -32,6 +33,10 @@ function hash(x, y, salt = 0) {
   return ((value ^ (value >>> 16)) >>> 0) / 0x100000000;
 }
 
+function positiveMod(value, divisor) {
+  return ((value % divisor) + divisor) % divisor;
+}
+
 const voidRoom = {
   id: 'void',
   title: 'Пустота',
@@ -47,9 +52,14 @@ const voidRoom = {
       kind: 'text',
       zIndex: 1,
       collision: false,
-      generateTile({ x, y, seed, random, glyphs }) {
+      generateTile({ x, y, random, glyphs, data }) {
         if (random('residue') > 0.0017) return null;
-        const label = fragments[Math.floor(random('fragment') * fragments.length)];
+        const recovered = data.recoveredFragments ?? [];
+        if (data.scanCompleted && recovered.length === 0) return null;
+        const fragment = recovered.length
+          ? recovered[Math.floor(random('fragment') * recovered.length)]
+          : null;
+        const label = fragment?.text ?? fragments[Math.floor(random('fragment') * fragments.length)];
         return {
           char: glyphs[Math.floor(random('unicode-glyph') * glyphs.length)] ?? label[0],
           fg: COLORS.residue,
@@ -64,13 +74,36 @@ const voidRoom = {
       kind: 'text',
       zIndex: 2,
       collision: true,
-      generateTile({ x, y, seed, random, glyphs }) {
+      generateTile({ x, y, seed, random, glyphs, data }) {
         const depth = y - surfaceAt(x, seed);
         if (depth < 0) return null;
 
         if (depth > 4 && hash(x, y, seed) < 0.09) return null;
         const seam = hash(x, y, seed + 7) > 0.97;
         const surface = depth === 0;
+        const recovered = data.recoveredFragments ?? [];
+        if (recovered.length > 0 && random('recovered-strata') < (surface ? 0.38 : 0.24)) {
+          const fragmentIndex = positiveMod(
+            Math.floor(x / 24) + Math.floor(depth / 8) * 7,
+            recovered.length,
+          );
+          const fragment = recovered[fragmentIndex];
+          const text = fragment.terrainChars;
+          if (text?.length) {
+            const charIndex = positiveMod(x + depth * 32, text.length);
+            const sourceChar = text[charIndex];
+            const char = glyphs.includes(sourceChar)
+              ? sourceChar
+              : glyphs[sourceChar.codePointAt(0) % glyphs.length];
+            return {
+              char: char ?? (surface ? '▓' : '▒'),
+              fg: recoveredColors[Math.floor(random('recovered-color') * recoveredColors.length)],
+              bg: COLORS.deepRock,
+              bgAlpha: 1,
+            };
+          }
+        }
+
         const unicodeGlyph = glyphs[Math.floor(random('unicode-glyph') * glyphs.length)];
         const strataColor = strataColors[Math.floor(random('strata-color') * strataColors.length)];
         return {
@@ -84,7 +117,7 @@ const voidRoom = {
   ],
   hooks: {
     onEnter({ emit }) {
-      emit({ type: 'notice', text: 'ПРОЦЕДУРНАЯ СИМУЛЯЦИЯ // реальные данные диска ещё не подключены' });
+      emit({ type: 'notice', text: 'СИМБИОЗ СИСТЕМЫ И ПАМЯТИ // найденное становится ландшафтом' });
     },
   },
 };
