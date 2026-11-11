@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { invoke, isTauri } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+import Slider from '@mui/material/Slider';
 import { useEngine } from '../context/EngineContext.jsx';
 import { RoomRuntime } from './RoomRuntime.js';
 import voidRoom, { surfaceAt } from './void/index.js';
@@ -12,6 +14,8 @@ const JUMP_SPEED = 10.5;
 const GRAVITY = 26;
 const HORIZONTAL_ACCELERATION = 30;
 const AIR_ACCELERATION = 12;
+const worldVolumeTasks = new WeakMap();
+const worldScanTasks = new WeakMap();
 
 function formatBytes(bytes) {
   if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} ГиБ`;
@@ -28,6 +32,51 @@ function mediaRandom(seed, sector, salt) {
   value = Math.imul(value ^ (value >>> 16), 0x7feb352d);
   value = Math.imul(value ^ (value >>> 15), 0x846ca68b);
   return ((value ^ (value >>> 16)) >>> 0) / 0x100000000;
+}
+
+function createImageCycle(images, seed) {
+  const cycle = [...images];
+  for (let index = cycle.length - 1; index > 0; index--) {
+    const swapIndex = Math.floor(mediaRandom(seed, index, 11) * (index + 1));
+    [cycle[index], cycle[swapIndex]] = [cycle[swapIndex], cycle[index]];
+  }
+  return cycle;
+}
+
+function cycleImageIndex(sector, length) {
+  const sectorIndex = ((sector % length) + length) % length;
+  return sectorIndex;
+}
+
+function getWorldVolume(world) {
+  let task = worldVolumeTasks.get(world);
+  if (!task) {
+    task = invoke('get_install_ntfs_volume').catch((error) => {
+      if (worldVolumeTasks.get(world) === task) worldVolumeTasks.delete(world);
+      throw error;
+    });
+    worldVolumeTasks.set(world, task);
+  }
+  return task;
+}
+
+function scanWorld(world, volumeId, seed, selection) {
+  let task = worldScanTasks.get(world);
+  if (!task) {
+    task = invoke('scan_ntfs_free_space', {
+      volumeId,
+      worldName: world.name,
+      seed,
+      scanId: selection.scanId,
+      startBasisPoints: selection.startBasisPoints,
+      endBasisPoints: selection.endBasisPoints,
+    }).catch((error) => {
+      if (worldScanTasks.get(world) === task) worldScanTasks.delete(world);
+      throw error;
+    });
+    worldScanTasks.set(world, task);
+  }
+  return task;
 }
 
 async function createMediaAsset(media, index) {
@@ -82,43 +131,52 @@ async function createMediaAsset(media, index) {
   }
 }
 
-export default function VoidGame({ cellWidth, cellHeight, onExit }) {
+export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
   const engine = useEngine();
   const [notice, setNotice] = useState('');
   const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [installVolume, setInstallVolume] = useState(null);
   const [scanPhase, setScanPhase] = useState('checking');
   const [scanStatus, setScanStatus] = useState('');
+  const [scanProgress, setScanProgress] = useState(null);
+  const [scanVolume, setScanVolume] = useState(null);
+  const [scanStartBasisPoints, setScanStartBasisPoints] = useState(0);
+  const [scanEndBasisPoints, setScanEndBasisPoints] = useState(10_000);
+  const [scanSelection, setScanSelection] = useState(null);
+  const [cancelRequested, setCancelRequested] = useState(false);
+  const [retryToken, setRetryToken] = useState(0);
   const [sourceLabel, setSourceLabel] = useState('СИНТЕТИЧЕСКИЕ ДАННЫЕ');
   const roomRef = useRef(null);
   const terrainDirtyRef = useRef(false);
   const scanReadyRef = useRef(false);
   const mediaAssetsRef = useRef([]);
+  const imageAssetsRef = useRef([]);
+  const imageCycleRef = useRef([]);
+  const videoAssetsRef = useRef([]);
   const keys = useRef(new Set());
   const jumpRequested = useRef(false);
   const noticeTimer = useRef(null);
+  const activeScanIdRef = useRef(null);
 
-  const locateInstallVolume = async () => {
-    setScanPhase('checking');
-    setScanStatus('');
-    try {
-      const volume = await invoke('get_install_ntfs_volume');
-      setInstallVolume(volume);
-      setScanPhase('consent');
-    } catch (error) {
-      setScanStatus(`Не удалось определить NTFS-диск приложения: ${String(error)}`);
-      setScanPhase('error');
-    }
+  const beginScan = () => {
+    setScanSelection({
+      scanId: crypto.randomUUID(),
+      startBasisPoints: scanStartBasisPoints,
+      endBasisPoints: scanEndBasisPoints,
+    });
   };
 
-  useEffect(() => {
-    if (!isTauri()) {
-      setScanStatus('Запуск игры доступен только в настольном приложении CODERROR.');
-      setScanPhase('error');
-      return;
+  const stopScan = async () => {
+    const scanId = activeScanIdRef.current;
+    if (!scanId || cancelRequested) return;
+    setCancelRequested(true);
+    setScanStatus('Останавливаем сканирование и сохраняем уже найденное…');
+    try {
+      await invoke('cancel_disk_scan', { scanId });
+    } catch (error) {
+      setCancelRequested(false);
+      setScanStatus(`Не удалось остановить сканирование: ${String(error)}`);
     }
-    locateInstallVolume();
-  }, []);
+  };
 
   useEffect(() => () => {
     for (const asset of mediaAssetsRef.current) {
@@ -130,10 +188,13 @@ export default function VoidGame({ cellWidth, cellHeight, onExit }) {
       URL.revokeObjectURL(asset.url);
     }
     mediaAssetsRef.current = [];
+    imageAssetsRef.current = [];
+    imageCycleRef.current = [];
+    videoAssetsRef.current = [];
   }, []);
 
   useEffect(() => {
-    const seed = Math.floor(Math.random() * 0x100000000);
+    const seed = world?.seed ?? Math.floor(Math.random() * 0x100000000);
     const glyphs = Array.from(engine.pixiGrid?.textures?.keys() ?? [])
       .filter((char) => Array.from(char).length === 1 && !/[\p{C}\p{M}\p{Z}]/u.test(char));
     const playerGlyphs = PLAYER_GLYPHS.filter((char) => engine.pixiGrid?.textures?.has(char));
@@ -299,18 +360,58 @@ export default function VoidGame({ cellWidth, cellHeight, onExit }) {
 
       const nextMediaOverlays = new Set();
       const nextTextOverlays = new Set();
-      const mediaAssets = mediaAssetsRef.current;
+      const imageCycle = imageCycleRef.current;
+      const videoAssets = videoAssetsRef.current;
       const recoveredFragments = room.data.recoveredFragments ?? [];
-      const sectorSize = 48;
+      const recoveredDataCount = room.data.recoveredDataCount ?? recoveredFragments.length;
+      const sectorSize = Math.max(
+        14,
+        48 - Math.floor(Math.log2(recoveredDataCount + 1) * 6),
+      );
       const firstSector = Math.floor((cameraX - 8) / sectorSize);
       const lastSector = Math.floor((cameraX + engine.width + 8) / sectorSize);
       for (let sector = firstSector; sector <= lastSector; sector++) {
+        if (imageCycle.length > 0) {
+          const image = imageCycle[cycleImageIndex(sector, imageCycle.length)];
+          const worldX = sector * sectorSize
+            + mediaRandom(seed, sector, 6) * sectorSize;
+          const maxScale = Math.min(
+            1,
+            (engine.width * cellWidth) / image.width,
+            (engine.height * cellHeight) / image.height,
+          );
+          const baseScale = maxScale * (0.2 + mediaRandom(seed, sector, 8) * 0.75);
+          const pulse = 0.975 + 0.025 * (
+            1 + Math.sin(performance.now() / 900 + sector * 1.7)
+          ) / 2;
+          const scale = Math.min(maxScale, baseScale * pulse);
+          const width = image.width * scale;
+          const height = image.height * scale;
+          const worldY = surfaceAt(worldX, seed) + 1
+            + mediaRandom(seed, sector, 7) * 12;
+          const x = (worldX - cameraX) * cellWidth - (image.width * (baseScale - scale)) / 2;
+          const y = (worldY - cameraY) * cellHeight;
+          if (x + width >= 0 && y + height >= 0
+            && x <= engine.width * cellWidth && y <= engine.height * cellHeight) {
+            const overlayId = `${image.id}:stratum:${sector}`;
+            grid.setMediaOverlay(overlayId, {
+              source: image.element,
+              x,
+              y,
+              width,
+              height,
+              alpha: 0.76,
+            });
+            nextMediaOverlays.add(overlayId);
+          }
+        }
+
         if (recoveredFragments.length > 0) {
           const fragment = recoveredFragments[
             Math.floor(mediaRandom(seed, sector, 3) * recoveredFragments.length)
           ];
           const text = Array.from(fragment.text);
-          const visibleLength = Math.min(44, text.length);
+          const visibleLength = Math.min(sectorSize - 4, text.length);
           const start = Math.floor(
             mediaRandom(seed, sector, 4) * Math.max(1, text.length - visibleLength + 1),
           );
@@ -343,9 +444,9 @@ export default function VoidGame({ cellWidth, cellHeight, onExit }) {
           }
         }
 
-        if (mediaAssets.length === 0) continue;
-        const asset = mediaAssets[
-          Math.floor(mediaRandom(seed, sector, 0) * mediaAssets.length)
+        if (videoAssets.length === 0) continue;
+        const asset = videoAssets[
+          Math.floor(mediaRandom(seed, sector, 0) * videoAssets.length)
         ];
         const ratio = asset.width / asset.height;
         const maxWidth = cellWidth * 6;
@@ -412,13 +513,155 @@ export default function VoidGame({ cellWidth, cellHeight, onExit }) {
         }
       });
     };
-  }, [cellHeight, cellWidth, engine]);
+  }, [cellHeight, cellWidth, engine, world?.seed]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let unlisten;
+
+    const initializeWorld = async () => {
+      if (!isTauri()) {
+        throw new Error('Создание и загрузка миров доступны только в настольном приложении.');
+      }
+
+      const room = roomRef.current;
+      if (!room) throw new Error('Игровая комната ещё не готова принять данные мира.');
+
+      let report = world?.report;
+      if (report) {
+        setScanPhase('loading');
+        setScanStatus('Загружаем сохранённые данные мира…');
+      }
+      if (!report) {
+        setScanPhase('checking');
+        setScanStatus('Определяем диск установки…');
+        const volume = await getWorldVolume(world);
+        if (cancelled) return;
+        setScanVolume(volume);
+        if (!scanSelection) {
+          setScanPhase('selecting');
+          setScanStatus('');
+          return;
+        }
+
+        setScanPhase('scanning');
+        setScanStatus(
+          `Проверяем выбранный диапазон диска ${volume.id} `
+          + `(${(scanSelection.startBasisPoints / 100).toFixed(2)}–`
+          + `${(scanSelection.endBasisPoints / 100).toFixed(2)}%)…`,
+        );
+        setScanProgress({
+          bytesProcessed: 0,
+          totalBytes: Math.floor(
+            volume.totalBytes
+            * (scanSelection.endBasisPoints - scanSelection.startBasisPoints)
+            / 10_000,
+          ),
+          bytesRead: 0,
+        });
+        const stopListening = await listen('disk-scan-progress', (event) => {
+          if (!cancelled) setScanProgress(event.payload);
+        });
+        if (cancelled) {
+          stopListening();
+          return;
+        }
+        unlisten = stopListening;
+        activeScanIdRef.current = scanSelection.scanId;
+        setCancelRequested(false);
+        try {
+          report = await scanWorld(world, volume.id, room.seed, scanSelection);
+        } finally {
+          if (activeScanIdRef.current === scanSelection.scanId) {
+            activeScanIdRef.current = null;
+          }
+          setCancelRequested(false);
+        }
+        if (cancelled) return;
+        setScanPhase('loading');
+        setScanStatus(report.scanCompleted === false
+          ? 'Сканирование остановлено. Сохраняем найденные данные мира…'
+          : 'Сканирование завершено. Подготавливаем данные мира…');
+      }
+
+      if (!Array.isArray(report.fragments) || !Array.isArray(report.media)) {
+        throw new Error('Файл мира не содержит корректные списки восстановленных данных.');
+      }
+      const availableGlyphs = new Set(room.glyphs);
+      const recoveredFragments = report.fragments.map(({ text, offset }) => ({
+        text,
+        offset,
+        terrainChars: Array.from(text).filter((character) => (
+          !/\s/u.test(character) && availableGlyphs.has(character)
+        )),
+      }));
+      const mediaAssets = [];
+      let undecodableMedia = 0;
+      let undecodableVideo = 0;
+      for (const [index, media] of report.media.entries()) {
+        try {
+          mediaAssets.push(await createMediaAsset(media, index));
+        } catch {
+          undecodableMedia++;
+          if (media.mimeType.startsWith('video/')) undecodableVideo++;
+        }
+        if (cancelled) {
+          for (const asset of mediaAssets) {
+            if (asset.element instanceof HTMLVideoElement) asset.element.pause();
+            URL.revokeObjectURL(asset.url);
+          }
+          return;
+        }
+      }
+
+      mediaAssetsRef.current = mediaAssets;
+      imageAssetsRef.current = mediaAssets.filter((asset) => asset.mimeType.startsWith('image/'));
+      imageCycleRef.current = createImageCycle(imageAssetsRef.current, room.seed);
+      videoAssetsRef.current = mediaAssets.filter((asset) => asset.mimeType.startsWith('video/'));
+      room.setData({
+        recoveredFragments,
+        recoveredDataCount: recoveredFragments.length + mediaAssets.length,
+        scanCompleted: true,
+      });
+      terrainDirtyRef.current = true;
+      scanReadyRef.current = true;
+      setSourceLabel(
+        `${report.volumeId} // ${recoveredFragments.length} ФРАГ. / ${mediaAssets.length} МЕДИА`,
+      );
+      setScanStatus(
+        `${world.name} сохранён${report.scanCompleted === false ? ' (частичное сканирование)' : ''}; `
+        + `прочитано ${formatBytes(report.bytesScanned)} свободного места; `
+        + `текст: ${recoveredFragments.length}, картинки: ${imageAssetsRef.current.length}, `
+        + `видео: ${videoAssetsRef.current.length}`
+        + (undecodableVideo ? `, видео не декодировано: ${undecodableVideo}` : '')
+        + (undecodableMedia > undecodableVideo
+          ? `, прочее медиа не декодировано: ${undecodableMedia - undecodableVideo}`
+          : '')
+        + (videoAssetsRef.current.length === 0 && undecodableVideo === 0
+          ? '; в просмотренном диапазоне целые видеоконтейнеры не найдены'
+          : '')
+        + '.',
+      );
+      setScanPhase('ready');
+    };
+
+    initializeWorld().catch((error) => {
+      if (cancelled) return;
+      setScanStatus(`Не удалось создать или открыть мир: ${String(error)}`);
+      setScanPhase('error');
+    });
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [retryToken, scanSelection, world]);
 
   useEffect(() => {
     const onKeyDown = (event) => {
       if (event.code === 'Escape') {
         event.preventDefault();
-        onExit();
+        if (scanPhase === 'ready' || scanPhase === 'error') onExit();
         return;
       }
       if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'Space'].includes(event.code)) {
@@ -440,66 +683,13 @@ export default function VoidGame({ cellWidth, cellHeight, onExit }) {
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', clearKeys);
     };
-  }, [onExit]);
-
-  const scanInstallVolume = async () => {
-    if (!installVolume || scanPhase === 'scanning') return;
-    setScanPhase('scanning');
-    setScanStatus(`Чтение свободных кластеров диска ${installVolume.id}…`);
-    try {
-      const report = await invoke('scan_ntfs_free_space', { volumeId: installVolume.id });
-      const room = roomRef.current;
-      if (!room) throw new Error('Игровая комната ещё не готова принять данные диска.');
-      const availableGlyphs = new Set(room.glyphs);
-      if (!Array.isArray(report.media)) {
-        throw new Error('Сканер вернул отчёт без раздела медиафрагментов.');
-      }
-      const recoveredFragments = report.fragments.map(({ text, offset }) => ({
-        text,
-        offset,
-        terrainChars: Array.from(text).filter((character) => (
-          !/\s/u.test(character) && availableGlyphs.has(character)
-        )),
-      }));
-      const mediaAssets = [];
-      let undecodableMedia = 0;
-      for (const [index, media] of report.media.entries()) {
-        try {
-          mediaAssets.push(await createMediaAsset(media, index));
-        } catch {
-          undecodableMedia++;
-        }
-      }
-      const seed = room.seed;
-      mediaAssetsRef.current = mediaAssets;
-      room.setData({ recoveredFragments, scanCompleted: true });
-      terrainDirtyRef.current = true;
-      scanReadyRef.current = true;
-      setSourceLabel(
-        `${report.volumeId} // ${recoveredFragments.length} ФРАГ. / ${mediaAssets.length} МЕДИА`,
-      );
-      setScanStatus(
-        `Прочитано ${formatBytes(report.bytesScanned)} свободного пространства; `
-        + `текст: ${recoveredFragments.length}, медиа: ${mediaAssets.length}`
-        + (undecodableMedia ? `, не декодировано: ${undecodableMedia}` : '')
-        + '.',
-      );
-      setScanPhase('ready');
-    } catch (error) {
-      setScanStatus(`Сканирование ${installVolume.id} не удалось: ${String(error)}`);
-      setScanPhase('error');
-    }
-  };
-
-  const declineDiskRead = () => {
-    setScanStatus('Без чтения диска установки игра не запустится.');
-    setScanPhase('denied');
-  };
+  }, [onExit, scanPhase]);
 
   return (
     <section className="void-game" aria-label="Локация Пустота">
       <div className="void-game__status">
         <span>ПУСТОТА</span>
+        <span>{world?.name}</span>
         <span>ЧАНК 32×32</span>
         <span>{sourceLabel}</span>
         <span>{Math.floor(position.x)} : {Math.floor(position.y)}</span>
@@ -519,38 +709,97 @@ export default function VoidGame({ cellWidth, cellHeight, onExit }) {
           <div className="void-game__gate-panel">
             <h2 id="void-gate-title">ВХОД В ПУСТОТУ</h2>
             {scanPhase === 'checking' && <p>Определяем диск, на котором установлена игра…</p>}
-            {scanPhase === 'consent' && installVolume && (
+            {scanPhase === 'loading' && <p>{scanStatus}</p>}
+            {scanPhase === 'selecting' && scanVolume && (
               <>
                 <p>
-                  Игра установлена на <strong>{installVolume.id}</strong> · {installVolume.label}.
-                  Для входа требуется прочитать свободное пространство этого NTFS-диска.
+                  Выбери границы участка диска {scanVolume.id}, который нужно проверить.
+                  По умолчанию выбран весь диск; будет прочитано только свободное пространство.
                 </p>
-                <p>
-                  Будет случайно прочитано до 64 МиБ свободного пространства только на чтение.
-                  Это ускоряет поиск, но часть удалённых данных может не попасть в выборку.
-                  Будут восстановлены до четырёх изображений и двух видеофрагментов; найденные
-                  фрагменты могут содержать личные данные и станут частью игрового ландшафта.
-                  Они останутся только в памяти игры и не будут отправлены или записаны на диск.
-                  На SSD после TRIM удалённые данные могут быть недоступны.
-                </p>
+                <div className="void-game__range">
+                  <span>
+                    Начать с {(scanStartBasisPoints / 100).toFixed(2)}%
+                    {' · '}{formatBytes(scanVolume.totalBytes * scanStartBasisPoints / 10_000)}
+                  </span>
+                  <Slider
+                    min={0}
+                    max={10_000}
+                    step={1}
+                    value={[scanStartBasisPoints, scanEndBasisPoints]}
+                    onChange={(_, value) => {
+                      if (Array.isArray(value)) {
+                        setScanStartBasisPoints(value[0]);
+                        setScanEndBasisPoints(value[1]);
+                      }
+                    }}
+                    valueLabelDisplay="auto"
+                    valueLabelFormat={(value) => `${(value / 100).toFixed(2)}%`}
+                    disableSwap
+                    getAriaLabel={(index) => (
+                      index === 0 ? 'Начало диапазона сканирования' : 'Конец диапазона сканирования'
+                    )}
+                    sx={{
+                      color: '#72aeb5',
+                      padding: '13px 0',
+                      '& .MuiSlider-rail': {
+                        backgroundColor: '#8195a5',
+                        opacity: 0.35,
+                      },
+                      '& .MuiSlider-track': { border: 0 },
+                      '& .MuiSlider-thumb': {
+                        width: 16,
+                        height: 16,
+                        backgroundColor: '#ffd36a',
+                        border: '2px solid #080d16',
+                        '&:hover, &.Mui-focusVisible': {
+                          boxShadow: '0 0 0 7px #ffd36a33',
+                        },
+                      },
+                      '& .MuiSlider-valueLabel': {
+                        border: '1px solid #8195a5',
+                        backgroundColor: '#080d16',
+                        color: '#ffdca0',
+                      },
+                    }}
+                  />
+                  <span>
+                    Закончить на {(scanEndBasisPoints / 100).toFixed(2)}%
+                    {' · '}{formatBytes(scanVolume.totalBytes * scanEndBasisPoints / 10_000)}
+                  </span>
+                </div>
                 <div className="void-game__gate-actions">
-                  <button type="button" onClick={scanInstallVolume}>Разрешить чтение и начать</button>
-                  <button type="button" onClick={declineDiskRead}>Не разрешать</button>
+                  <button type="button" onClick={beginScan}>Начать сканирование</button>
+                  <button type="button" onClick={onExit}>В меню</button>
                 </div>
               </>
             )}
             {scanPhase === 'scanning' && (
               <>
-                <p>Читаем свободные кластеры {installVolume?.id}. Игра начнётся после завершения.</p>
+                <p>
+                  Сканируем свободное пространство выбранного диапазона. Данные читаются только
+                  для восстановления и сохраняются в файл этого мира.
+                </p>
                 <p>{scanStatus}</p>
-              </>
-            )}
-            {scanPhase === 'denied' && (
-              <>
-                <p>Для начала игры необходимо разрешить чтение диска установки.</p>
+                {scanProgress && (
+                  <>
+                    <progress
+                      className="void-game__progress"
+                      max="100"
+                      value={scanProgress.totalBytes
+                        ? Math.min(100, scanProgress.bytesProcessed / scanProgress.totalBytes * 100)
+                        : 100}
+                      aria-label="Прогресс сканирования диска"
+                    />
+                    <p className="void-game__progress-label">
+                      Обработано {formatBytes(scanProgress.bytesProcessed)} из {formatBytes(scanProgress.totalBytes)}
+                      {' · '}прочитано {formatBytes(scanProgress.bytesRead)} свободных данных
+                    </p>
+                  </>
+                )}
                 <div className="void-game__gate-actions">
-                  <button type="button" onClick={() => setScanPhase('consent')}>Вернуться к запросу</button>
-                  <button type="button" onClick={onExit}>В меню</button>
+                  <button type="button" onClick={stopScan} disabled={cancelRequested}>
+                    {cancelRequested ? 'Останавливаем…' : 'бля хватит'}
+                  </button>
                 </div>
               </>
             )}
@@ -558,9 +807,15 @@ export default function VoidGame({ cellWidth, cellHeight, onExit }) {
               <>
                 <p>{scanStatus}</p>
                 <div className="void-game__gate-actions">
-                  <button type="button" onClick={installVolume ? scanInstallVolume : locateInstallVolume}>
-                    Повторить
-                  </button>
+                  <button type="button" onClick={() => {
+                    setScanStatus('');
+                    setScanPhase('checking');
+                    setScanProgress(null);
+                    setScanSelection(null);
+                    setScanStartBasisPoints(0);
+                    setScanEndBasisPoints(10_000);
+                    setRetryToken((token) => token + 1);
+                  }}>Повторить</button>
                   <button type="button" onClick={onExit}>В меню</button>
                 </div>
               </>

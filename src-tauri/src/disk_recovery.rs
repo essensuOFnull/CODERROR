@@ -1,15 +1,22 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use std::{
+    collections::HashMap,
+    fs::{self, OpenOptions},
+    path::PathBuf,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::{SystemTime, UNIX_EPOCH},
+};
+use tauri::{Manager, State};
 
-const MAX_SCAN_BYTES: u64 = 64 * 1024 * 1024;
-const SCAN_CHUNK_BYTES: u64 = 8 * 1024 * 1024;
-const MAX_BITMAP_SAMPLES: u64 = 64;
-const MAX_FRAGMENTS: usize = 128;
+const SCAN_CHUNK_BYTES: u64 = 32 * 1024 * 1024;
+const PROGRESS_INTERVAL_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_FRAGMENT_CHARS: usize = 180;
-const MAX_IMAGE_BYTES: usize = 2 * 1024 * 1024;
-const MAX_VIDEO_BYTES: usize = 6 * 1024 * 1024;
-const MAX_MEDIA_BYTES: usize = 16 * 1024 * 1024;
-const MAX_IMAGES: usize = 4;
-const MAX_VIDEOS: usize = 2;
+const MAX_IMAGE_BYTES: usize = 32 * 1024 * 1024;
+const MAX_VIDEO_BYTES: usize = 32 * 1024 * 1024;
+const MAX_MEDIA_FRAGMENTS: usize = 256;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -21,14 +28,14 @@ pub struct NtfsVolume {
     cluster_size: u64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RecoveredText {
     offset: u64,
     text: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RecoveredMedia {
     offset: u64,
@@ -36,13 +43,60 @@ pub struct RecoveredMedia {
     data_base64: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanReport {
     volume_id: String,
     bytes_scanned: u64,
+    #[serde(default = "scan_completed_by_default")]
+    scan_completed: bool,
     fragments: Vec<RecoveredText>,
     media: Vec<RecoveredMedia>,
+}
+
+fn scan_completed_by_default() -> bool {
+    true
+}
+
+#[derive(Default)]
+pub struct ScanRegistry(Mutex<HashMap<String, Arc<AtomicBool>>>);
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorldFile {
+    id: String,
+    name: String,
+    seed: u32,
+    report: ScanReport,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WorldFileRef<'a> {
+    id: &'a str,
+    name: &'a str,
+    seed: u32,
+    report: &'a ScanReport,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedWorld {
+    id: String,
+    name: String,
+    volume_id: String,
+    file_size_bytes: u64,
+    bytes_scanned: u64,
+    fragment_count: usize,
+    media_count: usize,
+}
+
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanProgress {
+    bytes_processed: u64,
+    total_bytes: u64,
+    bytes_read: u64,
 }
 
 #[tauri::command]
@@ -58,20 +112,279 @@ pub fn get_install_ntfs_volume() -> Result<NtfsVolume, String> {
     }
 }
 
-
 #[tauri::command]
-pub async fn scan_ntfs_free_space(volume_id: String) -> Result<ScanReport, String> {
-    #[cfg(windows)]
+pub async fn scan_ntfs_free_space(
+    app: tauri::AppHandle,
+    registry: State<'_, ScanRegistry>,
+    volume_id: String,
+    world_name: String,
+    seed: u32,
+    scan_id: String,
+    start_basis_points: u32,
+    end_basis_points: u32,
+) -> Result<ScanReport, String> {
+    validate_world_name(&world_name)?;
+    if scan_id.is_empty() || scan_id.len() > 128 {
+        return Err("Идентификатор сканирования некорректен.".into());
+    }
+    let cancelled = Arc::new(AtomicBool::new(false));
     {
-        tauri::async_runtime::spawn_blocking(move || windows::scan_ntfs_free_space(&volume_id))
-            .await
-            .map_err(|error| format!("Задача сканирования завершилась с ошибкой: {error}"))?
+        let mut active_scans = registry
+            .0
+            .lock()
+            .map_err(|error| format!("Не удалось зарегистрировать сканирование: {error}"))?;
+        if active_scans.contains_key(&scan_id) {
+            return Err("Сканирование с таким идентификатором уже запущено.".into());
+        }
+        active_scans.insert(scan_id.clone(), Arc::clone(&cancelled));
     }
 
-    #[cfg(not(windows))]
-    {
-        let _ = volume_id;
-        Err("Поиск по свободному пространству NTFS сейчас поддерживается только в Windows.".into())
+    let result = {
+        #[cfg(windows)]
+        {
+            use tauri::Emitter;
+
+            let task = tauri::async_runtime::spawn_blocking(move || {
+                let mut last_emitted = 0;
+                let report = windows::scan_ntfs_free_space(
+                    &volume_id,
+                    start_basis_points,
+                    end_basis_points,
+                    &cancelled,
+                    |progress| {
+                        if progress.bytes_processed.saturating_sub(last_emitted)
+                            < PROGRESS_INTERVAL_BYTES
+                            && progress.bytes_processed < progress.total_bytes
+                        {
+                            return Ok(());
+                        }
+                        app.emit("disk-scan-progress", progress).map_err(|error| {
+                            format!("Не удалось обновить прогресс сканирования: {error}")
+                        })?;
+                        last_emitted = progress.bytes_processed;
+                        Ok(())
+                    },
+                )?;
+                persist_world(&app, &world_name, seed, &report)?;
+                Ok(report)
+            });
+            task.await
+                .map_err(|error| format!("Задача сканирования завершилась с ошибкой: {error}"))?
+        }
+
+        #[cfg(not(windows))]
+        {
+            let _ = app;
+            let _ = cancelled;
+            let _ = volume_id;
+            let _ = world_name;
+            let _ = seed;
+            let _ = start_basis_points;
+            let _ = end_basis_points;
+            Err(
+                "Поиск по свободному пространству NTFS сейчас поддерживается только в Windows."
+                    .into(),
+            )
+        }
+    };
+    registry
+        .0
+        .lock()
+        .map_err(|error| format!("Не удалось завершить регистрацию сканирования: {error}"))?
+        .remove(&scan_id);
+    result
+}
+
+#[tauri::command]
+pub fn cancel_disk_scan(scan_id: String, registry: State<'_, ScanRegistry>) -> Result<(), String> {
+    let active_scans = registry
+        .0
+        .lock()
+        .map_err(|error| format!("Не удалось запросить остановку сканирования: {error}"))?;
+    let cancelled = active_scans
+        .get(&scan_id)
+        .ok_or_else(|| "Сканирование уже завершено или не найдено.".to_owned())?;
+    cancelled.store(true, Ordering::Relaxed);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn list_worlds(app: tauri::AppHandle) -> Result<Vec<SavedWorld>, String> {
+    tauri::async_runtime::spawn_blocking(move || list_world_files(&app))
+        .await
+        .map_err(|error| format!("Задача чтения списка миров завершилась с ошибкой: {error}"))?
+}
+
+fn list_world_files(app: &tauri::AppHandle) -> Result<Vec<SavedWorld>, String> {
+    let directory = worlds_directory(app)?;
+    let entries = match fs::read_dir(&directory) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(format!("Не удалось прочитать список миров: {error}")),
+    };
+    let mut worlds = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|error| format!("Не удалось прочитать файл мира: {error}"))?;
+        if entry
+            .path()
+            .extension()
+            .and_then(|extension| extension.to_str())
+            != Some("json")
+        {
+            continue;
+        }
+        let path = entry.path();
+        let bytes =
+            fs::read(&path).map_err(|error| format!("Не удалось прочитать файл мира: {error}"))?;
+        let world: WorldFile = serde_json::from_slice(&bytes)
+            .map_err(|error| format!("Файл мира повреждён: {error}"))?;
+        validate_world_id(&world.id)?;
+        let expected_file = format!("world-{}.json", world.id);
+        if entry.file_name().to_str() != Some(expected_file.as_str()) {
+            return Err("Имя файла мира не совпадает с его идентификатором.".into());
+        }
+        worlds.push(saved_world(&world, bytes.len() as u64));
+    }
+    worlds.sort_by(|left, right| left.name.to_lowercase().cmp(&right.name.to_lowercase()));
+    Ok(worlds)
+}
+
+#[tauri::command]
+pub async fn load_world(app: tauri::AppHandle, id: String) -> Result<WorldFile, String> {
+    validate_world_id(&id)?;
+    tauri::async_runtime::spawn_blocking(move || load_world_file(&app, &id))
+        .await
+        .map_err(|error| format!("Задача загрузки мира завершилась с ошибкой: {error}"))?
+}
+
+#[tauri::command]
+pub async fn delete_world(app: tauri::AppHandle, id: String) -> Result<(), String> {
+    validate_world_id(&id)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = worlds_directory(&app)?.join(format!("world-{id}.json"));
+        fs::remove_file(path).map_err(|error| match error.kind() {
+            std::io::ErrorKind::NotFound => "Сохранённый мир уже удалён.".into(),
+            _ => format!("Не удалось удалить сохранённый мир: {error}"),
+        })
+    })
+    .await
+    .map_err(|error| format!("Задача удаления мира завершилась с ошибкой: {error}"))?
+}
+
+fn load_world_file(app: &tauri::AppHandle, id: &str) -> Result<WorldFile, String> {
+    validate_world_id(id)?;
+    let path = worlds_directory(app)?.join(format!("world-{id}.json"));
+    let bytes =
+        fs::read(path).map_err(|error| format!("Не удалось открыть сохранённый мир: {error}"))?;
+    let world: WorldFile =
+        serde_json::from_slice(&bytes).map_err(|error| format!("Файл мира повреждён: {error}"))?;
+    if world.id != id {
+        return Err("Идентификатор в файле мира не совпадает с именем файла.".into());
+    }
+    Ok(world)
+}
+
+fn persist_world(
+    app: &tauri::AppHandle,
+    name: &str,
+    seed: u32,
+    report: &ScanReport,
+) -> Result<SavedWorld, String> {
+    let name = validate_world_name(name)?;
+    let directory = worlds_directory(&app)?;
+    fs::create_dir_all(&directory)
+        .map_err(|error| format!("Не удалось создать каталог миров: {error}"))?;
+
+    let id = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|error| format!("Не удалось получить время для имени файла мира: {error}"))?
+        .as_nanos()
+        .to_string();
+    let world = WorldFileRef {
+        id: &id,
+        name,
+        seed,
+        report,
+    };
+    let temporary_path = directory.join(format!("world-{id}.json.tmp"));
+    let final_path = directory.join(format!("world-{id}.json"));
+    let mut created_temporary = false;
+    let write_result: Result<(), String> = (|| {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary_path)
+            .map_err(|error| format!("Не удалось создать файл мира: {error}"))?;
+        created_temporary = true;
+        serde_json::to_writer(&mut file, &world)
+            .map_err(|error| format!("Не удалось записать файл мира: {error}"))?;
+        file.sync_all()
+            .map_err(|error| format!("Не удалось сохранить файл мира: {error}"))?;
+        fs::rename(&temporary_path, &final_path)
+            .map_err(|error| format!("Не удалось завершить сохранение мира: {error}"))?;
+        Ok(())
+    })();
+    if let Err(error) = write_result {
+        if !created_temporary {
+            return Err(error);
+        }
+        return match fs::remove_file(&temporary_path) {
+            Ok(()) => Err(error),
+            Err(cleanup_error) if cleanup_error.kind() == std::io::ErrorKind::NotFound => {
+                Err(error)
+            }
+            Err(cleanup_error) => Err(format!(
+                "{error}; не удалось удалить временный файл мира: {cleanup_error}"
+            )),
+        };
+    }
+
+    let file_size_bytes = fs::metadata(&final_path)
+        .map_err(|error| format!("Не удалось определить размер файла мира: {error}"))?
+        .len();
+    Ok(saved_world_parts(&id, name, report, file_size_bytes))
+}
+
+fn validate_world_name(name: &str) -> Result<&str, String> {
+    let name = name.trim();
+    if name.is_empty() || name.chars().count() > 64 || name.chars().any(char::is_control) {
+        return Err("Название мира должно содержать от 1 до 64 печатных символов.".into());
+    }
+    Ok(name)
+}
+
+fn worlds_directory(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .app_data_dir()
+        .map(|path| path.join("worlds"))
+        .map_err(|error| format!("Не удалось определить каталог сохранённых миров: {error}"))
+}
+
+fn validate_world_id(id: &str) -> Result<(), String> {
+    if id.is_empty() || !id.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err("Некорректный идентификатор сохранённого мира.".into());
+    }
+    Ok(())
+}
+
+fn saved_world(world: &WorldFile, file_size_bytes: u64) -> SavedWorld {
+    saved_world_parts(&world.id, &world.name, &world.report, file_size_bytes)
+}
+
+fn saved_world_parts(
+    id: &str,
+    name: &str,
+    report: &ScanReport,
+    file_size_bytes: u64,
+) -> SavedWorld {
+    SavedWorld {
+        id: id.to_owned(),
+        name: name.to_owned(),
+        volume_id: report.volume_id.clone(),
+        file_size_bytes,
+        bytes_scanned: report.bytes_scanned,
+        fragment_count: report.fragments.len(),
+        media_count: report.media.len(),
     }
 }
 
@@ -80,14 +393,11 @@ mod windows {
     use super::*;
     use std::{
         collections::HashSet,
-        collections::hash_map::RandomState,
         ffi::OsStr,
-        hash::{BuildHasher, Hasher},
         mem::size_of,
         os::windows::ffi::OsStrExt,
         path::{Component, Prefix},
         ptr::{null, null_mut},
-        time::{SystemTime, UNIX_EPOCH},
     };
     use windows_sys::Win32::{
         Foundation::{CloseHandle, ERROR_MORE_DATA, GENERIC_READ, HANDLE, INVALID_HANDLE_VALUE},
@@ -235,55 +545,6 @@ mod windows {
         Ok(())
     }
 
-    fn next_random(state: &mut u64) -> u64 {
-        *state ^= *state >> 12;
-        *state ^= *state << 25;
-        *state ^= *state >> 27;
-        state.wrapping_mul(0x2545_f491_4f6c_dd1d)
-    }
-
-    fn greatest_common_divisor(mut left: u64, mut right: u64) -> u64 {
-        while right != 0 {
-            let remainder = left % right;
-            left = right;
-            right = remainder;
-        }
-        left
-    }
-
-    fn bitmap_page_order(total_clusters: u64, bits_per_page: u64, seed: u64) -> Vec<u64> {
-        if total_clusters == 0 || bits_per_page == 0 {
-            return Vec::new();
-        }
-
-        let page_count = total_clusters.div_ceil(bits_per_page);
-        let sample_count = page_count.min(MAX_BITMAP_SAMPLES);
-        let mut state = if seed == 0 {
-            0x9e37_79b9_7f4a_7c15
-        } else {
-            seed
-        };
-        let start = next_random(&mut state) % page_count;
-        let stride = if page_count == 1 {
-            1
-        } else {
-            let mut candidate = next_random(&mut state) % (page_count - 1) + 1;
-            while greatest_common_divisor(candidate, page_count) != 1
-                || (page_count > 3 && (candidate == 1 || candidate == page_count - 1))
-            {
-                candidate = candidate % (page_count - 1) + 1;
-            }
-            candidate
-        };
-
-        (0..sample_count)
-            .map(|index| {
-                ((u128::from(start) + u128::from(index) * u128::from(stride))
-                    % u128::from(page_count)) as u64
-            })
-            .collect()
-    }
-
     fn read_free_run(
         handle: HANDLE,
         start_lcn: u64,
@@ -292,20 +553,15 @@ mod windows {
         volume_id: &str,
         report: &mut ScanReport,
         seen: &mut HashSet<String>,
-        media_bytes: &mut usize,
+        tail: &mut Vec<u8>,
+        scan_start_bytes: u64,
+        scan_total_bytes: u64,
+        cancelled: &AtomicBool,
+        progress: &mut impl FnMut(ScanProgress) -> Result<(), String>,
     ) -> Result<(), String> {
-        let remaining = MAX_SCAN_BYTES.saturating_sub(report.bytes_scanned);
-        if remaining == 0
-            || (report.fragments.len() >= MAX_FRAGMENTS
-                && report.media.len() >= MAX_IMAGES + MAX_VIDEOS)
-        {
-            return Ok(());
-        }
-
         let byte_count = cluster_count
             .checked_mul(cluster_size)
-            .ok_or_else(|| "Размер свободного диапазона NTFS переполнен.".to_owned())?
-            .min(remaining);
+            .ok_or_else(|| "Размер свободного диапазона NTFS переполнен.".to_owned())?;
         if byte_count == 0 {
             return Ok(());
         }
@@ -314,18 +570,12 @@ mod windows {
             .checked_mul(cluster_size)
             .ok_or_else(|| "Смещение кластера NTFS переполнено.".to_owned())?;
         let mut run_read = 0u64;
-        let mut tail = Vec::new();
-        while run_read < byte_count
-            && report.bytes_scanned < MAX_SCAN_BYTES
-            && (report.fragments.len() < MAX_FRAGMENTS
-                || report.media.len() < MAX_IMAGES + MAX_VIDEOS)
-        {
-            let chunk_size = usize::try_from(
-                (byte_count - run_read)
-                    .min(SCAN_CHUNK_BYTES)
-                    .min(MAX_SCAN_BYTES - report.bytes_scanned),
-            )
-            .map_err(|_| "Размер блока чтения слишком велик.".to_owned())?;
+        while run_read < byte_count {
+            if cancelled.load(Ordering::Relaxed) {
+                break;
+            }
+            let chunk_size = usize::try_from((byte_count - run_read).min(SCAN_CHUNK_BYTES))
+                .map_err(|_| "Размер блока чтения слишком велик.".to_owned())?;
             let absolute_offset = run_offset
                 .checked_add(run_read)
                 .ok_or_else(|| "Смещение чтения переполнено.".to_owned())?;
@@ -357,7 +607,9 @@ mod windows {
                 ));
             }
             if bytes_read == 0 {
-                break;
+                return Err(format!(
+                    "Неожиданный конец свободного диапазона на томе {volume_id}."
+                ));
             }
 
             data.truncate(bytes_read as usize);
@@ -366,11 +618,18 @@ mod windows {
             tail.extend_from_slice(&data);
             collect_utf8_runs(&tail, scan_offset, &mut report.fragments, seen);
             collect_utf16_runs(&tail, scan_offset, &mut report.fragments, seen);
-            recover_media(&tail, scan_offset, overlap, report, media_bytes);
-            let retained = tail.len().min(MAX_VIDEO_BYTES - 1);
+            recover_media(&tail, scan_offset, overlap, report);
+            let retained = tail.len().min(MAX_IMAGE_BYTES.max(MAX_VIDEO_BYTES) - 1);
             tail.drain(..tail.len() - retained);
             report.bytes_scanned += u64::from(bytes_read);
             run_read += u64::from(bytes_read);
+            progress(ScanProgress {
+                bytes_processed: (absolute_offset + u64::from(bytes_read))
+                    .saturating_sub(scan_start_bytes)
+                    .min(scan_total_bytes),
+                total_bytes: scan_total_bytes,
+                bytes_read: report.bytes_scanned,
+            })?;
         }
         Ok(())
     }
@@ -383,7 +642,12 @@ mod windows {
         volume_id: &str,
         report: &mut ScanReport,
         seen: &mut HashSet<String>,
-        media_bytes: &mut usize,
+        tail: &mut Vec<u8>,
+        scan_start_bytes: u64,
+        scan_total_bytes: u64,
+        cancelled: &AtomicBool,
+        preserve_tail: bool,
+        progress: &mut impl FnMut(ScanProgress) -> Result<(), String>,
     ) -> Result<(), String> {
         if let Some(start_lcn) = run_start.take() {
             let cluster_count = std::mem::take(run_clusters);
@@ -395,44 +659,37 @@ mod windows {
                 volume_id,
                 report,
                 seen,
-                media_bytes,
+                tail,
+                scan_start_bytes,
+                scan_total_bytes,
+                cancelled,
+                progress,
             )?;
+        }
+        if !preserve_tail {
+            tail.clear();
         }
         Ok(())
     }
 
-    fn image_count(report: &ScanReport) -> usize {
-        report
-            .media
-            .iter()
-            .filter(|item| item.mime_type.starts_with("image/"))
-            .count()
-    }
-
-    fn video_count(report: &ScanReport) -> usize {
-        report
-            .media
-            .iter()
-            .filter(|item| item.mime_type.starts_with("video/"))
-            .count()
-    }
-
-    fn recover_media(
-        data: &[u8],
-        base_offset: u64,
-        overlap: usize,
-        report: &mut ScanReport,
-        media_bytes: &mut usize,
-    ) {
+    fn recover_media(data: &[u8], base_offset: u64, overlap: usize, report: &mut ScanReport) {
         let mut offset = 0usize;
-        while offset < data.len() && *media_bytes < MAX_MEDIA_BYTES {
-            let found = if image_count(report) < MAX_IMAGES {
+        while offset < data.len() && report.media.len() < MAX_MEDIA_FRAGMENTS {
+            let first_byte = data[offset];
+            let possible_image = matches!(first_byte, 0xff | 0x89 | b'B' | b'R');
+            let possible_video = matches!(first_byte, 0x1a | b'R' | b'\0');
+            if !possible_image && !possible_video {
+                offset += 1;
+                continue;
+            }
+
+            let found = if possible_image {
                 find_image(data, offset)
             } else {
                 None
             }
             .or_else(|| {
-                if video_count(report) < MAX_VIDEOS {
+                if possible_video {
                     find_video(data, offset)
                 } else {
                     None
@@ -444,17 +701,14 @@ mod windows {
                     offset += length;
                     continue;
                 }
-                if *media_bytes + length <= MAX_MEDIA_BYTES {
-                    let bytes = &data[offset..offset + length];
-                    report.media.push(RecoveredMedia {
-                        offset: base_offset + offset as u64,
-                        mime_type,
-                        data_base64: encode_base64(bytes),
-                    });
-                    *media_bytes += length;
-                    offset += length;
-                    continue;
-                }
+                let bytes = &data[offset..offset + length];
+                report.media.push(RecoveredMedia {
+                    offset: base_offset + offset as u64,
+                    mime_type,
+                    data_base64: encode_base64(bytes),
+                });
+                offset += length;
+                continue;
             }
             offset += 1;
         }
@@ -553,6 +807,8 @@ mod windows {
                 let extended =
                     u64::from_be_bytes(data.get(cursor + 8..cursor + 16)?.try_into().ok()?);
                 (16usize, extended)
+            } else if size == 0 {
+                (8usize, u64::try_from(data.len() - cursor).ok()?)
             } else {
                 (8usize, size)
             };
@@ -666,7 +922,7 @@ mod windows {
         seen: &mut HashSet<String>,
     ) {
         let text = text.trim();
-        if fragments.len() >= MAX_FRAGMENTS || text.chars().count() < 24 {
+        if text.chars().count() < 24 {
             return;
         }
         let normalized = text.to_ascii_lowercase();
@@ -724,9 +980,6 @@ mod windows {
                     }
                 }
             }
-            if fragments.len() >= MAX_FRAGMENTS {
-                return;
-            }
         }
     }
 
@@ -740,13 +993,15 @@ mod windows {
         let mut run_offset = 0;
         for (index, pair) in data.chunks_exact(2).enumerate() {
             let value = u16::from_le_bytes([pair[0], pair[1]]);
-            let character = char::from_u32(u32::from(value));
-            if let Some(character) = character.filter(|character| {
-                !character.is_control()
-                    && (character.is_alphanumeric()
-                        || character.is_whitespace()
-                        || character.is_ascii_punctuation())
-            }) {
+            let character = if (0x20..=0x7e).contains(&value) {
+                Some(char::from(value as u8))
+            } else if value > 0x9f {
+                char::from_u32(u32::from(value))
+                    .filter(|character| character.is_alphanumeric() || character.is_whitespace())
+            } else {
+                None
+            };
+            if let Some(character) = character {
                 if run.is_empty() {
                     run_offset = index * 2;
                 }
@@ -759,16 +1014,36 @@ mod windows {
                     seen,
                 );
             }
-            if fragments.len() >= MAX_FRAGMENTS {
-                return;
-            }
         }
         if !run.is_empty() {
             push_fragment(run, base_offset + run_offset as u64, fragments, seen);
         }
     }
 
-    pub fn scan_ntfs_free_space(volume_id: &str) -> Result<ScanReport, String> {
+    fn resolve_scan_range(
+        total_clusters: u64,
+        start_basis_points: u32,
+        end_basis_points: u32,
+    ) -> Result<(u64, u64), String> {
+        if start_basis_points >= end_basis_points || end_basis_points > 10_000 {
+            return Err("Начало диапазона должно быть меньше его конца.".into());
+        }
+        let total = u128::from(total_clusters);
+        let start = (total * u128::from(start_basis_points) / 10_000) as u64;
+        let end = (total * u128::from(end_basis_points) / 10_000) as u64;
+        if start >= end {
+            return Err("Выбранный диапазон меньше одного кластера диска.".into());
+        }
+        Ok((start, end))
+    }
+
+    pub fn scan_ntfs_free_space(
+        volume_id: &str,
+        start_basis_points: u32,
+        end_basis_points: u32,
+        cancelled: &AtomicBool,
+        mut progress: impl FnMut(ScanProgress) -> Result<(), String>,
+    ) -> Result<ScanReport, String> {
         validate_volume_id(volume_id)?;
         let volume = get_install_ntfs_volume()?;
         if !volume.id.eq_ignore_ascii_case(volume_id) {
@@ -778,41 +1053,32 @@ mod windows {
             ));
         }
         let handle = open_volume(&volume.id)?;
+        let (scan_start_lcn, scan_end_lcn) = resolve_scan_range(
+            volume.total_bytes / volume.cluster_size,
+            start_basis_points,
+            end_basis_points,
+        )?;
+        let scan_start_bytes = scan_start_lcn * volume.cluster_size;
+        let scan_end_bytes = scan_end_lcn * volume.cluster_size;
+        let scan_total_bytes = scan_end_bytes - scan_start_bytes;
         let mut report = ScanReport {
             volume_id: volume.id.clone(),
             bytes_scanned: 0,
+            scan_completed: true,
             fragments: Vec::new(),
             media: Vec::new(),
         };
         let mut seen = HashSet::new();
-        let mut media_bytes = 0usize;
-        let mut bitmap = vec![0u8; 64 * 1024];
-        let bits_per_page =
-            u64::try_from(bitmap.len() - 16).expect("bitmap buffer length fits in u64") * 8;
-        let total_clusters = volume.total_bytes / volume.cluster_size;
-        let mut random_seed = RandomState::new().build_hasher().finish()
-            ^ SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_nanos() as u64
-            ^ u64::from(std::process::id());
-        if random_seed == 0 {
-            random_seed = 1;
-        }
-        let page_order = bitmap_page_order(total_clusters, bits_per_page, random_seed);
+        let mut bitmap = vec![0u8; 256 * 1024];
+        let mut tail = Vec::new();
 
-        for page in page_order {
-            if report.bytes_scanned >= MAX_SCAN_BYTES
-                || (report.fragments.len() >= MAX_FRAGMENTS
-                    && report.media.len() >= MAX_IMAGES + MAX_VIDEOS)
-            {
+        let mut requested_lcn = scan_start_lcn;
+        'scan: while requested_lcn < scan_end_lcn {
+            if cancelled.load(Ordering::Relaxed) {
+                report.scan_completed = false;
                 break;
             }
-
-            let page_lcn = page
-                .checked_mul(bits_per_page)
-                .ok_or_else(|| "Смещение карты кластеров переполнено.".to_owned())?;
-            let input_lcn = i64::try_from(page_lcn)
+            let input_lcn = i64::try_from(requested_lcn)
                 .map_err(|_| "Номер кластера NTFS слишком велик.".to_owned())?;
             let mut returned = 0u32;
             let success = unsafe {
@@ -843,25 +1109,42 @@ mod windows {
             let bitmap_size = u64::try_from(i64::from_ne_bytes(bitmap[8..16].try_into().unwrap()))
                 .map_err(|_| "Windows вернула некорректный размер карты кластеров.".to_owned())?;
             let available_bits = u64::from(returned - 16) * 8;
-            let bit_count = available_bits.min(bitmap_size.saturating_sub(start_lcn));
+            let bitmap_end_lcn = start_lcn
+                .checked_add(available_bits.min(bitmap_size.saturating_sub(start_lcn)))
+                .ok_or_else(|| "Конец карты кластеров переполнен.".to_owned())?;
+            let page_start_lcn = start_lcn.max(scan_start_lcn).max(requested_lcn);
+            let page_end_lcn = bitmap_end_lcn.min(scan_end_lcn);
+            if page_end_lcn <= page_start_lcn {
+                return Err("Карта NTFS не продвигается по выбранному диапазону.".into());
+            }
+            let bit_start = page_start_lcn - start_lcn;
+            let bit_count = page_end_lcn - page_start_lcn;
             if bit_count == 0 {
                 continue;
             }
 
             let mut free_run_start = None;
             let mut free_run_clusters = 0u64;
-            let bitmap_bytes = usize::try_from(bit_count.div_ceil(8))
-                .map_err(|_| "Размер карты кластеров слишком велик.".to_owned())?;
-            for byte_index in 0..bitmap_bytes {
+            let first_byte = usize::try_from(bit_start / 8)
+                .map_err(|_| "Смещение карты кластеров слишком велико.".to_owned())?;
+            let last_byte = usize::try_from((bit_start + bit_count).div_ceil(8))
+                .map_err(|_| "Смещение карты кластеров слишком велико.".to_owned())?;
+            for byte_index in first_byte..last_byte {
+                if cancelled.load(Ordering::Relaxed) {
+                    report.scan_completed = false;
+                    break 'scan;
+                }
                 let bit_offset = byte_index as u64 * 8;
-                let bits_in_byte = (bit_count - bit_offset).min(8) as u8;
+                let first_bit_in_byte = bit_start.saturating_sub(bit_offset).min(8) as u8;
+                let bits_in_byte =
+                    (bit_start + bit_count - bit_offset).min(8) as u8 - first_bit_in_byte;
                 let byte = bitmap[16 + byte_index];
-                if bits_in_byte == 8 && byte == 0 {
+                if bits_in_byte == 8 && first_bit_in_byte == 0 && byte == 0 {
                     if free_run_start.is_none() {
-                        free_run_start = Some(start_lcn + bit_offset);
+                        free_run_start = Some(page_start_lcn + bit_offset - bit_start);
                     }
                     free_run_clusters += 8;
-                } else if bits_in_byte == 8 && byte == u8::MAX {
+                } else if bits_in_byte == 8 && first_bit_in_byte == 0 && byte == u8::MAX {
                     flush_bitmap_run(
                         handle.0,
                         &mut free_run_start,
@@ -870,10 +1153,15 @@ mod windows {
                         &volume.id,
                         &mut report,
                         &mut seen,
-                        &mut media_bytes,
+                        &mut tail,
+                        scan_start_bytes,
+                        scan_total_bytes,
+                        cancelled,
+                        false,
+                        &mut progress,
                     )?;
                 } else {
-                    for bit in 0..bits_in_byte {
+                    for bit in first_bit_in_byte..first_bit_in_byte + bits_in_byte {
                         let free = byte & (1 << bit) == 0;
                         let lcn = start_lcn + bit_offset + u64::from(bit);
                         if free {
@@ -890,20 +1178,17 @@ mod windows {
                                 &volume.id,
                                 &mut report,
                                 &mut seen,
-                                &mut media_bytes,
+                                &mut tail,
+                                scan_start_bytes,
+                                scan_total_bytes,
+                                cancelled,
+                                false,
+                                &mut progress,
                             )?;
                         }
                     }
                 }
-
-                if report.bytes_scanned >= MAX_SCAN_BYTES
-                    || (report.fragments.len() >= MAX_FRAGMENTS
-                        && report.media.len() >= MAX_IMAGES + MAX_VIDEOS)
-                {
-                    break;
-                }
             }
-
             flush_bitmap_run(
                 handle.0,
                 &mut free_run_start,
@@ -912,10 +1197,37 @@ mod windows {
                 &volume.id,
                 &mut report,
                 &mut seen,
-                &mut media_bytes,
+                &mut tail,
+                scan_start_bytes,
+                scan_total_bytes,
+                cancelled,
+                true,
+                &mut progress,
             )?;
+            if cancelled.load(Ordering::Relaxed) {
+                report.scan_completed = false;
+                break;
+            }
+            let bytes_processed = page_end_lcn
+                .checked_mul(volume.cluster_size)
+                .ok_or_else(|| "Смещение обработанных байтов переполнено.".to_owned())?
+                .saturating_sub(scan_start_bytes)
+                .min(scan_total_bytes);
+            progress(ScanProgress {
+                bytes_processed,
+                total_bytes: scan_total_bytes,
+                bytes_read: report.bytes_scanned,
+            })?;
+            requested_lcn = page_end_lcn;
         }
 
+        if report.scan_completed {
+            progress(ScanProgress {
+                bytes_processed: scan_total_bytes,
+                total_bytes: scan_total_bytes,
+                bytes_read: report.bytes_scanned,
+            })?;
+        }
         Ok(report)
     }
 
@@ -977,6 +1289,40 @@ mod windows {
         }
 
         #[test]
+        fn validates_and_trims_world_names() {
+            assert_eq!(validate_world_name("  мой мир  ").unwrap(), "мой мир");
+            assert!(validate_world_name("  ").is_err());
+            assert!(validate_world_name(&"м".repeat(65)).is_err());
+            assert!(validate_world_name("bad\nname").is_err());
+        }
+
+        #[test]
+        fn round_trips_world_metadata_and_recovered_fragments() {
+            let report = ScanReport {
+                volume_id: "C:".into(),
+                bytes_scanned: 4096,
+                scan_completed: true,
+                fragments: vec![RecoveredText {
+                    offset: 128,
+                    text: "Recovered fragment".into(),
+                }],
+                media: Vec::new(),
+            };
+            let encoded = serde_json::to_vec(&WorldFileRef {
+                id: "12345",
+                name: "мой мир",
+                seed: 42,
+                report: &report,
+            })
+            .unwrap();
+            let world: WorldFile = serde_json::from_slice(&encoded).unwrap();
+
+            assert_eq!(world.name, "мой мир");
+            assert_eq!(world.seed, 42);
+            assert_eq!(world.report.fragments[0].text, "Recovered fragment");
+        }
+
+        #[test]
         fn carves_supported_images_and_video_containers() {
             let jpeg = b"\xff\xd8\xff\xd9";
             let png = b"\x89PNG\r\n\x1a\n\0\0\0\0IEND\0\0\0\0";
@@ -1018,33 +1364,37 @@ mod windows {
         }
 
         #[test]
-        fn limits_recovered_image_count() {
+        fn caps_images_and_videos_at_256_items_together() {
             let image = b"\xff\xd8\xff\xd9";
-            let data = image.repeat(MAX_IMAGES + 2);
+            let video = b"RIFF\x04\0\0\0AVI ";
+            let mut data = Vec::new();
+            for _ in 0..150 {
+                data.extend_from_slice(image);
+                data.extend_from_slice(video);
+            }
             let mut report = ScanReport {
                 volume_id: "C:".into(),
                 bytes_scanned: data.len() as u64,
+                scan_completed: true,
                 fragments: Vec::new(),
                 media: Vec::new(),
             };
-            let mut media_bytes = 0;
 
-            recover_media(&data, 0, 0, &mut report, &mut media_bytes);
+            recover_media(&data, 0, 0, &mut report);
 
-            assert_eq!(report.media.len(), MAX_IMAGES);
-            assert_eq!(media_bytes, MAX_IMAGES * image.len());
-        }
-
-        #[test]
-        fn samples_distinct_random_bitmap_pages() {
-            let order = bitmap_page_order(100_000, 100, 12345);
-            let unique = order.iter().copied().collect::<HashSet<_>>();
-            let first_step = order[1].abs_diff(order[0]);
-
-            assert_eq!(order.len(), MAX_BITMAP_SAMPLES as usize);
-            assert_eq!(unique.len(), order.len());
-            assert!(order.iter().all(|page| *page < 1_000));
-            assert!(first_step > 1 && first_step < 999);
+            assert_eq!(report.media.len(), MAX_MEDIA_FRAGMENTS);
+            assert!(
+                report
+                    .media
+                    .iter()
+                    .any(|media| media.mime_type == "image/jpeg")
+            );
+            assert!(
+                report
+                    .media
+                    .iter()
+                    .any(|media| media.mime_type == "video/x-msvideo")
+            );
         }
 
         #[test]
@@ -1056,23 +1406,56 @@ mod windows {
             let mut report = ScanReport {
                 volume_id: "C:".into(),
                 bytes_scanned: 0,
+                scan_completed: true,
                 fragments: Vec::new(),
                 media: Vec::new(),
             };
-            let mut media_bytes = 0;
-
-            recover_media(&first_chunk[..], 0, 0, &mut report, &mut media_bytes);
-            recover_media(
-                &combined,
-                0,
-                first_chunk.len(),
-                &mut report,
-                &mut media_bytes,
-            );
+            recover_media(&first_chunk[..], 0, 0, &mut report);
+            recover_media(&combined, 0, first_chunk.len(), &mut report);
 
             assert_eq!(report.media.len(), 1);
             assert_eq!(report.media[0].offset, 0);
             assert_eq!(report.media[0].data_base64, "/9j/2Q==");
+        }
+
+        #[test]
+        fn recovers_mp4_larger_than_the_previous_six_mebibyte_limit() {
+            let target_size = 7 * 1024 * 1024;
+            let mut data = Vec::with_capacity(target_size);
+            data.extend_from_slice(&16u32.to_be_bytes());
+            data.extend_from_slice(b"ftypisom");
+            data.extend_from_slice(b"\0\0\0\0");
+            data.extend_from_slice(&8u32.to_be_bytes());
+            data.extend_from_slice(b"moov");
+            let mdat_size = u32::try_from(target_size - data.len()).unwrap();
+            data.extend_from_slice(&mdat_size.to_be_bytes());
+            data.extend_from_slice(b"mdat");
+            data.resize(target_size, 0);
+
+            assert_eq!(
+                find_video(&data, 0),
+                Some(("video/mp4".into(), target_size))
+            );
+        }
+
+        #[test]
+        fn resolves_selected_scan_ranges_to_cluster_boundaries() {
+            assert_eq!(
+                resolve_scan_range(10_000, 2_500, 7_500).unwrap(),
+                (2_500, 7_500)
+            );
+            assert!(resolve_scan_range(10_000, 7_500, 2_500).is_err());
+            assert!(resolve_scan_range(10_000, 0, 10_001).is_err());
+            assert!(resolve_scan_range(10, 1, 2).is_err());
+        }
+
+        #[test]
+        fn older_world_reports_default_to_completed() {
+            let report: ScanReport = serde_json::from_str(
+                r#"{"volumeId":"C:","bytesScanned":0,"fragments":[],"media":[]}"#,
+            )
+            .unwrap();
+            assert!(report.scan_completed);
         }
     }
 }

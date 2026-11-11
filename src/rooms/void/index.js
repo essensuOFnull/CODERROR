@@ -64,9 +64,13 @@ const voidRoom = {
       zIndex: 1,
       collision: false,
       generateTile({ x, y, random, glyphs, data }) {
-        if (random('residue') > 0.0045) return null;
         const recovered = data.recoveredFragments ?? [];
         if (data.scanCompleted && recovered.length === 0) return null;
+        const residueChance = Math.min(
+          0.035,
+          0.0045 + Math.log2(recovered.length + 1) * 0.003,
+        );
+        if (random('residue') > residueChance) return null;
         const fragment = recovered.length
           ? recovered[Math.floor(random('fragment') * recovered.length)]
           : null;
@@ -96,14 +100,18 @@ const voidRoom = {
         const seam = hash(x, y, seed + 7) > 0.92;
         const surface = depth === 0;
         const recovered = data.recoveredFragments ?? [];
-        if (recovered.length > 0 && random('recovered-strata') < (surface ? 0.38 : 0.24)) {
+        const recoveredCount = data.recoveredDataCount ?? recovered.length;
+        const variety = Math.min(0.3, Math.log2(recoveredCount + 1) * 0.04);
+        const recoveredChance = surface
+          ? Math.min(0.82, 0.38 + variety)
+          : Math.min(0.58, 0.24 + variety);
+        if (recoveredCount > 0 && random('recovered-strata') < recoveredChance) {
           const regionX = Math.floor(x / 12);
           const regionDepth = Math.floor(depth / 8);
-          const fragmentIndex = Math.floor(
-            hash(regionX, regionDepth, seed + 31) * recovered.length,
-          );
-          const fragment = recovered[fragmentIndex];
-          const text = fragment.terrainChars;
+          const fragment = recovered.length
+            ? recovered[Math.floor(hash(regionX, regionDepth, seed + 31) * recovered.length)]
+            : null;
+          const text = fragment?.terrainChars;
           if (text?.length) {
             const shift = Math.floor(hash(regionX, regionDepth, seed + 57) * text.length);
             const charIndex = positiveMod(x + depth * 32 + shift, text.length);
@@ -118,6 +126,13 @@ const voidRoom = {
               bgAlpha: 1,
             };
           }
+          return {
+            char: glyphs[Math.floor(random('recovered-media-glyph') * glyphs.length)]
+              ?? (surface ? '▓' : '▒'),
+            fg: recoveredColors[Math.floor(random('recovered-color') * recoveredColors.length)],
+            bg: COLORS.deepRock,
+            bgAlpha: 1,
+          };
         }
 
         const unicodeGlyph = glyphs[Math.floor(random('unicode-glyph') * glyphs.length)];
