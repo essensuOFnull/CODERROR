@@ -19,6 +19,69 @@ function formatBytes(bytes) {
   return `${(bytes / 1024).toFixed(0)} КиБ`;
 }
 
+function mediaRandom(seed, sector, salt) {
+  let value = (
+    seed
+    ^ Math.imul(sector | 0, 0x9e3779b1)
+    ^ Math.imul(salt, 0x85ebca77)
+  ) >>> 0;
+  value = Math.imul(value ^ (value >>> 16), 0x7feb352d);
+  value = Math.imul(value ^ (value >>> 15), 0x846ca68b);
+  return ((value ^ (value >>> 16)) >>> 0) / 0x100000000;
+}
+
+async function createMediaAsset(media, index) {
+  const binary = atob(media.dataBase64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const url = URL.createObjectURL(new Blob([bytes], { type: media.mimeType }));
+
+  try {
+    if (media.mimeType.startsWith('image/')) {
+      const image = new Image();
+      image.decoding = 'async';
+      image.src = url;
+      await image.decode();
+      return {
+        id: `recovered-media:${index}`,
+        element: image,
+        url,
+        width: image.naturalWidth,
+        height: image.naturalHeight,
+        mimeType: media.mimeType,
+        offset: media.offset,
+      };
+    }
+
+    const video = document.createElement('video');
+    video.muted = true;
+    video.loop = true;
+    video.playsInline = true;
+    video.preload = 'auto';
+    video.src = url;
+    await new Promise((resolve, reject) => {
+      video.addEventListener('loadedmetadata', resolve, { once: true });
+      video.addEventListener('error', () => reject(new Error('Фрагмент не удалось декодировать как видео.')), {
+        once: true,
+      });
+      video.load();
+    });
+    await video.play();
+    return {
+      id: `recovered-media:${index}`,
+      element: video,
+      url,
+      width: video.videoWidth,
+      height: video.videoHeight,
+      mimeType: media.mimeType,
+      offset: media.offset,
+    };
+  } catch (error) {
+    URL.revokeObjectURL(url);
+    throw error;
+  }
+}
+
 export default function VoidGame({ cellWidth, cellHeight, onExit }) {
   const engine = useEngine();
   const [notice, setNotice] = useState('');
@@ -30,6 +93,7 @@ export default function VoidGame({ cellWidth, cellHeight, onExit }) {
   const roomRef = useRef(null);
   const terrainDirtyRef = useRef(false);
   const scanReadyRef = useRef(false);
+  const mediaAssetsRef = useRef([]);
   const keys = useRef(new Set());
   const jumpRequested = useRef(false);
   const noticeTimer = useRef(null);
@@ -54,6 +118,18 @@ export default function VoidGame({ cellWidth, cellHeight, onExit }) {
       return;
     }
     locateInstallVolume();
+  }, []);
+
+  useEffect(() => () => {
+    for (const asset of mediaAssetsRef.current) {
+      if (asset.element instanceof HTMLVideoElement) {
+        asset.element.pause();
+        asset.element.removeAttribute('src');
+        asset.element.load();
+      }
+      URL.revokeObjectURL(asset.url);
+    }
+    mediaAssetsRef.current = [];
   }, []);
 
   useEffect(() => {
@@ -124,6 +200,7 @@ export default function VoidGame({ cellWidth, cellHeight, onExit }) {
     let lastCameraX = Number.NaN;
     let lastCameraY = Number.NaN;
     let activePlayerOverlays = new Set();
+    let activeMediaOverlays = new Set();
     engine.pixiGrid?.setVoidEffects(voidRoom.effects?.ground === 'corruption');
     const drawTerrain = (cameraX, cameraY) => {
       engine.batch(() => {
@@ -218,6 +295,50 @@ export default function VoidGame({ cellWidth, cellHeight, onExit }) {
         if (!nextPlayerOverlays.has(id)) grid.removeOverlay(id);
       }
       activePlayerOverlays = nextPlayerOverlays;
+
+      const nextMediaOverlays = new Set();
+      const mediaAssets = mediaAssetsRef.current;
+      const sectorSize = 48;
+      const firstSector = Math.floor((cameraX - 8) / sectorSize);
+      const lastSector = Math.floor((cameraX + engine.width + 8) / sectorSize);
+      for (let sector = firstSector; sector <= lastSector; sector++) {
+        if (mediaAssets.length === 0) break;
+        const asset = mediaAssets[
+          Math.floor(mediaRandom(seed, sector, 0) * mediaAssets.length)
+        ];
+        const ratio = asset.width / asset.height;
+        const maxWidth = cellWidth * 6;
+        const maxHeight = cellHeight * 4;
+        let width = maxWidth;
+        let height = width / ratio;
+        if (height > maxHeight) {
+          height = maxHeight;
+          width = height * ratio;
+        }
+        const worldX = sector * sectorSize + 4
+          + mediaRandom(seed, sector, 1) * (sectorSize - 14);
+        const worldY = surfaceAt(worldX, seed) - height / cellHeight - 1
+          - mediaRandom(seed, sector, 2) * 2.5;
+        const x = (worldX - cameraX) * cellWidth;
+        const y = (worldY - cameraY) * cellHeight;
+        if (x + width < 0 || y + height < 0 || x > engine.width * cellWidth || y > engine.height * cellHeight) {
+          continue;
+        }
+        const overlayId = `${asset.id}:sector:${sector}`;
+        grid.setMediaOverlay(overlayId, {
+          source: asset.element,
+          x,
+          y,
+          width,
+          height,
+          alpha: 0.88,
+        });
+        nextMediaOverlays.add(overlayId);
+      }
+      for (const id of activeMediaOverlays) {
+        if (!nextMediaOverlays.has(id)) grid.removeOverlay(id);
+      }
+      activeMediaOverlays = nextMediaOverlays;
     });
 
     voidRoom.hooks?.onEnter?.({ room, player, emit, seed });
@@ -232,6 +353,7 @@ export default function VoidGame({ cellWidth, cellHeight, onExit }) {
       clearTimeout(noticeTimer.current);
       keys.current.clear();
       for (const id of activePlayerOverlays) engine.pixiGrid?.removeOverlay(id);
+      for (const id of activeMediaOverlays) engine.pixiGrid?.removeOverlay(id);
       engine.pixiGrid?.setCameraOffset(0, 0);
       engine.pixiGrid?.setVoidEffects(false);
       room.dispose();
@@ -283,6 +405,9 @@ export default function VoidGame({ cellWidth, cellHeight, onExit }) {
       const room = roomRef.current;
       if (!room) throw new Error('Игровая комната ещё не готова принять данные диска.');
       const availableGlyphs = new Set(room.glyphs);
+      if (!Array.isArray(report.media)) {
+        throw new Error('Сканер вернул отчёт без раздела медиафрагментов.');
+      }
       const recoveredFragments = report.fragments.map(({ text, offset }) => ({
         text,
         offset,
@@ -290,13 +415,28 @@ export default function VoidGame({ cellWidth, cellHeight, onExit }) {
           !/\s/u.test(character) && availableGlyphs.has(character)
         )),
       }));
+      const mediaAssets = [];
+      let undecodableMedia = 0;
+      for (const [index, media] of report.media.entries()) {
+        try {
+          mediaAssets.push(await createMediaAsset(media, index));
+        } catch {
+          undecodableMedia++;
+        }
+      }
+      const seed = room.seed;
+      mediaAssetsRef.current = mediaAssets;
       room.setData({ recoveredFragments, scanCompleted: true });
       terrainDirtyRef.current = true;
       scanReadyRef.current = true;
-      setSourceLabel(`${report.volumeId} // ${recoveredFragments.length} ФРАГМ.`);
+      setSourceLabel(
+        `${report.volumeId} // ${recoveredFragments.length} ФРАГ. / ${mediaAssets.length} МЕДИА`,
+      );
       setScanStatus(
         `Прочитано ${formatBytes(report.bytesScanned)} свободного пространства; `
-        + `найдено текстовых фрагментов: ${recoveredFragments.length}.`,
+        + `текст: ${recoveredFragments.length}, медиа: ${mediaAssets.length}`
+        + (undecodableMedia ? `, не декодировано: ${undecodableMedia}` : '')
+        + '.',
       );
       setScanPhase('ready');
     } catch (error) {
@@ -340,9 +480,11 @@ export default function VoidGame({ cellWidth, cellHeight, onExit }) {
                   Для входа требуется прочитать свободное пространство этого NTFS-диска.
                 </p>
                 <p>
-                  Будет прочитано до 32 МиБ только на чтение. Восстановленные фрагменты могут
-                  содержать личные данные и станут частью игрового ландшафта; они останутся
-                  только в памяти игры и не будут отправлены или записаны на диск.
+                  Будет случайно прочитано до 64 МиБ свободного пространства только на чтение.
+                  Это ускоряет поиск, но часть удалённых данных может не попасть в выборку.
+                  Будут восстановлены до четырёх изображений и двух видеофрагментов; найденные
+                  фрагменты могут содержать личные данные и станут частью игрового ландшафта.
+                  Они останутся только в памяти игры и не будут отправлены или записаны на диск.
                   На SSD после TRIM удалённые данные могут быть недоступны.
                 </p>
                 <div className="void-game__gate-actions">

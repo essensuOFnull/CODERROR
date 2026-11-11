@@ -51,6 +51,8 @@ export class PixiGrid {
     // Публичное: используется рендер-эффектами снаружи
     this.cells = [];
     this.overlays = new Map();
+    this.mediaTextures = new Map();
+    this.mediaSources = new Map();
 
     this._fontFamily = fontFamily;
     this._ready = false;
@@ -112,7 +114,12 @@ export class PixiGrid {
     for (const sprite of this.overlays.values()) {
       try { sprite.destroy(); } catch (_) {}
     }
+    for (const { texture } of this.mediaSources.values()) {
+      try { texture.destroy(true); } catch (_) {}
+    }
     this.overlays.clear();
+    this.mediaTextures.clear();
+    this.mediaSources.clear();
     this.cells = [];
     this.container.removeChildren();
     this.overlayContainer.removeChildren();
@@ -200,12 +207,57 @@ export class PixiGrid {
     sprite.visible = true;
   }
 
+  setMediaOverlay(id, {
+    source,
+    x,
+    y,
+    width,
+    height,
+    alpha = 1,
+  }) {
+    if (!this._ready) return;
+    if (!source || ![x, y, width, height, alpha].every(Number.isFinite) || width <= 0 || height <= 0) {
+      throw new TypeError('Media overlay source and dimensions must be valid');
+    }
+
+    let media = this.mediaTextures.get(id);
+    if (!media || media.source !== source) {
+      if (media) this.removeOverlay(id);
+      let shared = this.mediaSources.get(source);
+      if (!shared) {
+        shared = { texture: PIXI.Texture.from(source) };
+        this.mediaSources.set(source, shared);
+      }
+      media = { source, texture: shared.texture };
+      this.mediaTextures.set(id, media);
+    }
+
+    let sprite = this.overlays.get(id);
+    if (!sprite) {
+      sprite = new PIXI.Sprite(media.texture);
+      this.overlays.set(id, sprite);
+      this.overlayContainer.addChild(sprite);
+    }
+    sprite.texture = media.texture;
+    sprite.x = x;
+    sprite.y = y;
+    sprite.width = width;
+    sprite.height = height;
+    sprite.alpha = alpha;
+    sprite.visible = true;
+  }
+
   removeOverlay(id) {
     const sprite = this.overlays.get(id);
-    if (!sprite) return;
-    this.overlays.delete(id);
-    this.overlayContainer.removeChild(sprite);
-    sprite.destroy();
+    if (sprite) {
+      this.overlays.delete(id);
+      this.overlayContainer.removeChild(sprite);
+      sprite.destroy();
+    }
+    const media = this.mediaTextures.get(id);
+    if (media) {
+      this.mediaTextures.delete(id);
+    }
   }
 
   applyDirty() {
@@ -268,6 +320,11 @@ export class PixiGrid {
 
     this.cells = [];
     this.overlays.clear();
+    for (const { texture } of this.mediaSources.values()) {
+      try { texture.destroy(true); } catch (_) {}
+    }
+    this.mediaTextures.clear();
+    this.mediaSources.clear();
     this.textures = null;
     this.canvas.style.transform = '';
     this._voidFilter?.destroy();
