@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Logo from './Logo.jsx';
 import Info from './Info.jsx';
 import MusicEditor from './MusicEditor.jsx';
@@ -9,6 +9,7 @@ import {
 } from './CodeMirror6.jsx';
 
 import Archivist from '../archivist/Archivist.jsx';
+import VoidGame from '../rooms/VoidGame.jsx';
 
 export default function MainMenu({
   cellWidth,
@@ -18,6 +19,8 @@ export default function MainMenu({
 }) {
   const engine = useEngine();
   const viewRef = useRef(null);
+  const [playing, setPlaying] = useState(false);
+  const exitGame = useCallback(() => setPlaying(false), []);
 
   // ─── Код музыки и готовность ───────────────────────────────────────
   const [musicCode, setMusicCode] = useState(engine.music.code);
@@ -49,6 +52,7 @@ export default function MainMenu({
 
   // ─── Рендер-эффекты на Pixi ticker ─────────────────────────────────
   useEffect(() => {
+    if (playing) return undefined;
     let detach = null;
 
     const unsubGrid = engine.onGridReady((grid) => {
@@ -109,7 +113,7 @@ export default function MainMenu({
       unsubGrid();
       if (detach) detach();
     };
-  }, [engine, cursorRadius, cursorFalloff]);
+  }, [engine, cursorRadius, cursorFalloff, playing]);
 
   // ─── Заголовок окна: TPS / FPS ─────────────────────────────────────
   useEffect(() => {
@@ -140,17 +144,26 @@ export default function MainMenu({
 
   return (
     <>
-      <Logo cellHeight={cellHeight} />
-      <Info />
-      {musicReady && (
-        <MusicEditor
-          value={musicCode}
-          cellWidth={cellWidth}
-          cellHeight={cellHeight}
-          onCreateEditor={(view) => { viewRef.current = view; }}
-        />
+      {playing ? (
+        <VoidGame cellWidth={cellWidth} cellHeight={cellHeight} onExit={exitGame} />
+      ) : (
+        <>
+          <Logo cellHeight={cellHeight} />
+          <Info />
+          <button className="game-start-button" type="button" onClick={() => setPlaying(true)}>
+            Играть
+          </button>
+          {musicReady && (
+            <MusicEditor
+              value={musicCode}
+              cellWidth={cellWidth}
+              cellHeight={cellHeight}
+              onCreateEditor={(view) => { viewRef.current = view; }}
+            />
+          )}
+          <Archivist />
+        </>
       )}
-      <Archivist/>
     </>
   );
 }

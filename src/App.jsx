@@ -16,8 +16,8 @@ const FONT_FAMILY = 'Terminus';
 const TPS = 60;
 export default function App() {
   const { width: winW, height: winH } = useWindowSize();
-  const cols = Math.max(1, Math.ceil(winW / CELL_W));
-  const rows = Math.max(1, Math.ceil(winH / CELL_H));
+  const cols = Math.max(1, Math.ceil(winW / CELL_W)) + 2;
+  const rows = Math.max(1, Math.ceil(winH / CELL_H)) + 2;
 
   return (
     <EngineProvider

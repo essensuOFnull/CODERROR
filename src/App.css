@@ -5,6 +5,106 @@
 .logo.react:hover {
   filter: drop-shadow(0 0 2em #61dafb);
 }
+
+.game-start-button,
+.void-game__controls button {
+  border: 1px solid #8195a5;
+  border-radius: 0;
+  padding: 8px 18px;
+  color: #dce8ed;
+  background: #080d16dd;
+  box-shadow: 0 0 16px #7895aa44;
+  font: inherit;
+  cursor: pointer;
+}
+
+.game-start-button {
+  position: fixed;
+  z-index: 20;
+  top: 72%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 24px;
+  letter-spacing: 0.08em;
+}
+
+.game-start-button:hover,
+.void-game__controls button:hover {
+  color: #fff0bf;
+  border-color: #ffd36a;
+  background: #17130bdd;
+}
+
+.void-game {
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+  pointer-events: none;
+  color: #dce8ed;
+  text-shadow: 0 1px 5px #000;
+}
+
+.void-game__status,
+.void-game__controls {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  font-size: 16px;
+}
+
+.void-game__status {
+  top: 12px;
+  justify-content: space-between;
+}
+
+.void-game__controls {
+  bottom: 12px;
+  justify-content: center;
+}
+
+.void-game__controls button {
+  pointer-events: auto;
+  padding: 4px 10px;
+  font-size: 14px;
+}
+
+.void-game__notice {
+  position: absolute;
+  top: 48px;
+  left: 50%;
+  max-width: min(80vw, 720px);
+  transform: translateX(-50%);
+  color: #ffdca0;
+  font-size: 18px;
+  text-align: center;
+  animation: void-notice-in 250ms ease-out both;
+}
+
+@keyframes void-notice-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 6px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@media (max-width: 640px) {
+  .void-game__status,
+  .void-game__controls {
+    gap: 8px;
+    font-size: 12px;
+  }
+
+  .void-game__controls {
+    flex-wrap: wrap;
+  }
+}
 :root {
   font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
   font-size: 16px;

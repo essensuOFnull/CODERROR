@@ -1,0 +1,249 @@
+import React, { useEffect, useRef, useState } from 'react';
+import { useEngine } from '../context/EngineContext.jsx';
+import { RoomRuntime } from './RoomRuntime.js';
+import voidRoom, { surfaceAt } from './void/index.js';
+
+const PLAYER_HALF_WIDTH = 0.36;
+const PLAYER_HALF_HEIGHT = 0.42;
+const PLAYER_GLYPHS = ['目', '口', '日', '人'];
+const MOVE_SPEED = 5.2;
+const JUMP_SPEED = 10.5;
+const GRAVITY = 26;
+const HORIZONTAL_ACCELERATION = 30;
+const AIR_ACCELERATION = 12;
+
+export default function VoidGame({ cellWidth, cellHeight, onExit }) {
+  const engine = useEngine();
+  const [notice, setNotice] = useState('');
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const keys = useRef(new Set());
+  const jumpRequested = useRef(false);
+  const noticeTimer = useRef(null);
+
+  useEffect(() => {
+    const seed = Math.floor(Math.random() * 0x100000000);
+    const glyphs = Array.from(engine.pixiGrid?.textures?.keys() ?? [])
+      .filter((char) => Array.from(char).length === 1 && !/[\p{C}\p{M}\p{Z}]/u.test(char));
+    const playerGlyphs = PLAYER_GLYPHS.filter((char) => engine.pixiGrid?.textures?.has(char));
+    if (playerGlyphs.length !== PLAYER_GLYPHS.length) {
+      throw new Error('The font atlas is missing square CJK glyphs for the player');
+    }
+    const room = new RoomRuntime(voidRoom, seed, glyphs);
+    const player = {
+      x: 0.5,
+      y: surfaceAt(0, seed) - PLAYER_HALF_HEIGHT - 0.001,
+      vx: 0,
+      vy: 0,
+      grounded: false,
+    };
+    const emit = (event) => {
+      if (event.type !== 'notice' && event.type !== 'fragment-found') return;
+      const text = event.type === 'fragment-found'
+        ? `ФРАГМЕНТ: ${event.title}`
+        : event.text;
+      setNotice(text);
+      clearTimeout(noticeTimer.current);
+      noticeTimer.current = setTimeout(() => setNotice(''), 3500);
+    };
+
+    const isSolidAt = (x, y) => room.isSolid(Math.floor(x), Math.floor(y));
+    const overlapsSolid = (x, y) => (
+      isSolidAt(x - PLAYER_HALF_WIDTH, y - PLAYER_HALF_HEIGHT)
+      || isSolidAt(x + PLAYER_HALF_WIDTH, y - PLAYER_HALF_HEIGHT)
+      || isSolidAt(x - PLAYER_HALF_WIDTH, y + PLAYER_HALF_HEIGHT - 0.001)
+      || isSolidAt(x + PLAYER_HALF_WIDTH, y + PLAYER_HALF_HEIGHT - 0.001)
+    );
+    const moveAxis = (amount, axis) => {
+      const steps = Math.max(1, Math.ceil(Math.abs(amount) / 0.12));
+      const step = amount / steps;
+      for (let i = 0; i < steps; i++) {
+        const next = player[axis] + step;
+        const hit = axis === 'x'
+          ? overlapsSolid(next, player.y)
+          : isSolidAt(player.x - PLAYER_HALF_WIDTH, next + (step > 0 ? PLAYER_HALF_HEIGHT : -PLAYER_HALF_HEIGHT))
+            || isSolidAt(player.x + PLAYER_HALF_WIDTH, next + (step > 0 ? PLAYER_HALF_HEIGHT : -PLAYER_HALF_HEIGHT));
+
+        if (hit) {
+          if (axis === 'y') {
+            if (step > 0) player.grounded = true;
+            player.vy = 0;
+          } else {
+            player.vx = 0;
+          }
+          return;
+        }
+        player[axis] = next;
+        if (axis === 'y') player.grounded = false;
+      }
+    };
+
+    const visibleCols = Math.max(1, engine.width - 2);
+    const visibleRows = Math.max(1, engine.height - 2);
+    let cameraX = Math.floor(player.x - visibleCols / 2);
+    let cameraY = Math.floor(player.y - visibleRows / 2);
+    let lastCameraX = Number.NaN;
+    let lastCameraY = Number.NaN;
+    let activePlayerOverlays = new Set();
+    engine.pixiGrid?.setVoidEffects(voidRoom.effects?.ground === 'corruption');
+    const drawTerrain = (cameraX, cameraY) => {
+      engine.batch(() => {
+        for (let screenY = 0; screenY < engine.height; screenY++) {
+          for (let screenX = 0; screenX < engine.width; screenX++) {
+            const tile = room.getCell(cameraX + screenX, cameraY + screenY);
+            engine.setCell(screenX, screenY, {
+              char: tile.char ?? ' ',
+              fg: tile.fg ?? 0xc3d0d5,
+              alpha: 1,
+              bg: tile.bg ?? voidRoom.backgroundColor,
+              bgAlpha: tile.bgAlpha ?? 1,
+            });
+          }
+        }
+      });
+      lastCameraX = cameraX;
+      lastCameraY = cameraY;
+    };
+
+    const unsubscribeTick = engine.onTick((deltaMs) => {
+      const dt = Math.min(deltaMs / 1000, 0.04);
+
+      const left = keys.current.has('ArrowLeft') || keys.current.has('KeyA');
+      const right = keys.current.has('ArrowRight') || keys.current.has('KeyD');
+      const direction = Number(right) - Number(left);
+      const acceleration = player.grounded ? HORIZONTAL_ACCELERATION : AIR_ACCELERATION;
+      const targetVelocity = direction * MOVE_SPEED;
+      player.vx += (targetVelocity - player.vx) * Math.min(1, acceleration * dt);
+
+      if (jumpRequested.current && player.grounded) {
+        player.vy = -JUMP_SPEED;
+        player.grounded = false;
+      }
+      jumpRequested.current = false;
+      player.vy = Math.min(player.vy + GRAVITY * dt, 18);
+
+      moveAxis(player.vx * dt, 'x');
+      moveAxis(player.vy * dt, 'y');
+      room.update({ player, delta: dt, emit });
+      setPosition((previous) => (
+        Math.abs(previous.x - player.x) > 0.4 || Math.abs(previous.y - player.y) > 0.4
+          ? { x: player.x, y: player.y }
+          : previous
+      ));
+    });
+
+    const unsubscribeRender = engine.onRender((_deltaMs, grid) => {
+      const renderedX = Math.round(player.x * 2) / 2;
+      const renderedY = Math.round(player.y * 2) / 2;
+      const cameraFloatX = renderedX - visibleCols / 2;
+      const cameraFloatY = renderedY - visibleRows / 2;
+      cameraX = Math.floor(cameraFloatX);
+      cameraY = Math.floor(cameraFloatY);
+      const fractionX = cameraFloatX - cameraX;
+      const fractionY = cameraFloatY - cameraY;
+
+      grid.setCameraOffset(-fractionX * cellWidth, -fractionY * cellHeight);
+      if (cameraX !== lastCameraX || cameraY !== lastCameraY) {
+        drawTerrain(cameraX, cameraY);
+      }
+
+      const left = renderedX - PLAYER_HALF_WIDTH;
+      const right = renderedX + PLAYER_HALF_WIDTH;
+      const top = renderedY - PLAYER_HALF_HEIGHT;
+      const bottom = renderedY + PLAYER_HALF_HEIGHT;
+      const cells = [];
+
+      for (let worldY = Math.floor(top * 2); worldY < Math.ceil(bottom * 2); worldY++) {
+        for (let worldX = Math.floor(left * 2); worldX < Math.ceil(right * 2); worldX++) {
+          const subLeft = worldX / 2;
+          const subTop = worldY / 2;
+          if (left >= subLeft + 0.5 || right <= subLeft || top >= subTop + 0.5 || bottom <= subTop) continue;
+
+          const id = `player:${worldX}:${worldY}`;
+          cells.push(id);
+          grid.setOverlay(id, {
+            char: playerGlyphs[((worldY & 1) * 2 + (worldX & 1))],
+            x: (subLeft - cameraX) * cellWidth,
+            y: (subTop - cameraY) * cellHeight,
+            width: cellWidth / 2,
+            height: cellHeight / 2,
+            fg: 0xffd36a,
+          });
+        }
+      }
+
+      const nextPlayerOverlays = new Set(cells);
+      for (const id of activePlayerOverlays) {
+        if (!nextPlayerOverlays.has(id)) grid.removeOverlay(id);
+      }
+      activePlayerOverlays = nextPlayerOverlays;
+    });
+
+    voidRoom.hooks?.onEnter?.({ room, player, emit, seed });
+    drawTerrain(
+      Math.floor(player.x - Math.max(1, engine.width - 2) / 2),
+      Math.floor(player.y - Math.max(1, engine.height - 2) / 2),
+    );
+
+    return () => {
+      unsubscribeTick();
+      unsubscribeRender();
+      clearTimeout(noticeTimer.current);
+      keys.current.clear();
+      for (const id of activePlayerOverlays) engine.pixiGrid?.removeOverlay(id);
+      engine.pixiGrid?.setCameraOffset(0, 0);
+      engine.pixiGrid?.setVoidEffects(false);
+      room.dispose();
+      engine.batch(() => {
+        for (let y = 0; y < engine.height; y++) {
+          for (let x = 0; x < engine.width; x++) {
+            engine.setCell(x, y, { char: ' ', fg: null, alpha: 1, bg: null, bgAlpha: 0 });
+          }
+        }
+      });
+    };
+  }, [cellHeight, cellWidth, engine]);
+
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.code === 'Escape') {
+        event.preventDefault();
+        onExit();
+        return;
+      }
+      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'Space'].includes(event.code)) {
+        event.preventDefault();
+      }
+      keys.current.add(event.code);
+      if (['Space', 'ArrowUp', 'KeyW'].includes(event.code) && !event.repeat) {
+        jumpRequested.current = true;
+      }
+    };
+    const onKeyUp = (event) => keys.current.delete(event.code);
+    const clearKeys = () => keys.current.clear();
+
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', clearKeys);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', clearKeys);
+    };
+  }, [onExit]);
+
+  return (
+    <section className="void-game" aria-label="Локация Пустота">
+      <div className="void-game__status">
+        <span>ПУСТОТА</span>
+        <span>ЧАНК 32×32</span>
+        <span>СИНТЕТИЧЕСКИЕ ДАННЫЕ</span>
+        <span>{Math.floor(position.x)} : {Math.floor(position.y)}</span>
+      </div>
+      {notice && <div className="void-game__notice" role="status">{notice}</div>}
+      <div className="void-game__controls">
+        A / D или ← / → — идти&nbsp; · &nbsp;Space / W / ↑ — прыгнуть
+        <button type="button" onClick={onExit}>В меню (Esc)</button>
+      </div>
+    </section>
+  );
+}

@@ -1,5 +1,6 @@
 import * as PIXI from 'pixi.js';
 import { getFontAtlas } from './FontAtlas.js';
+import { createVoidGroundFilter } from './VoidGroundFilter.js';
 
 const PIXI_V8 = parseInt((PIXI.VERSION || '7').split('.')[0], 10) >= 8;
 
@@ -39,11 +40,17 @@ export class PixiGrid {
 
     this.app = null;
     this.container = null;
+    this.overlayContainer = null;
     this.textures = null;
     this._pages = [];
+    this._voidFilter = null;
+    this._voidUniforms = null;
+    this._voidEffectsEnabled = false;
+    this._voidTime = 0;
 
     // Публичное: используется рендер-эффектами снаружи
     this.cells = [];
+    this.overlays = new Map();
 
     this._fontFamily = fontFamily;
     this._ready = false;
@@ -66,6 +73,11 @@ export class PixiGrid {
 
     this.container = new PIXI.Container();
     this.app.stage.addChild(this.container);
+    this.overlayContainer = new PIXI.Container();
+    this.app.stage.addChild(this.overlayContainer);
+    const voidShader = createVoidGroundFilter();
+    this._voidFilter = voidShader.filter;
+    this._voidUniforms = voidShader.uniforms;
 
     this.textures = await getFontAtlas(
       this.cellWidth,
@@ -80,9 +92,14 @@ export class PixiGrid {
     this._ready = true;
 
     this._tickerFn = () => {
-      this.applyDirty();
+      const deltaMs = this.app.ticker.deltaMS;
+      this._voidTime += deltaMs / 1000;
+      if (this._voidUniforms) {
+        this._voidUniforms.uniforms.uTime = this._voidTime;
+      }
       const hooks = this._getRenderHooks?.();
-      if (hooks) for (const fn of hooks) fn(this.app.ticker.deltaMS, this);
+      if (hooks) for (const fn of hooks) fn(deltaMs, this);
+      this.applyDirty();
     };
     this.app.ticker.add(this._tickerFn);
     if (!this.app.ticker.started) this.app.ticker.start();
@@ -92,8 +109,19 @@ export class PixiGrid {
     for (const c of this.cells) {
       try { c.bg.destroy(); c.sprite.destroy(); } catch (_) {}
     }
+    for (const sprite of this.overlays.values()) {
+      try { sprite.destroy(); } catch (_) {}
+    }
+    this.overlays.clear();
     this.cells = [];
     this.container.removeChildren();
+    this.overlayContainer.removeChildren();
+    this.container.filterArea = new PIXI.Rectangle(
+      0,
+      0,
+      this.width * this.cellWidth,
+      this.height * this.cellHeight,
+    );
 
     const chars = Array.from(this.textures.keys());
     if (chars.length === 0) throw new Error('[PixiGrid] font atlas is empty');
@@ -125,6 +153,59 @@ export class PixiGrid {
 
   bindRenderHooks(getHooks) {
     this._getRenderHooks = getHooks;
+  }
+
+  setCameraOffset(x, y) {
+    this.canvas.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+  }
+
+  setVoidEffects(enabled) {
+    this._voidEffectsEnabled = Boolean(enabled);
+    this.canvas.style.background = this._voidEffectsEnabled ? '#03050b' : 'rgba(0, 0, 0, 0)';
+    if (this.container) {
+      this.container.filters = this._voidEffectsEnabled ? [this._voidFilter] : [];
+    }
+  }
+
+  setOverlay(id, {
+    char,
+    x,
+    y,
+    width = this.cellWidth,
+    height = this.cellHeight,
+    fg = 0xffffff,
+    alpha = 1,
+  }) {
+    if (!this._ready) return;
+    const texture = this.textures.get(char);
+    if (!texture) return;
+    if (![x, y, width, height, alpha].every(Number.isFinite) || width <= 0 || height <= 0) {
+      throw new TypeError('Overlay coordinates and dimensions must be finite and dimensions positive');
+    }
+
+    let sprite = this.overlays.get(id);
+    if (!sprite) {
+      sprite = new PIXI.Sprite(texture);
+      this.overlays.set(id, sprite);
+      this.overlayContainer.addChild(sprite);
+    }
+
+    sprite.texture = texture;
+    sprite.x = x;
+    sprite.y = y;
+    sprite.width = width;
+    sprite.height = height;
+    sprite.tint = fg;
+    sprite.alpha = alpha;
+    sprite.visible = true;
+  }
+
+  removeOverlay(id) {
+    const sprite = this.overlays.get(id);
+    if (!sprite) return;
+    this.overlays.delete(id);
+    this.overlayContainer.removeChild(sprite);
+    sprite.destroy();
   }
 
   applyDirty() {
@@ -164,7 +245,16 @@ export class PixiGrid {
 
     if (!this.app) return;
     this.app.renderer.resize(width * cellWidth, height * cellHeight);
-    if (this._ready) this._buildCells();
+    if (this._ready) {
+      this._buildCells();
+      this.container.filterArea = new PIXI.Rectangle(
+        0,
+        0,
+        width * cellWidth,
+        height * cellHeight,
+      );
+      this.setVoidEffects(this._voidEffectsEnabled);
+    }
   }
 
   destroy() {
@@ -177,7 +267,12 @@ export class PixiGrid {
     }
 
     this.cells = [];
+    this.overlays.clear();
     this.textures = null;
+    this.canvas.style.transform = '';
+    this._voidFilter?.destroy();
+    this._voidFilter = null;
+    this._voidUniforms = null;
 
     for (const p of this._pages) {
       try { p.source?.destroy?.(); p.destroy?.(); } catch (_) {}
@@ -190,5 +285,6 @@ export class PixiGrid {
     } catch (_) {}
     this.app = null;
     this.container = null;
+    this.overlayContainer = null;
   }
 }

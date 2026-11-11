@@ -21,6 +21,7 @@ export default function Logo({ cellHeight, scale = 1 }) {
 				display: 'block',
 				animation: 'logoGradientMove 0.5s linear infinite',
 				zIndex: 10,
+				lineHeight: 1,
 			}}
 		>
 			░█████╗░░█████╗░██████╗░███████╗██████╗░██████╗░░█████╗░██████╗░<br />
