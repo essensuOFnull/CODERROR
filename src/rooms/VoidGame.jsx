@@ -201,6 +201,7 @@ export default function VoidGame({ cellWidth, cellHeight, onExit }) {
     let lastCameraY = Number.NaN;
     let activePlayerOverlays = new Set();
     let activeMediaOverlays = new Set();
+    let activeTextOverlays = new Set();
     engine.pixiGrid?.setVoidEffects(voidRoom.effects?.ground === 'corruption');
     const drawTerrain = (cameraX, cameraY) => {
       engine.batch(() => {
@@ -297,12 +298,52 @@ export default function VoidGame({ cellWidth, cellHeight, onExit }) {
       activePlayerOverlays = nextPlayerOverlays;
 
       const nextMediaOverlays = new Set();
+      const nextTextOverlays = new Set();
       const mediaAssets = mediaAssetsRef.current;
+      const recoveredFragments = room.data.recoveredFragments ?? [];
       const sectorSize = 48;
       const firstSector = Math.floor((cameraX - 8) / sectorSize);
       const lastSector = Math.floor((cameraX + engine.width + 8) / sectorSize);
       for (let sector = firstSector; sector <= lastSector; sector++) {
-        if (mediaAssets.length === 0) break;
+        if (recoveredFragments.length > 0) {
+          const fragment = recoveredFragments[
+            Math.floor(mediaRandom(seed, sector, 3) * recoveredFragments.length)
+          ];
+          const text = Array.from(fragment.text);
+          const visibleLength = Math.min(44, text.length);
+          const start = Math.floor(
+            mediaRandom(seed, sector, 4) * Math.max(1, text.length - visibleLength + 1),
+          );
+          const anchorX = sector * sectorSize + 2;
+          const textY = Math.floor(surfaceAt(anchorX, seed)) + 1;
+          for (let index = 0; index < visibleLength; index++) {
+            const sourceChar = text[start + index];
+            if (/\s/u.test(sourceChar)) continue;
+            const char = room.glyphs.includes(sourceChar)
+              ? sourceChar
+              : room.glyphs[sourceChar.codePointAt(0) % room.glyphs.length];
+            if (!char) continue;
+
+            const worldX = anchorX + index;
+            const x = (worldX - cameraX) * cellWidth;
+            const y = (textY - cameraY) * cellHeight;
+            if (x + cellWidth < 0 || y + cellHeight < 0
+              || x > engine.width * cellWidth || y > engine.height * cellHeight) {
+              continue;
+            }
+            const overlayId = `recovered-text:${sector}:${index}`;
+            grid.setOverlay(overlayId, {
+              char,
+              x,
+              y,
+              fg: 0x9e91b5,
+              alpha: 0.9,
+            });
+            nextTextOverlays.add(overlayId);
+          }
+        }
+
+        if (mediaAssets.length === 0) continue;
         const asset = mediaAssets[
           Math.floor(mediaRandom(seed, sector, 0) * mediaAssets.length)
         ];
@@ -339,6 +380,10 @@ export default function VoidGame({ cellWidth, cellHeight, onExit }) {
         if (!nextMediaOverlays.has(id)) grid.removeOverlay(id);
       }
       activeMediaOverlays = nextMediaOverlays;
+      for (const id of activeTextOverlays) {
+        if (!nextTextOverlays.has(id)) grid.removeOverlay(id);
+      }
+      activeTextOverlays = nextTextOverlays;
     });
 
     voidRoom.hooks?.onEnter?.({ room, player, emit, seed });
@@ -354,6 +399,7 @@ export default function VoidGame({ cellWidth, cellHeight, onExit }) {
       keys.current.clear();
       for (const id of activePlayerOverlays) engine.pixiGrid?.removeOverlay(id);
       for (const id of activeMediaOverlays) engine.pixiGrid?.removeOverlay(id);
+      for (const id of activeTextOverlays) engine.pixiGrid?.removeOverlay(id);
       engine.pixiGrid?.setCameraOffset(0, 0);
       engine.pixiGrid?.setVoidEffects(false);
       room.dispose();
