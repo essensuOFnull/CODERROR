@@ -15,6 +15,131 @@ const fragments = [
 ];
 const strataColors = [0x343b49, 0x465367, 0x586579, 0x6a587b, 0x455f72];
 const recoveredColors = [0x72aeb5, 0x9e91b5, 0xc49b70, 0x6f94bf];
+const oreDepositsByData = new WeakMap();
+
+function recoveredOreAt(x, y, depth, seed, recovered, glyphs) {
+  if (depth < 2 || recovered.length === 0) return null;
+
+  let oreCache = oreDepositsByData.get(recovered);
+  if (!oreCache) {
+    const maxFragmentLength = recovered.reduce(
+      (max, fragment) => Math.max(max, fragment.terrainChars?.length ?? 0),
+      0,
+    );
+    if (maxFragmentLength === 0) return null;
+    const cellSize = Math.max(18, Math.ceil(Math.sqrt(maxFragmentLength) * 2) + 12);
+    oreCache = { cellSize, deposits: new Map() };
+    oreDepositsByData.set(recovered, oreCache);
+  }
+  const { cellSize, deposits } = oreCache;
+  const regionX = Math.floor(x / cellSize);
+  const regionDepth = Math.floor((depth - 12) / cellSize);
+
+  for (let candidateDepth = regionDepth - 1; candidateDepth <= regionDepth + 1; candidateDepth++) {
+    for (let candidateX = regionX - 1; candidateX <= regionX + 1; candidateX++) {
+      const key = `${seed}:${cellSize}:${candidateX}:${candidateDepth}`;
+      let deposit = deposits.get(key);
+      if (deposit === undefined) {
+        deposit = createRecoveredOre(
+          candidateX,
+          candidateDepth,
+          cellSize,
+          seed,
+          recovered,
+          glyphs,
+        );
+        if (deposits.size >= 512) deposits.delete(deposits.keys().next().value);
+        deposits.set(key, deposit);
+      }
+      const tile = deposit?.get(`${x}:${y}`);
+      if (tile) return tile;
+    }
+  }
+  return null;
+}
+
+function createRecoveredOre(regionX, regionDepth, cellSize, seed, recovered, glyphs) {
+  const depthParity = Math.floor(hash(regionX, 0, seed + 29) * 2);
+  if (((regionDepth % 2) + 2) % 2 !== depthParity) return null;
+
+  const fragment = recovered[
+    Math.floor(hash(regionX, regionDepth, seed + 53) * recovered.length)
+  ];
+  const text = fragment.terrainChars;
+  if (!text?.length) return null;
+
+  const centerX = Math.floor(cellSize / 2)
+    + Math.floor(hash(regionX, regionDepth, seed + 37) * 3) - 1;
+  const centerY = Math.floor(cellSize / 2)
+    + Math.floor(hash(regionX, regionDepth, seed + 41) * 3) - 1;
+  const selected = new Set([centerY * cellSize + centerX]);
+  const frontier = new Set();
+  const addNeighbors = (index) => {
+    const tileX = index % cellSize;
+    const tileY = Math.floor(index / cellSize);
+    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+      const nextX = tileX + dx;
+      const nextY = tileY + dy;
+      const next = nextY * cellSize + nextX;
+      if (nextX >= 0 && nextX < cellSize && nextY >= 0 && nextY < cellSize
+        && !selected.has(next)) {
+        frontier.add(next);
+      }
+    }
+  };
+  addNeighbors(centerY * cellSize + centerX);
+
+  while (selected.size < text.length && frontier.size > 0) {
+    let bestIndex = -1;
+    let bestScore = Number.POSITIVE_INFINITY;
+    for (const index of frontier) {
+      const tileX = index % cellSize;
+      const tileY = Math.floor(index / cellSize);
+      const dx = tileX - centerX;
+      const dy = tileY - centerY;
+      const score = dx * dx + dy * dy
+        + hash(regionX * cellSize + tileX, regionDepth * cellSize + tileY, seed + selected.size) * 3;
+      if (score < bestScore) {
+        bestScore = score;
+        bestIndex = index;
+      }
+    }
+    frontier.delete(bestIndex);
+    selected.add(bestIndex);
+    addNeighbors(bestIndex);
+  }
+
+  const localTiles = Array.from(selected, (index, charIndex) => ({
+    x: regionX * cellSize + index % cellSize,
+    y: index,
+    charIndex,
+  }));
+  const anchorX = regionX * cellSize + centerX;
+  const anchorY = Math.floor(surfaceAt(anchorX, seed)) + 12 + regionDepth * cellSize;
+  const verticalOffset = Math.max(
+    0,
+    ...localTiles.map(({ x, y }) => (
+      surfaceAt(x, seed) + 2 - (anchorY + Math.floor(y / cellSize))
+    )),
+  );
+  const color = recoveredColors[
+    Math.floor(hash(regionX, regionDepth, seed + 61) * recoveredColors.length)
+  ];
+  const tiles = new Map();
+  for (const { x, y, charIndex } of localTiles) {
+    const sourceChar = text[charIndex];
+    const char = glyphs.includes(sourceChar)
+      ? sourceChar
+      : glyphs[sourceChar.codePointAt(0) % glyphs.length];
+    tiles.set(`${x}:${anchorY + verticalOffset + Math.floor(y / cellSize)}`, {
+      char: char ?? '▒',
+      fg: color,
+      bg: COLORS.deepRock,
+      bgAlpha: 1,
+    });
+  }
+  return tiles;
+}
 
 export function surfaceAt(x, seed) {
   const baseline = Math.floor(16 + Math.sin(seed * 0.00001) * 1.5);
@@ -93,47 +218,16 @@ const voidRoom = {
         const depth = y - surfaceAt(x, seed);
         if (depth < 0) return null;
 
+        const recovered = data.recoveredFragments ?? [];
+        const ore = recoveredOreAt(x, y, depth, seed, recovered, glyphs);
+        if (ore) return ore;
+
         if (depth > 4 && hash(x, y, seed) < 0.075) return null;
         if (depth > 6 && hash(Math.floor(x / 3), Math.floor(y / 3), seed + 19) > 0.84) {
           return null;
         }
         const seam = hash(x, y, seed + 7) > 0.92;
         const surface = depth === 0;
-        const recovered = data.recoveredFragments ?? [];
-        const recoveredCount = data.recoveredDataCount ?? recovered.length;
-        const variety = Math.min(0.3, Math.log2(recoveredCount + 1) * 0.04);
-        const recoveredChance = surface
-          ? Math.min(0.82, 0.38 + variety)
-          : Math.min(0.58, 0.24 + variety);
-        if (recoveredCount > 0 && random('recovered-strata') < recoveredChance) {
-          const regionX = Math.floor(x / 12);
-          const regionDepth = Math.floor(depth / 8);
-          const fragment = recovered.length
-            ? recovered[Math.floor(hash(regionX, regionDepth, seed + 31) * recovered.length)]
-            : null;
-          const text = fragment?.terrainChars;
-          if (text?.length) {
-            const shift = Math.floor(hash(regionX, regionDepth, seed + 57) * text.length);
-            const charIndex = positiveMod(x + depth * 32 + shift, text.length);
-            const sourceChar = text[charIndex];
-            const char = glyphs.includes(sourceChar)
-              ? sourceChar
-              : glyphs[sourceChar.codePointAt(0) % glyphs.length];
-            return {
-              char: char ?? (surface ? '▓' : '▒'),
-              fg: recoveredColors[Math.floor(random('recovered-color') * recoveredColors.length)],
-              bg: COLORS.deepRock,
-              bgAlpha: 1,
-            };
-          }
-          return {
-            char: glyphs[Math.floor(random('recovered-media-glyph') * glyphs.length)]
-              ?? (surface ? '▓' : '▒'),
-            fg: recoveredColors[Math.floor(random('recovered-color') * recoveredColors.length)],
-            bg: COLORS.deepRock,
-            bgAlpha: 1,
-          };
-        }
 
         const unicodeGlyph = glyphs[Math.floor(random('unicode-glyph') * glyphs.length)];
         const strataColor = strataColors[Math.floor(random('strata-color') * strataColors.length)];

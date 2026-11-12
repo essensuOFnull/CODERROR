@@ -9,6 +9,7 @@ import voidRoom, { surfaceAt } from './void/index.js';
 const PLAYER_HALF_WIDTH = 0.36;
 const PLAYER_HALF_HEIGHT = 0.42;
 const PLAYER_GLYPHS = ['目', '口', '日', '人'];
+const VOID_PARTICLE_COLORS = [0x888888, 0x9b9b9b, 0xaaaaaa];
 const MOVE_SPEED = 5.2;
 const JUMP_SPEED = 10.5;
 const GRAVITY = 26;
@@ -262,7 +263,22 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
     let lastCameraY = Number.NaN;
     let activePlayerOverlays = new Set();
     let activeMediaOverlays = new Set();
-    let activeTextOverlays = new Set();
+    let activeVoidParticleOverlays = new Set();
+    const voidParticles = [];
+    let voidParticleSequence = 0;
+    const isParticleInAir = (x, y, size) => {
+      const halfSize = size / 2;
+      const left = Math.floor(x - halfSize);
+      const right = Math.floor(x + halfSize - 0.001);
+      const top = Math.floor(y - halfSize);
+      const bottom = Math.floor(y + halfSize - 0.001);
+      for (let tileY = top; tileY <= bottom; tileY++) {
+        for (let tileX = left; tileX <= right; tileX++) {
+          if (room.isSolid(tileX, tileY)) return false;
+        }
+      }
+      return true;
+    };
     engine.pixiGrid?.setVoidEffects(voidRoom.effects?.ground === 'corruption');
     const drawTerrain = (cameraX, cameraY) => {
       engine.batch(() => {
@@ -311,7 +327,7 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
       ));
     });
 
-    const unsubscribeRender = engine.onRender((_deltaMs, grid) => {
+    const unsubscribeRender = engine.onRender((deltaMs, grid) => {
       const renderedX = Math.round(player.x * 2) / 2;
       const renderedY = Math.round(player.y * 2) / 2;
       const cameraFloatX = renderedX - visibleCols / 2;
@@ -326,6 +342,98 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
         drawTerrain(cameraX, cameraY);
         terrainDirtyRef.current = false;
       }
+
+      const nextVoidParticleOverlays = new Set();
+      if (scanReadyRef.current) {
+        const particleDelta = Math.min(Math.max(deltaMs, 0) / 1000, 0.1);
+        const particleTarget = Math.min(
+          64,
+          Math.max(28, Math.floor(engine.width * engine.height / 320)),
+        );
+        let spawnAttempts = 0;
+        while (voidParticles.length < particleTarget && spawnAttempts < particleTarget * 24) {
+          const index = voidParticleSequence++;
+          const random = (salt) => mediaRandom(seed, index, salt);
+          const size = 0.28 + random(7) * 0.16;
+          const x = cameraX + 0.5 + random(1) * Math.max(0, visibleCols - 1);
+          const y = cameraY + 0.5 + random(2) * Math.max(0, visibleRows - 1);
+          spawnAttempts++;
+          if (!isParticleInAir(x, y, size)) continue;
+          const angle = random(3) * Math.PI * 2;
+          const speed = 0.12 + random(4) * 0.28;
+          voidParticles.push({
+            id: `void-particle:${index}`,
+            sequence: index,
+            x,
+            y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            age: 0,
+            lifetime: 7 + random(5) * 10,
+            turnIn: 0.4 + random(6) * 1.6,
+            turnCount: 0,
+            phase: random(8) * Math.PI * 2,
+            size,
+            color: VOID_PARTICLE_COLORS[
+              Math.floor(random(9) * VOID_PARTICLE_COLORS.length)
+            ],
+          });
+        }
+
+        for (let index = voidParticles.length - 1; index >= 0; index--) {
+          const particle = voidParticles[index];
+          particle.age += particleDelta;
+          particle.turnIn -= particleDelta;
+          if (particle.turnIn <= 0) {
+            const random = (salt) => mediaRandom(
+              seed,
+              particle.sequence,
+              100 + particle.turnCount * 8 + salt,
+            );
+            const angle = random(0) * Math.PI * 2;
+            const speed = 0.12 + random(1) * 0.28;
+            particle.vx = Math.cos(angle) * speed;
+            particle.vy = Math.sin(angle) * speed;
+            particle.turnIn = 0.4 + random(2) * 1.6;
+            particle.turnCount++;
+          }
+          const nextX = particle.x + particle.vx * particleDelta;
+          const nextY = particle.y + particle.vy * particleDelta;
+          if (isParticleInAir(nextX, nextY, particle.size)) {
+            particle.x = nextX;
+            particle.y = nextY;
+          } else {
+            particle.turnIn = 0;
+          }
+          if (particle.age >= particle.lifetime
+            || particle.x < cameraX - 3
+            || particle.x > cameraX + visibleCols + 3
+            || particle.y < cameraY - 3
+            || particle.y > cameraY + visibleRows + 3) {
+            grid.removeOverlay(particle.id);
+            voidParticles.splice(index, 1);
+            continue;
+          }
+
+          const fade = Math.min(1, particle.age / 0.8, (particle.lifetime - particle.age) / 1.5);
+          const shimmer = 0.65 + 0.35 * (
+            0.5 + 0.5 * Math.sin(particle.age * 2.4 + particle.phase)
+          );
+          grid.setRectOverlay(particle.id, {
+            x: (particle.x - particle.size / 2 - cameraX) * cellWidth,
+            y: (particle.y - particle.size / 2 - cameraY) * cellHeight,
+            width: cellWidth * particle.size,
+            height: cellHeight * particle.size,
+            color: particle.color,
+            alpha: Math.max(0, fade * shimmer * 0.9),
+          });
+          nextVoidParticleOverlays.add(particle.id);
+        }
+      }
+      for (const id of activeVoidParticleOverlays) {
+        if (!nextVoidParticleOverlays.has(id)) grid.removeOverlay(id);
+      }
+      activeVoidParticleOverlays = nextVoidParticleOverlays;
 
       const left = renderedX - PLAYER_HALF_WIDTH;
       const right = renderedX + PLAYER_HALF_WIDTH;
@@ -359,7 +467,6 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
       activePlayerOverlays = nextPlayerOverlays;
 
       const nextMediaOverlays = new Set();
-      const nextTextOverlays = new Set();
       const imageCycle = imageCycleRef.current;
       const videoAssets = videoAssetsRef.current;
       const recoveredFragments = room.data.recoveredFragments ?? [];
@@ -368,7 +475,11 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
         14,
         48 - Math.floor(Math.log2(recoveredDataCount + 1) * 6),
       );
-      const firstSector = Math.floor((cameraX - 8) / sectorSize);
+      const maxImageWidthCells = imageCycle.reduce(
+        (max, image) => Math.max(max, image.width / cellWidth),
+        0,
+      );
+      const firstSector = Math.floor((cameraX - maxImageWidthCells) / sectorSize);
       const lastSector = Math.floor((cameraX + engine.width + 8) / sectorSize);
       for (let sector = firstSector; sector <= lastSector; sector++) {
         if (imageCycle.length > 0) {
@@ -403,44 +514,6 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
               alpha: 0.76,
             });
             nextMediaOverlays.add(overlayId);
-          }
-        }
-
-        if (recoveredFragments.length > 0) {
-          const fragment = recoveredFragments[
-            Math.floor(mediaRandom(seed, sector, 3) * recoveredFragments.length)
-          ];
-          const text = Array.from(fragment.text);
-          const visibleLength = Math.min(sectorSize - 4, text.length);
-          const start = Math.floor(
-            mediaRandom(seed, sector, 4) * Math.max(1, text.length - visibleLength + 1),
-          );
-          const anchorX = sector * sectorSize + 2;
-          const textY = Math.floor(surfaceAt(anchorX, seed)) + 1;
-          for (let index = 0; index < visibleLength; index++) {
-            const sourceChar = text[start + index];
-            if (/\s/u.test(sourceChar)) continue;
-            const char = room.glyphs.includes(sourceChar)
-              ? sourceChar
-              : room.glyphs[sourceChar.codePointAt(0) % room.glyphs.length];
-            if (!char) continue;
-
-            const worldX = anchorX + index;
-            const x = (worldX - cameraX) * cellWidth;
-            const y = (textY - cameraY) * cellHeight;
-            if (x + cellWidth < 0 || y + cellHeight < 0
-              || x > engine.width * cellWidth || y > engine.height * cellHeight) {
-              continue;
-            }
-            const overlayId = `recovered-text:${sector}:${index}`;
-            grid.setOverlay(overlayId, {
-              char,
-              x,
-              y,
-              fg: 0x9e91b5,
-              alpha: 0.9,
-            });
-            nextTextOverlays.add(overlayId);
           }
         }
 
@@ -481,10 +554,6 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
         if (!nextMediaOverlays.has(id)) grid.removeOverlay(id);
       }
       activeMediaOverlays = nextMediaOverlays;
-      for (const id of activeTextOverlays) {
-        if (!nextTextOverlays.has(id)) grid.removeOverlay(id);
-      }
-      activeTextOverlays = nextTextOverlays;
     });
 
     voidRoom.hooks?.onEnter?.({ room, player, emit, seed });
@@ -500,7 +569,7 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
       keys.current.clear();
       for (const id of activePlayerOverlays) engine.pixiGrid?.removeOverlay(id);
       for (const id of activeMediaOverlays) engine.pixiGrid?.removeOverlay(id);
-      for (const id of activeTextOverlays) engine.pixiGrid?.removeOverlay(id);
+      for (const id of activeVoidParticleOverlays) engine.pixiGrid?.removeOverlay(id);
       engine.pixiGrid?.setCameraOffset(0, 0);
       engine.pixiGrid?.setVoidEffects(false);
       room.dispose();

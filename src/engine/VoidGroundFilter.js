@@ -70,8 +70,8 @@ void main(void) {
 
   float scanline = step(0.992, hash(vec2(row, floor(uTime * 13.0)))) * terrain;
   float dissolve = max(rot * 0.9, scanline * 0.45);
-  color *= 1.0 - dissolve;
-  float alpha = base.a * (1.0 - dissolve);
+  color *= 1.0 - dissolve * 0.15;
+  float alpha = base.a;
 
   finalColor = vec4(color * alpha, alpha);
 }

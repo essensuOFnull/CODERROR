@@ -3,6 +3,7 @@ import { getFontAtlas } from './FontAtlas.js';
 import { createVoidGroundFilter } from './VoidGroundFilter.js';
 
 const PIXI_V8 = parseInt((PIXI.VERSION || '7').split('.')[0], 10) >= 8;
+const VOID_SHADER_TIME_PERIOD = 4096;
 
 async function createPixiApp(canvas, width, height) {
   if (PIXI_V8) {
@@ -95,7 +96,7 @@ export class PixiGrid {
 
     this._tickerFn = () => {
       const deltaMs = this.app.ticker.deltaMS;
-      this._voidTime += deltaMs / 1000;
+      this._voidTime = (this._voidTime + deltaMs / 1000) % VOID_SHADER_TIME_PERIOD;
       if (this._voidUniforms) {
         this._voidUniforms.uniforms.uTime = this._voidTime;
       }
@@ -203,6 +204,36 @@ export class PixiGrid {
     sprite.width = width;
     sprite.height = height;
     sprite.tint = fg;
+    sprite.alpha = alpha;
+    sprite.visible = true;
+  }
+
+  setRectOverlay(id, {
+    x,
+    y,
+    width,
+    height,
+    color = 0xffffff,
+    alpha = 1,
+  }) {
+    if (!this._ready) return;
+    if (![x, y, width, height, alpha].every(Number.isFinite) || width <= 0 || height <= 0) {
+      throw new TypeError('Rectangle overlay coordinates and dimensions must be valid');
+    }
+
+    let sprite = this.overlays.get(id);
+    if (!sprite) {
+      sprite = new PIXI.Sprite(PIXI.Texture.WHITE);
+      this.overlays.set(id, sprite);
+      this.overlayContainer.addChild(sprite);
+    }
+
+    sprite.texture = PIXI.Texture.WHITE;
+    sprite.x = x;
+    sprite.y = y;
+    sprite.width = width;
+    sprite.height = height;
+    sprite.tint = color;
     sprite.alpha = alpha;
     sprite.visible = true;
   }
