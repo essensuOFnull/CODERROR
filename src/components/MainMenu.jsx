@@ -11,6 +11,7 @@ import {
 
 import Archivist from '../archivist/Archivist.jsx';
 import VoidGame from '../rooms/VoidGame.jsx';
+import FirstScene from '../rooms/FirstScene.jsx';
 
 function formatWorldSize(bytes) {
   if (bytes < 1024) return `${bytes} Б`;
@@ -28,6 +29,7 @@ export default function MainMenu({
   const engine = useEngine();
   const viewRef = useRef(null);
   const [playing, setPlaying] = useState(false);
+  const [enteringWorld, setEnteringWorld] = useState(false);
   const [activeWorld, setActiveWorld] = useState(null);
   const [worldMenuOpen, setWorldMenuOpen] = useState(false);
   const [worldName, setWorldName] = useState('');
@@ -37,7 +39,19 @@ export default function MainMenu({
   const [deletingWorldId, setDeletingWorldId] = useState('');
   const exitGame = useCallback(() => {
     setPlaying(false);
+    setEnteringWorld(false);
     setActiveWorld(null);
+  }, []);
+
+  const beginWorldEntry = (world) => {
+    setActiveWorld(world);
+    setWorldMenuOpen(false);
+    setEnteringWorld(true);
+  };
+
+  const completeWorldEntry = useCallback(() => {
+    setEnteringWorld(false);
+    setPlaying(true);
   }, []);
 
   const openWorldMenu = async () => {
@@ -61,21 +75,17 @@ export default function MainMenu({
       setWorldMenuError('Введите название мира.');
       return;
     }
-    setActiveWorld({
+    beginWorldEntry({
       name,
       seed: Math.floor(Math.random() * 0x100000000),
     });
-    setWorldMenuOpen(false);
-    setPlaying(true);
   };
 
   const openSavedWorld = async (id) => {
     setLoadingWorldId(id);
     setWorldMenuError('');
     try {
-      setActiveWorld(await invoke('load_world', { id }));
-      setWorldMenuOpen(false);
-      setPlaying(true);
+      beginWorldEntry(await invoke('load_world', { id }));
     } catch (error) {
       setWorldMenuError(`Не удалось открыть мир: ${String(error)}`);
     } finally {
@@ -127,7 +137,7 @@ export default function MainMenu({
 
   // ─── Рендер-эффекты на Pixi ticker ─────────────────────────────────
   useEffect(() => {
-    if (playing) return undefined;
+    if (playing || enteringWorld) return undefined;
     let detach = null;
 
     const unsubGrid = engine.onGridReady((grid) => {
@@ -188,7 +198,7 @@ export default function MainMenu({
       unsubGrid();
       if (detach) detach();
     };
-  }, [engine, cursorRadius, cursorFalloff, playing]);
+  }, [engine, cursorRadius, cursorFalloff, enteringWorld, playing]);
 
   // ─── Заголовок окна: TPS / FPS ─────────────────────────────────────
   useEffect(() => {
@@ -219,7 +229,9 @@ export default function MainMenu({
 
   return (
     <>
-      {playing ? (
+      {enteringWorld ? (
+        <FirstScene onComplete={completeWorldEntry} />
+      ) : playing ? (
         <VoidGame
           cellWidth={cellWidth}
           cellHeight={cellHeight}
@@ -280,7 +292,7 @@ export default function MainMenu({
                             disabled={Boolean(loadingWorldId) || Boolean(deletingWorldId)}
                             onClick={() => openSavedWorld(world.id)}
                           >
-                            {loadingWorldId === world.id ? 'Открываем…' : 'Открыть'}
+                            {loadingWorldId === world.id ? 'Открываем…' : 'Войти без игрока'}
                           </button>
                           <button
                             className="world-menu__delete"
