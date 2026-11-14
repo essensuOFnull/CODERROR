@@ -28,4 +28,14 @@ export default defineConfig(() => ({
       ignored: ["**/src-tauri/**"],
     },
   },
+
+  // 4. добавляем overlay.html как вторую точку входа для сборки
+  build: {
+    rollupOptions: {
+      input: {
+        main: "index.html",
+        overlay: "overlay.html",
+      },
+    },
+  },
 }));

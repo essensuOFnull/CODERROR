@@ -1,0 +1,28 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Glitch Frame</title>
+    <style>
+      /* Жёстко сбрасываем фон и отступы для оверлея */
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: transparent !important;
+        background-color: transparent !important;
+        overflow: hidden;
+        width: 100vw;
+        height: 100vh;
+      }
+      #overlay-root {
+        width: 100vw;
+        height: 100vh;
+        background: transparent;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="overlay-root"></div>
+    <script type="module" src="/src/overlay/main.jsx"></script>
+  </body>
+</html>
