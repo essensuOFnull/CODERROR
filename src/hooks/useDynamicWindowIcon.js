@@ -5,7 +5,7 @@ import { Image } from '@tauri-apps/api/image';
 const ICON_SIZE = 32;
 const UPDATE_INTERVAL_MS = 1000 / 60;
 const FONT_FAMILY = 'Terminus, sans-serif';
-const GLYPH_FILL_RATIO = 0.9; // доля от ICON_SIZE, отведённая под глиф
+const GLYPH_FILL_RATIO = 1; // доля от ICON_SIZE, отведённая под глиф
 
 // CJK Unified Ideographs
 const HANZI_MIN = 0x4e00;
