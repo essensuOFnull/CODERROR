@@ -10,11 +10,15 @@ import { useWindowSize } from './hooks/useWindowSize.js';
 import { CUBEMAP_FACES } from './config/cubemap.js';
 import musicCode from './music/MainMenu.js?raw';
 
+import { useDynamicWindowIcon } from './hooks/useDynamicWindowIcon';
+
 const CELL_W = 16;
 const CELL_H = 16;
 const FONT_FAMILY = 'Terminus';
 const TPS = 60;
 export default function App() {
+  useDynamicWindowIcon();
+
   const { width: winW, height: winH } = useWindowSize();
   const cols = Math.max(1, Math.ceil(winW / CELL_W)) + 2;
   const rows = Math.max(1, Math.ceil(winH / CELL_H)) + 2;
