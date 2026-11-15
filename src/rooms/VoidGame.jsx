@@ -4,14 +4,22 @@ import { listen } from '@tauri-apps/api/event';
 import Slider from '@mui/material/Slider';
 import { useEngine } from '../context/EngineContext.jsx';
 import { RoomRuntime } from './RoomRuntime.js';
-import voidRoom, { surfaceAt } from './void/index.js';
+import voidRoom, {
+  difficultyAt,
+  fallRecoveryAt,
+  surfaceAt,
+  VOID_SHIELD_LAYOUT,
+} from './void/index.js';
 
 const PLAYER_HALF_WIDTH = 0.36;
 const PLAYER_HALF_HEIGHT = 0.42;
 const PLAYER_GLYPHS = ['目', '口', '日', '人'];
 const VOID_PARTICLE_COLORS = [0x888888, 0x9b9b9b, 0xaaaaaa];
 const MOVE_SPEED = 5.2;
-const JUMP_SPEED = 10.5;
+const JUMP_SPEED = 14;
+const JUMP_HOLD_GRAVITY = 14;
+const JUMP_HOLD_DURATION = 0.52;
+const MAX_JUMP_HEIGHT = 6;
 const GRAVITY = 26;
 const HORIZONTAL_ACCELERATION = 30;
 const AIR_ACCELERATION = 12;
@@ -157,6 +165,8 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
   const jumpRequested = useRef(false);
   const noticeTimer = useRef(null);
   const activeScanIdRef = useRef(null);
+  const onExitRef = useRef(onExit);
+  onExitRef.current = onExit;
 
   const beginScan = () => {
     setScanSelection({
@@ -213,6 +223,9 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
       vx: 0,
       vy: 0,
       grounded: false,
+      jumpHoldTime: 0,
+      jumpHoldActive: false,
+      jumpStartY: 0,
     };
     const emit = (event) => {
       if (event.type !== 'notice' && event.type !== 'fragment-found') return;
@@ -264,6 +277,8 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
     let activePlayerOverlays = new Set();
     let activeMediaOverlays = new Set();
     let activeVoidParticleOverlays = new Set();
+    let activeDifficulty = -1;
+    let dead = false;
     const voidParticles = [];
     let voidParticleSequence = 0;
     const isParticleInAir = (x, y, size) => {
@@ -280,6 +295,7 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
       return true;
     };
     engine.pixiGrid?.setVoidEffects(voidRoom.effects?.ground === 'corruption');
+    engine.pixiGrid?.setVoidDifficulty(difficultyAt(player.x));
     const drawTerrain = (cameraX, cameraY) => {
       engine.batch(() => {
         for (let screenY = 0; screenY < engine.height; screenY++) {
@@ -300,7 +316,7 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
     };
 
     const unsubscribeTick = engine.onTick((deltaMs) => {
-      if (!scanReadyRef.current) return;
+      if (!scanReadyRef.current || dead) return;
       const dt = Math.min(deltaMs / 1000, 0.04);
 
       const left = keys.current.has('ArrowLeft') || keys.current.has('KeyA');
@@ -313,12 +329,63 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
       if (jumpRequested.current && player.grounded) {
         player.vy = -JUMP_SPEED;
         player.grounded = false;
+        player.jumpHoldTime = 0;
+        player.jumpHoldActive = true;
+        player.jumpStartY = player.y;
       }
       jumpRequested.current = false;
-      player.vy = Math.min(player.vy + GRAVITY * dt, 18);
+
+      const jumpHeld = keys.current.has('Space')
+        || keys.current.has('ArrowUp')
+        || keys.current.has('KeyW');
+      const jumpBoosting = player.jumpHoldActive
+        && jumpHeld
+        && player.vy < 0
+        && player.jumpHoldTime < JUMP_HOLD_DURATION;
+      if (jumpBoosting) {
+        player.jumpHoldTime = Math.min(JUMP_HOLD_DURATION, player.jumpHoldTime + dt);
+      } else if (!jumpHeld || player.vy >= 0 || player.jumpHoldTime >= JUMP_HOLD_DURATION) {
+        player.jumpHoldActive = false;
+      }
+      player.vy = Math.min(
+        player.vy + (jumpBoosting ? JUMP_HOLD_GRAVITY : GRAVITY) * dt,
+        18,
+      );
 
       moveAxis(player.vx * dt, 'x');
       moveAxis(player.vy * dt, 'y');
+      if (player.vy < 0 && player.jumpStartY - player.y >= MAX_JUMP_HEIGHT) {
+        player.y = player.jumpStartY - MAX_JUMP_HEIGHT;
+        player.vy = 0;
+        player.jumpHoldActive = false;
+      }
+
+      const difficulty = difficultyAt(player.x);
+      if (difficulty !== activeDifficulty) {
+        activeDifficulty = difficulty;
+        engine.pixiGrid?.setVoidDifficulty(difficulty);
+      }
+
+      const footCell = room.getCell(
+        Math.floor(player.x),
+        Math.floor(player.y + PLAYER_HALF_HEIGHT + 0.01),
+      );
+      if (footCell.hazard === 'spike' && !dead) {
+        dead = true;
+        onExitRef.current();
+        return;
+      }
+
+      const recovery = fallRecoveryAt(player.x, player.y, seed);
+      if (recovery) {
+        player.x = recovery.x;
+        player.y = recovery.y - PLAYER_HALF_HEIGHT - 0.001;
+        player.vx = 0;
+        player.vy = 0;
+        player.grounded = false;
+        emit({ type: 'notice', text: 'Срыв! Участок паркура начинается заново.' });
+      }
+
       room.update({ player, delta: dt, emit });
       setPosition((previous) => (
         Math.abs(previous.x - player.x) > 0.4 || Math.abs(previous.y - player.y) > 0.4
@@ -338,6 +405,12 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
       const fractionY = cameraFloatY - cameraY;
 
       grid.setCameraOffset(-fractionX * cellWidth, -fractionY * cellHeight);
+      grid.setVoidShieldView({
+        ...VOID_SHIELD_LAYOUT,
+        cameraX,
+        cameraY,
+        centerY: 0,
+      });
       if (terrainDirtyRef.current || cameraX !== lastCameraX || cameraY !== lastCameraY) {
         drawTerrain(cameraX, cameraY);
         terrainDirtyRef.current = false;
@@ -570,6 +643,7 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
       for (const id of activePlayerOverlays) engine.pixiGrid?.removeOverlay(id);
       for (const id of activeMediaOverlays) engine.pixiGrid?.removeOverlay(id);
       for (const id of activeVoidParticleOverlays) engine.pixiGrid?.removeOverlay(id);
+      engine.pixiGrid?.clearVoidShieldView();
       engine.pixiGrid?.setCameraOffset(0, 0);
       engine.pixiGrid?.setVoidEffects(false);
       room.dispose();
@@ -760,6 +834,9 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
         <span>ПУСТОТА</span>
         <span>{world?.name}</span>
         <span>ЧАНК 32×32</span>
+        <span>{difficultyAt(position.x) === 0
+          ? 'БЕЗОПАСНАЯ ЗОНА'
+          : `УРОВЕНЬ СЛОЖНОСТИ ${difficultyAt(position.x)}`}</span>
         <span>{sourceLabel}</span>
         <span>{Math.floor(position.x)} : {Math.floor(position.y)}</span>
       </div>
@@ -769,7 +846,7 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
       )}
       {scanPhase === 'ready' && (
         <div className="void-game__controls">
-          A / D или ← / → — идти&nbsp; · &nbsp;Space / W / ↑ — прыгнуть
+          A / D или ← / → — идти&nbsp; · &nbsp;Space / W / ↑ — прыгать (удерживай для прыжка до 6 блоков)
           <button type="button" onClick={onExit}>В меню (Esc)</button>
         </div>
       )}

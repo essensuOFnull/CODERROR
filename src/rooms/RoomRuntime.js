@@ -89,6 +89,7 @@ export class RoomRuntime {
         cell.bgAlpha = tile.bgAlpha ?? layer.bgAlpha;
       }
       if (layer.collision && tile.solid !== false) cell.solid = true;
+      if (tile.hazard !== undefined) cell.hazard = tile.hazard;
       if (tile.onApproach) cell.onApproach = tile.onApproach;
     }
     return cell;

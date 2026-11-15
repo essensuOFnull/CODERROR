@@ -1,6 +1,6 @@
 import * as PIXI from 'pixi.js';
 import { getFontAtlas } from './FontAtlas.js';
-import { createVoidGroundFilter } from './VoidGroundFilter.js';
+import { createVoidGroundFilter, createVoidShieldFilter } from './VoidGroundFilter.js';
 
 const PIXI_V8 = parseInt((PIXI.VERSION || '7').split('.')[0], 10) >= 8;
 const VOID_SHADER_TIME_PERIOD = 4096;
@@ -46,6 +46,9 @@ export class PixiGrid {
     this._pages = [];
     this._voidFilter = null;
     this._voidUniforms = null;
+    this._voidShieldFilter = null;
+    this._voidShieldUniforms = null;
+    this._voidShieldSprite = null;
     this._voidEffectsEnabled = false;
     this._voidTime = 0;
 
@@ -81,6 +84,9 @@ export class PixiGrid {
     const voidShader = createVoidGroundFilter();
     this._voidFilter = voidShader.filter;
     this._voidUniforms = voidShader.uniforms;
+    const shieldShader = createVoidShieldFilter();
+    this._voidShieldFilter = shieldShader.filter;
+    this._voidShieldUniforms = shieldShader.uniforms;
 
     this.textures = await getFontAtlas(
       this.cellWidth,
@@ -100,6 +106,9 @@ export class PixiGrid {
       if (this._voidUniforms) {
         this._voidUniforms.uniforms.uTime = this._voidTime;
       }
+      if (this._voidShieldUniforms) {
+        this._voidShieldUniforms.uniforms.uTime = this._voidTime;
+      }
       const hooks = this._getRenderHooks?.();
       if (hooks) for (const fn of hooks) fn(deltaMs, this);
       this.applyDirty();
@@ -109,6 +118,8 @@ export class PixiGrid {
   }
 
   _buildCells() {
+    this._voidShieldSprite?.destroy();
+    this._voidShieldSprite = null;
     for (const c of this.cells) {
       try { c.bg.destroy(); c.sprite.destroy(); } catch (_) {}
     }
@@ -173,6 +184,59 @@ export class PixiGrid {
     if (this.container) {
       this.container.filters = this._voidEffectsEnabled ? [this._voidFilter] : [];
     }
+  }
+
+  setVoidDifficulty(difficulty) {
+    if (this._voidUniforms) {
+      this._voidUniforms.uniforms.uDifficulty = Math.max(0, Math.min(6, difficulty));
+    }
+  }
+
+  setVoidShieldView({
+    cameraX,
+    cameraY,
+    centerY,
+    safeRadius,
+    barrierSpacing,
+    worldRadius,
+  }) {
+    const cellAspect = this.cellWidth / this.cellHeight;
+    const values = [cameraX, cameraY, centerY, safeRadius, barrierSpacing, worldRadius, cellAspect];
+    if (!values.every(Number.isFinite) || safeRadius <= 0 || barrierSpacing <= 0
+      || worldRadius <= 0 || cellAspect <= 0) {
+      throw new TypeError('Void shield view requires finite camera and positive world dimensions');
+    }
+    if (!this._ready) return;
+
+    if (!this._voidShieldSprite) {
+      this._voidShieldSprite = new PIXI.Sprite(PIXI.Texture.WHITE);
+      this._voidShieldSprite.filters = [this._voidShieldFilter];
+      this.overlayContainer.addChildAt(this._voidShieldSprite, 0);
+    }
+
+    this._voidShieldSprite.x = 0;
+    this._voidShieldSprite.y = 0;
+    this._voidShieldSprite.width = this.width * this.cellWidth;
+    this._voidShieldSprite.height = this.height * this.cellHeight;
+    this._voidShieldSprite.alpha = 1;
+
+    const uniforms = this._voidShieldUniforms.uniforms;
+    uniforms.uCameraX = cameraX;
+    uniforms.uCameraY = cameraY;
+    uniforms.uViewportWidth = this.width;
+    uniforms.uViewportHeight = this.height;
+    uniforms.uCenterY = centerY;
+    uniforms.uCellAspect = cellAspect;
+    uniforms.uSafeRadius = safeRadius;
+    uniforms.uBarrierSpacing = barrierSpacing;
+    uniforms.uWorldRadius = worldRadius;
+  }
+
+  clearVoidShieldView() {
+    if (!this._voidShieldSprite) return;
+    this.overlayContainer?.removeChild(this._voidShieldSprite);
+    this._voidShieldSprite.destroy();
+    this._voidShieldSprite = null;
   }
 
   setOverlay(id, {
@@ -343,6 +407,7 @@ export class PixiGrid {
   destroy() {
     this._destroyed = true;
     if (!this.app) return;
+    this.clearVoidShieldView();
 
     if (this._tickerFn) {
       try { this.app.ticker.remove(this._tickerFn); } catch (_) {}
@@ -359,8 +424,11 @@ export class PixiGrid {
     this.textures = null;
     this.canvas.style.transform = '';
     this._voidFilter?.destroy();
+    this._voidShieldFilter?.destroy();
     this._voidFilter = null;
     this._voidUniforms = null;
+    this._voidShieldFilter = null;
+    this._voidShieldUniforms = null;
 
     for (const p of this._pages) {
       try { p.source?.destroy?.(); p.destroy?.(); } catch (_) {}
