@@ -8,6 +8,8 @@
     "opener:default",
     
     "core:window:default",
-    "core:window:allow-set-icon"
+    "core:window:allow-set-icon",
+
+    "core:window:allow-set-title"
   ]
 }

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke, isTauri } from '@tauri-apps/api/core';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import Logo from './Logo.jsx';
 import Info from './Info.jsx';
 import MusicEditor from './MusicEditor.jsx';
@@ -200,6 +201,8 @@ export default function MainMenu({
     };
   }, [engine, cursorRadius, cursorFalloff, enteringWorld, playing]);
 
+  const appWindow = getCurrentWindow();
+
   // ─── Заголовок окна: TPS / FPS ─────────────────────────────────────
   useEffect(() => {
     let lastUpdate = performance.now();
@@ -214,7 +217,7 @@ export default function MainMenu({
       const dt = (now - lastUpdate) / 1000;
       const tps = (ticks / dt).toFixed(2);
       const fps = (frames / dt).toFixed(2);
-      document.title = `CODERROR - очередная попытка - TPS: ${tps} - FPS: ${fps}`;
+      appWindow.setTitle(`CODERROR - очередная попытка - TPS: ${tps} - FPS: ${fps}`);
       ticks = 0;
       frames = 0;
       lastUpdate = now;
