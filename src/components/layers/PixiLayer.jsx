@@ -7,11 +7,22 @@ export default function PixiLayer({ width, height, cellWidth, cellHeight, fontFa
   const holderRef = useRef(null);
   const gridRef = useRef(null);
   const engine = useEngine();
+  const engineRef = useRef(engine);
   const [ready, setReady] = useState(false);
 
-  // Создание grid — один раз при монтировании
+  // Держим engineRef актуальным, НЕ пересоздавая сетку.
+  useEffect(() => {
+    engineRef.current = engine;
+  }, [engine]);
+
+  // Создаём сетку ОДИН раз за монтирование.
+  // Зависимость от `engine` специально убрана: открытие оверлеев
+  // (комната Архивариуса по F1) пересоздаёт значение контекста,
+  // а раньше это триггерило cleanup → destroy → сломанный повторный load().
   useEffect(() => {
     const holder = holderRef.current;
+    if (!holder) return;
+
     const canvas = document.createElement('canvas');
     canvas.style.position = 'fixed';
     canvas.style.left = '0';
@@ -25,41 +36,49 @@ export default function PixiLayer({ width, height, cellWidth, cellHeight, fontFa
     const grid = new PixiGrid({
       canvas,
       width, height, cellWidth, cellHeight,
-      matrix: engine.matrix,
+      matrix: engineRef.current.matrix,
       fontFamily,
     });
     gridRef.current = grid;
-    grid.bindRenderHooks(() => engine.getRenderHooks());
+
+    // Замыкание читает engineRef.current — всегда свежий engine,
+    // без необходимости пересоздавать сетку.
+    grid.bindRenderHooks(() => engineRef.current.getRenderHooks());
 
     let cancelled = false;
     grid.load()
       .then(() => {
         if (cancelled) return;
-        engine.setGrid(grid);
+        engineRef.current.setGrid(grid);
         setReady(true);
       })
       .catch((e) => console.error('[PixiLayer] load failed:', e));
 
     return () => {
+      // Выполняется только при реальном unmount (или StrictMode double-invoke в dev).
       cancelled = true;
-      engine.setGrid(null);
+      if (engineRef.current) engineRef.current.setGrid(null);
       grid.destroy();
-      gridRef.current = null;
+      if (gridRef.current === grid) gridRef.current = null;
       canvas.remove();
     };
-  }, [engine]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // ← было [engine]
 
-  // Ресайз
+  // Resize — можно оставить зависимость от engine, тут ничего не уничтожается.
   useEffect(() => {
-    if (!gridRef.current) return;
+    const grid = gridRef.current;
+    if (!grid) return;
     engine.resize(width, height);
-    gridRef.current.resize(width, height, cellWidth, cellHeight);
-    const canvas = gridRef.current.canvas;
-    canvas.style.width = `${width * cellWidth}px`;
-    canvas.style.height = `${height * cellHeight}px`;
+    grid.resize(width, height, cellWidth, cellHeight);
+    const canvas = grid.canvas;
+    if (canvas) {
+      canvas.style.width = `${width * cellWidth}px`;
+      canvas.style.height = `${height * cellHeight}px`;
+    }
   }, [engine, width, height, cellWidth, cellHeight]);
 
-  // Указатель
+  // Указатель — тоже безопасно.
   useEffect(() => {
     const onMove = (e) => {
       const c = gridRef.current?.canvas;
@@ -78,7 +97,7 @@ export default function PixiLayer({ width, height, cellWidth, cellHeight, fontFa
 
   return (
     <>
-      <div ref={holderRef} style={{background:'transparent'}}/>
+      <div ref={holderRef} style={{ background: 'transparent' }} />
       {!ready && <LoadingOverlay />}
     </>
   );
