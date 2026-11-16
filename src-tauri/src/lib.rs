@@ -63,6 +63,21 @@ fn take_startup_world_creation(
         .map(|mut request| request.take())
 }
 
+#[tauri::command]
+fn set_native_cursor(window: tauri::WebviewWindow, active: bool) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        let _ = window;
+        native_cursor::set_active(active)
+    }
+
+    #[cfg(not(windows))]
+    {
+        let _ = (window, active);
+        Ok(())
+    }
+}
+
 fn startup_world_creation() -> Option<WorldCreationRequest> {
     let mut args = std::env::args_os().skip(1);
     while let Some(argument) = args.next() {
@@ -73,6 +88,143 @@ fn startup_world_creation() -> Option<WorldCreationRequest> {
         }
     }
     None
+}
+
+#[cfg(windows)]
+mod native_cursor {
+    use std::{
+        os::windows::ffi::OsStrExt,
+        path::PathBuf,
+        sync::{
+            Mutex, OnceLock,
+            atomic::{AtomicBool, Ordering},
+        },
+    };
+    use tauri::Manager;
+    use windows_sys::Win32::{
+        UI::WindowsAndMessaging::{
+            DestroyCursor, LoadCursorFromFileW, OCR_APPSTARTING, OCR_CROSS, OCR_HAND, OCR_HELP,
+            OCR_IBEAM, OCR_ICON, OCR_NO, OCR_NORMAL, OCR_SIZEALL, OCR_SIZENESW, OCR_SIZENS,
+            OCR_SIZENWSE, OCR_SIZEWE, OCR_UP, OCR_WAIT, SPI_SETCURSORS, SetSystemCursor,
+            SystemParametersInfoW,
+        },
+    };
+
+    const CURSOR_PERSON_ID: u32 = 32672;
+    const CURSOR_PIN_ID: u32 = 32671;
+    const CURSOR_MAPPINGS: &[(u32, &str)] = &[
+        (OCR_NORMAL, "normal_select.ani"),
+        (OCR_IBEAM, "text_select.ani"),
+        (OCR_WAIT, "busy.ani"),
+        (OCR_CROSS, "precision_select.ani"),
+        (OCR_UP, "handwriting.ani"),
+        (OCR_ICON, "alternate_select.ani"),
+        (OCR_SIZEALL, "move.ani"),
+        (OCR_SIZENWSE, "diagonal_resize1.ani"),
+        (OCR_SIZENESW, "diagonal_resize2.ani"),
+        (OCR_SIZEWE, "horizontal_resize.ani"),
+        (OCR_SIZENS, "vertical_resize.ani"),
+        (OCR_NO, "unavailible.ani"),
+        (OCR_HAND, "link_select.ani"),
+        (OCR_APPSTARTING, "working_in_background.ani"),
+        (OCR_HELP, "help_select.ani"),
+        (CURSOR_PERSON_ID, "person_select.ani"),
+        (CURSOR_PIN_ID, "location_select.ani"),
+    ];
+
+    static CURSOR_DIRECTORY: OnceLock<PathBuf> = OnceLock::new();
+    static SCHEME_ACTIVE: AtomicBool = AtomicBool::new(false);
+    static SCHEME_LOCK: Mutex<()> = Mutex::new(());
+
+    fn wide(value: &std::ffi::OsStr) -> Vec<u16> {
+        value.encode_wide().chain(Some(0)).collect()
+    }
+
+    pub fn initialize(app: &tauri::AppHandle) -> Result<(), String> {
+        let directory = app
+            .path()
+            .resource_dir()
+            .map_err(|error| format!("Не удалось найти ресурсы курсора: {error}"))?
+            .join("cursors");
+        for (_, file) in CURSOR_MAPPINGS {
+            if !directory.join(file).is_file() {
+                return Err(format!(
+                    "Не найден файл системного курсора: {}",
+                    directory.join(file).display()
+                ));
+            }
+        }
+
+        CURSOR_DIRECTORY
+            .set(directory)
+            .map_err(|_| "Ресурсы системного курсора уже инициализированы.".to_owned())?;
+        Ok(())
+    }
+
+    fn restore() -> Result<(), String> {
+        // SetSystemCursor changes the active Windows scheme; reload the user's saved scheme.
+        let restored = unsafe { SystemParametersInfoW(SPI_SETCURSORS, 0, std::ptr::null_mut(), 0) };
+        if restored == 0 {
+            return Err(format!(
+                "Не удалось восстановить системную схему курсора Windows: {}",
+                std::io::Error::last_os_error()
+            ));
+        }
+        SCHEME_ACTIVE.store(false, Ordering::Release);
+        Ok(())
+    }
+
+    fn apply() -> Result<(), String> {
+        restore()?;
+        let directory = CURSOR_DIRECTORY
+            .get()
+            .ok_or_else(|| "Ресурсы системного курсора ещё не инициализированы.".to_owned())?;
+
+        for (cursor_id, file) in CURSOR_MAPPINGS {
+            let path = directory.join(file);
+            let path_wide = wide(path.as_os_str());
+            let cursor = unsafe { LoadCursorFromFileW(path_wide.as_ptr()) };
+            if cursor.is_null() {
+                return Err(format!(
+                    "Не удалось загрузить системный курсор {}: {}",
+                    path.display(),
+                    std::io::Error::last_os_error()
+                ));
+            }
+            if unsafe { SetSystemCursor(cursor, *cursor_id) } == 0 {
+                let error = std::io::Error::last_os_error();
+                unsafe { DestroyCursor(cursor) };
+                return Err(format!(
+                    "Не удалось установить системный курсор {}: {error}",
+                    path.display()
+                ));
+            }
+        }
+
+        SCHEME_ACTIVE.store(true, Ordering::Release);
+        Ok(())
+    }
+
+    pub fn set_active(active: bool) -> Result<(), String> {
+        let _guard = SCHEME_LOCK
+            .lock()
+            .map_err(|error| format!("Не удалось синхронизировать системный курсор: {error}"))?;
+        if active == SCHEME_ACTIVE.load(Ordering::Acquire) {
+            return Ok(());
+        }
+
+        if active {
+            if let Err(error) = apply() {
+                return match restore() {
+                    Ok(()) => Err(error),
+                    Err(restore_error) => Err(format!("{error}; {restore_error}")),
+                };
+            }
+            Ok(())
+        } else {
+            restore()
+        }
+    }
 }
 
 #[cfg(windows)]
@@ -214,6 +366,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             greet,
+            set_native_cursor,
             request_world_generation_elevation,
             take_startup_world_creation,
             disk_recovery::get_install_ntfs_volume,
@@ -227,6 +380,9 @@ pub fn run() {
             let main_window = app
                 .get_webview_window("main")
                 .expect("main window not found");
+
+            #[cfg(windows)]
+            native_cursor::initialize(app.handle())?;
 
             // Достаем все нужные метрики
             let scale = main_window.scale_factor()?;
@@ -265,6 +421,16 @@ pub fn run() {
         .on_window_event(|window, event| {
             if window.label() != "main" {
                 return;
+            }
+
+            #[cfg(windows)]
+            if matches!(
+                event,
+                tauri::WindowEvent::Focused(false) | tauri::WindowEvent::Destroyed
+            ) {
+                if let Err(error) = native_cursor::set_active(false) {
+                    eprintln!("{error}");
+                }
             }
 
             // Главное окно закрылось — закрываем и оверлей, иначе

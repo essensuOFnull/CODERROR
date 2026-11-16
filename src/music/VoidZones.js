@@ -1,47 +1,61 @@
-const DRONE = "note('c1').s('sine').slow(24).gain(.22).room(.9)";
-const PAD = "note(`<[c3,e3,g3][a2,c3,e3][f2,a2,c3][g2,b2,d3]>`).s('triangle').slow(6).attack(2).release(3).room(.95).gain(.2).lpf(1200)";
-const BASS = "note(`<[~ c3][d3 ~][~ c3 ~][d3 ~ d3]>`).s('sawtooth').slow(3).lpf(280).gain(.45)";
-const SUB = "note(`<[~ c2][~ ~][~ c2 ~][~ ~ ~]>`).s('sawtooth').slow(3).lpf(150).gain(.3)";
-const ARP = "note(`<[c3,e3,g3][a2,c3,e3][f2,a2,c3][g2,b2,d3]>`).s('sawtooth').slow(6).attack(2).release(3).room(.95).gain(.08).lpf(sine.range(300,1400).slow(8))";
-const NOISE = "s('white*8').gain(.03).hpf(2000).room(.8)";
-const SPARKS = "s('white*32').gain(.05).decay(.03).hpf(4000).degradeBy(.7).pan(rand).room(.6)";
-const MELODY = "note(`<[~ ~ e4 ~][~ d4 ~ ~][~ ~ c4 ~]>`).s('triangle').slow(6).room(.9).gain(.26).pan(.35).delay(.5)";
-const HIGH_LINE = "note(`<[~ b4 ~ ~][~ ~ ~ ~][~ ~ e5 ~][~ ~ ~ ~]>`).s('sine').slow(6).gain(.13).room(1).pan(.7).delay(.6)";
-const MAIN_THEME = "note(`<[[b3 ~]a3*3[b3 ~]c3*3[d4 ~][e4*3 ~]]*2 [[d4 ~] a3*3 [d4 ~] [c4*3] d4 b4]*2>`).s('square').slow(3).lpf(1800).room(.7).gain(.3)";
-const RANDOM_NOTES = "n(irand(12).fast(16)).scale('C:major').s('square').gain(rand.range(.02,.06)).pan(rand).room(.9).delay(.3).sometimesBy(.4,x=>x.crush(4))";
-const HIGH_RANDOM = "n(irand(12).fast(8)).scale('C:major').add(24).s('triangle').gain(rand.range(.01,.04)).pan(rand).room(1).delay(.6)";
+const MOTIF = `<
+  [a4*4 b4*2 a4*4 a3*2]*2
+  [[[a4 ~] [b4 ~]]*2 [[b4 ~] [a4 ~]]*2]*2
+>`;
 
-function score(...layers) {
-  return `setcps(.5)
-stack(
-  ${layers.join(',\n  ')}
-)`;
+const PAD = "note('[a3, c4, e4]').s('sine').gain(0.2).room(0.85).roomsize(6).orbit(4)";
+const SUB_DRONE = "note('a1').s('sine').gain(0.35).lpf(150).room(0.5).orbit(5)";
+const MELODY = `note(${JSON.stringify(MOTIF)}).s('z_sawtooth').gain(0.3).lpf(perlin.range(600, 2500).slow(16)).room(0.4).orbit(1)`;
+const ECHO_MELODY = `note(${JSON.stringify(MOTIF)}).s('z_triangle').gain(0.15).delay(0.3).delayfeedback(0.4).orbit(2)`;
+const ARPEGGIO = `note(${JSON.stringify(MOTIF)}).s('z_tan').gain(0.08).fast(2).room(0.7).roomsize(4).orbit(3)`;
+const BASS = "note('<a2 a2 e3 e3 f2 f2 g2 g2>').s('sawtooth').lpf(500).gain(0.5)";
+const NOISE = "noise().gain(0.015).hpf(3000).room(0.6).orbit(6)";
+
+function track(...layers) {
+  return `setcps(0.5)\nstack(\n  ${layers.join(',\n  ')}\n)`;
 }
 
 export const VOID_ZONE_MUSIC = [
-  score(DRONE, PAD),
-  score(DRONE, PAD, BASS),
-  score(DRONE, PAD, BASS, SUB, ARP),
-  score(DRONE, PAD, BASS, SUB, ARP, NOISE, SPARKS),
-  score(DRONE, PAD, BASS, SUB, ARP, NOISE, SPARKS, MELODY),
-  score(DRONE, PAD, BASS, SUB, ARP, NOISE, SPARKS, MELODY, HIGH_LINE, RANDOM_NOTES),
-  score(
-    DRONE,
-    PAD,
+  track(PAD + '.slow(2)', SUB_DRONE + '.slow(4)'),
+  track(PAD + '.slow(2)', SUB_DRONE + '.slow(4)', MELODY + '.slow(2).gain(0.18)'),
+  track(BASS, PAD, MELODY, ECHO_MELODY),
+  track(
     BASS,
-    SUB,
-    ARP,
-    NOISE,
-    SPARKS,
+    PAD,
     MELODY,
-    HIGH_LINE,
-    RANDOM_NOTES,
-    HIGH_RANDOM,
-    MAIN_THEME,
-    `${MAIN_THEME}.gain(.28).lpf(900)`,
-    `${MAIN_THEME}.crush(5).coarse(3).lpf(2500).gain(.08).pan(.7).room(.6).delay(.4)`,
-    `${MAIN_THEME}.rev().lpf(1200).gain(.12).pan(.3).room(.8)`,
-    "note(`[~ ~ ~ ~][~ ~ ~ ~][~ ~ g4 ~][~ ~ ~ ~]`).s('sine').slow(3).gain(.18).room(1).delay(.7).pan(.2)",
-    "note('b6').s('sine').gain(.04).decay(.05).room(1).delay(.5).degradeBy(.9).pan(rand).sometimesBy(.3,x=>x.add(note(irand(3)*2)))",
+    ECHO_MELODY,
+    ARPEGGIO,
+    "note('[a4, b4]').s('sine').gain(0.05).slow(2).room(0.8)",
+    "note('[a3, d#4]').s('z_triangle').gain(0.03).slow(4)",
+  ),
+  track(
+    BASS + '.lpf(800).distort(0.3)',
+    PAD + '.sometimesBy(0.3, x => x.transpose(1))',
+    MELODY + '.distort(0.35)',
+    ECHO_MELODY + '.distort(0.25)',
+    ARPEGGIO + '.fast(2).gain(0.1)',
+    "note('[a3, b3, e4]').s('sawtooth').gain(0.06).room(0.5)",
+    SUB_DRONE + '.lpf(250)',
+  ),
+  track(
+    BASS + '.fast(1).lpf(1200).distort(0.5)',
+    MELODY + '.distort(0.55).sometimesBy(0.3, x => x.fast(2))',
+    ECHO_MELODY + '.fast(2).distort(0.4)',
+    ARPEGGIO + '.fast(2).crush(6).gain(0.1).distort(0.3)',
+    "note('[a3, b3, e4, f4]').s('sawtooth').gain(0.08).distort(0.35).room(0.4)",
+    "note('a1 e2').s('sawtooth').gain(0.4).lpf(300).distort(0.3)",
+    "note('[a4, d#4]').s('sine').gain(0.06).fast(2).sometimesBy(0.4, x => x.rev())",
+  ),
+  track(
+    BASS + '.fast(2).distort(0.7).lpf(2000)',
+    MELODY + '.fast(2).distort(0.65).superimpose(x => x.transpose(1))',
+    ECHO_MELODY + '.fast(2).distort(0.5).rev().sometimesBy(0.5, x => x.fast(2)).sometimesBy(0.3, x => x.ply(2))',
+    ARPEGGIO + '.fast(4).crush(3).gain(0.12).distort(0.5).sometimesBy(0.4, x => x.rev())',
+    "note('[a3, b3, e4, f4, a4, b4]').s('sawtooth').gain(0.1).distort(0.55).fast(2)",
+    "note('[a4, d#4]').s('z_tan').gain(0.07).fast(4).sometimesBy(0.5, x => x.rev())",
+    "note('a1 a1 e2 f2').s('sawtooth').gain(0.45).lpf(400).distort(0.4)",
+    "note('a0').s('sine').gain(0.5).lpf(100)",
+    "note('a5 b5 c6 b5 a5 b5 c6 d6').s('z_tan').gain(0.06).fast(4).sometimesBy(0.3, x => x.rev()).sometimesBy(0.2, x => x.transpose(1))",
+    NOISE,
   ),
 ];

@@ -11,6 +11,7 @@ import { CUBEMAP_FACES } from './config/cubemap.js';
 import musicCode from './music/MainMenu.js?raw';
 
 import { useDynamicWindowIcon } from './hooks/useDynamicWindowIcon';
+import NativeCursor from './components/NativeCursor.jsx';
 
 const CELL_W = 16;
 const CELL_H = 16;
@@ -42,6 +43,7 @@ export default function App() {
       <UILayer>
         <MainMenu cellWidth={CELL_W} cellHeight={CELL_H} />
       </UILayer>
+      <NativeCursor />
     </EngineProvider>
   );
 }

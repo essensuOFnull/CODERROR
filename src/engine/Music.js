@@ -1,19 +1,21 @@
 import { initStrudel, evaluate, stack } from '@strudel/web';
 
-const TRANSITION_CYCLES = 3;
+const DEFAULT_CROSSFADE_SECONDS = 4;
 
-function fadePattern(pattern, startCycle, duration, direction) {
+function fadePattern(pattern, startCycle, durationCycles, direction) {
   return pattern.withHaps((haps) => haps.map((hap) => {
     if (!hap.value || typeof hap.value !== 'object') return hap;
     const cycle = Number(hap.whole?.begin);
     if (!Number.isFinite(cycle)) return hap;
 
-    const progress = Math.max(0, Math.min(1, (cycle - startCycle) / duration));
+    const progress = Math.max(0, Math.min(1, (cycle - startCycle) / durationCycles));
     const envelope = direction === 'in'
       ? Math.sin(progress * Math.PI / 2)
       : Math.cos(progress * Math.PI / 2);
-    const gain = typeof hap.value.gain === 'number' ? hap.value.gain : 1;
-    return hap.withValue({ ...hap.value, gain: gain * envelope });
+    return hap.withValue((value) => ({
+      ...value,
+      gain: (typeof value.gain === 'number' ? value.gain : 1) * envelope,
+    }));
   }));
 }
 
@@ -31,6 +33,7 @@ export class Music {
     this._activePattern = null;
     this._activeCode = '';
     this._desiredCode = '';
+    this._desiredDuration = DEFAULT_CROSSFADE_SECONDS;
     this._transitionPromise = null;
     this._transitionTimer = null;
     this._transitionToken = 0;
@@ -51,10 +54,9 @@ export class Music {
       document.addEventListener('click', resume, { once: true });
 
       await evaluate('stack()');
-      await new Promise((r) => setTimeout(r, 800));
-      if (this._destroyed) return;
-
+      await new Promise((resolve) => setTimeout(resolve, 800));
       if (this._destroyed || !code) return;
+
       const result = await evaluate(code);
       if (this._destroyed) return;
 
@@ -62,7 +64,10 @@ export class Music {
         result?.pattern ||
         result?.meta?.pattern ||
         repl?.state?.pattern ||
-        null;
+        result;
+      if (!this.pattern?._Pattern) {
+        throw new Error('Strudel did not produce a pattern for the initial track.');
+      }
       this._activePattern = this.pattern;
       this._activeCode = code;
 
@@ -74,9 +79,9 @@ export class Music {
         null;
 
       this.ready = true;
-      for (const fn of this._readyListeners) fn(this);
+      for (const listener of this._readyListeners) listener(this);
       if (this._desiredCode && this._desiredCode !== this._activeCode) {
-        this.transitionTo(this._desiredCode).catch((error) => {
+        this._startQueuedTransition().catch((error) => {
           console.error('[Music] Failed to apply queued transition:', error);
         });
       }
@@ -85,27 +90,43 @@ export class Music {
     }
   }
 
-  onReady(fn) {
-    if (this.ready) fn(this);
-    else this._readyListeners.add(fn);
-    return () => this._readyListeners.delete(fn);
+  onReady(listener) {
+    if (this.ready) listener(this);
+    else this._readyListeners.add(listener);
+    return () => this._readyListeners.delete(listener);
   }
 
-  transitionTo(code) {
+  transitionTo(code, { duration = DEFAULT_CROSSFADE_SECONDS } = {}) {
     if (typeof code !== 'string' || !code.trim()) {
       return Promise.reject(new TypeError('Music transition requires non-empty Strudel code.'));
     }
+    if (!Number.isFinite(duration) || duration <= 0) {
+      return Promise.reject(new TypeError('Music crossfade duration must be a positive number.'));
+    }
 
     this._desiredCode = code;
+    this._desiredDuration = duration;
     if (!this.ready || this._destroyed || code === this._activeCode) {
       return Promise.resolve();
     }
+    return this._startQueuedTransition();
+  }
+
+  _startQueuedTransition() {
     if (this._transitionPromise) return this._transitionPromise;
 
-    this._transitionPromise = this._drainTransitions().finally(() => {
+    this._transitionPromise = this._drainTransitions().catch((error) => {
+      this._desiredCode = this._activeCode;
+      throw error;
+    }).finally(() => {
       this._transitionPromise = null;
-      if (this.ready && !this._destroyed && this._desiredCode !== this._activeCode) {
-        this.transitionTo(this._desiredCode).catch((error) => {
+      if (
+        this.ready &&
+        !this._destroyed &&
+        this._desiredCode &&
+        this._desiredCode !== this._activeCode
+      ) {
+        this._startQueuedTransition().catch((error) => {
           console.error('[Music] Failed to apply queued transition:', error);
         });
       }
@@ -114,28 +135,34 @@ export class Music {
   }
 
   async _drainTransitions() {
-    while (this.ready && !this._destroyed && this._desiredCode !== this._activeCode) {
+    while (
+      this.ready &&
+      !this._destroyed &&
+      this._desiredCode !== this._activeCode
+    ) {
       const code = this._desiredCode;
       const outgoing = this._activePattern;
       const incoming = await this.repl.evaluate(code, false, false);
+      await this.repl.setPattern(outgoing, false);
       if (!incoming?._Pattern) {
-        throw new Error('Strudel did not produce a pattern for the requested zone.');
+        throw new Error('Strudel did not produce a pattern for the requested track.');
       }
       if (code !== this._desiredCode) {
-        await this.repl.setPattern(outgoing, false);
         continue;
       }
 
-      const startCycle = Math.ceil(this.repl.scheduler.now());
-      const duration = TRANSITION_CYCLES;
+      const duration = this._desiredDuration;
+      const startCycle = this.repl.scheduler.now();
+      const durationCycles = duration * this.repl.scheduler.cps;
       const mixed = stack(
-        fadePattern(outgoing, startCycle, duration, 'out'),
-        fadePattern(incoming, startCycle, duration, 'in'),
+        fadePattern(outgoing, startCycle, durationCycles, 'out'),
+        fadePattern(incoming, startCycle, durationCycles, 'in'),
       );
       await this.repl.setPattern(mixed, true);
 
       clearTimeout(this._transitionTimer);
       const token = ++this._transitionToken;
+      const endCycle = startCycle + durationCycles;
       this._activePattern = mixed;
       this._activeCode = code;
       this.pattern = mixed;
@@ -145,7 +172,7 @@ export class Music {
         this._activePattern = incoming;
         this.pattern = incoming;
         this._transitionTimer = null;
-      }, (duration / this.repl.scheduler.cps) * 1000);
+      }, Math.max(0, (endCycle - startCycle) / this.repl.scheduler.cps) * 1000);
     }
   }
 
@@ -156,14 +183,16 @@ export class Music {
       : 0;
     const haps = this.pattern
       .queryArc(now, now + 1 / 120)
-      .filter((h) => h.hasOnset());
+      .filter((hap) => hap.hasOnset());
     return { now, haps };
   }
 
   destroy() {
     this._destroyed = true;
     clearTimeout(this._transitionTimer);
+    this._transitionToken += 1;
     this._readyListeners.clear();
+    this.repl?.stop?.();
     this.repl = null;
     this.pattern = null;
     this.miniLocations = null;
