@@ -4,6 +4,7 @@ import { listen } from '@tauri-apps/api/event';
 import Slider from '@mui/material/Slider';
 import { useEngine } from '../context/EngineContext.jsx';
 import { RoomRuntime } from './RoomRuntime.js';
+import { VOID_ZONE_MUSIC } from '../music/VoidZones.js';
 import voidRoom, {
   difficultyAt,
   fallRecoveryAt,
@@ -282,7 +283,7 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
     let activePlayerOverlays = new Set();
     let activeMediaOverlays = new Set();
     let activeVoidParticleOverlays = new Set();
-    let activeDifficulty = -1;
+    let activeDifficulty = difficultyAt(player.x);
     let dead = false;
     const voidParticles = [];
     let voidParticleSequence = 0;
@@ -300,7 +301,10 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
       return true;
     };
     engine.pixiGrid?.setVoidEffects(voidRoom.effects?.ground === 'corruption');
-    engine.pixiGrid?.setVoidDifficulty(difficultyAt(player.x));
+    engine.pixiGrid?.setVoidDifficulty(activeDifficulty);
+    engine.music.transitionTo(VOID_ZONE_MUSIC[activeDifficulty]).catch((error) => {
+      console.error('[VoidGame] Failed to transition zone music:', error);
+    });
     const drawTerrain = (cameraX, cameraY) => {
       engine.batch(() => {
         for (let screenY = 0; screenY < engine.height; screenY++) {
@@ -369,6 +373,9 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
       if (difficulty !== activeDifficulty) {
         activeDifficulty = difficulty;
         engine.pixiGrid?.setVoidDifficulty(difficulty);
+        engine.music.transitionTo(VOID_ZONE_MUSIC[difficulty]).catch((error) => {
+          console.error('[VoidGame] Failed to transition zone music:', error);
+        });
       }
 
       const footCell = room.getCell(
@@ -644,6 +651,9 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
       unsubscribeTick();
       unsubscribeRender();
       unsubscribeResize();
+      engine.music.transitionTo(engine.music.code).catch((error) => {
+        console.error('[VoidGame] Failed to restore menu music:', error);
+      });
       clearTimeout(noticeTimer.current);
       keys.current.clear();
       for (const id of activePlayerOverlays) engine.pixiGrid?.removeOverlay(id);
