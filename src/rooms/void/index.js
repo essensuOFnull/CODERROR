@@ -221,6 +221,11 @@ export function surfaceAt(x, seed) {
   return terrainProfile(x, seed).surface;
 }
 
+export function isSafeSurfaceAt(x, seed) {
+  const profile = terrainProfile(x, seed);
+  return !profile.course?.inPit && !spikeAt(profile, x, seed);
+}
+
 export function fallRecoveryAt(x, y, seed) {
   const profile = terrainProfile(x, seed);
   const course = profile.course;

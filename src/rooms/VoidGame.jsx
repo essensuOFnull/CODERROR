@@ -2,12 +2,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import Slider from '@mui/material/Slider';
+import brokenSlotTextureUrl from '../assets/broken-inventory-slot.svg';
 import { useEngine } from '../context/EngineContext.jsx';
 import { RoomRuntime } from './RoomRuntime.js';
 import { VOID_ZONE_MUSIC } from '../music/VoidZones.js';
 import voidRoom, {
   difficultyAt,
   fallRecoveryAt,
+  isSafeSurfaceAt,
   surfaceAt,
   VOID_SHIELD_LAYOUT,
 } from './void/index.js';
@@ -24,6 +26,10 @@ const MAX_JUMP_HEIGHT = 6;
 const GRAVITY = 26;
 const HORIZONTAL_ACCELERATION = 30;
 const AIR_ACCELERATION = 12;
+const INVENTORY_CAPACITY = 50;
+const HOTBAR_SIZE = 10;
+const THROWN_ITEM_SPEED = 7;
+const THROWN_ITEM_GRAVITY = 18;
 const worldVolumeTasks = new WeakMap();
 const worldScanTasks = new WeakMap();
 
@@ -56,6 +62,70 @@ function createImageCycle(images, seed) {
 function cycleImageIndex(sector, length) {
   const sectorIndex = ((sector % length) + length) % length;
   return sectorIndex;
+}
+
+function InventoryItemVisual({ item, depth = 0 }) {
+  if (!item) return null;
+  const isSlot = item.type === 'broken-slot';
+  const size = depth === 0 ? '100%' : `calc(100% - ${depth * 4}px)`;
+  const offset = `${depth * 2}px`;
+
+  return (
+    <>
+      <img
+        className={`void-game__item-visual${depth > 0 ? ' is-nested' : ''}`}
+        src={brokenSlotTextureUrl}
+        alt=""
+        data-slot-content={depth > 0 ? 'true' : undefined}
+        style={{
+          width: size,
+          height: size,
+          left: offset,
+          top: offset,
+        }}
+        draggable="false"
+      />
+      {isSlot && item.content && (
+        <InventoryItemVisual item={item.content} depth={depth + 1} />
+      )}
+    </>
+  );
+}
+
+function createGroundInventorySlots(seed) {
+  const items = [];
+  const worldExtent = VOID_SHIELD_LAYOUT.worldRadius * 0.9;
+
+  for (let index = 0; index < INVENTORY_CAPACITY; index++) {
+    let placed = false;
+    for (let attempt = 0; attempt < 4096; attempt++) {
+      const random = (salt) => mediaRandom(seed, index * 4096 + attempt, salt);
+      const nearPlayerOffset = 5 + random(2) * 16;
+      const candidateX = index === 0
+        ? 0.5 + (random(3) < 0.5 ? -1 : 1) * nearPlayerOffset
+        : (random(1) * 2 - 1) * worldExtent;
+      const tileX = Math.floor(candidateX);
+      const x = tileX + 0.5;
+      if (!isSafeSurfaceAt(tileX, seed)
+        || items.some((item) => Math.abs(item.x - x) < 2.5)) continue;
+
+      const itemId = `broken-slot-${index}`;
+      items.push({
+        id: `ground:${itemId}`,
+        item: { id: itemId, type: 'broken-slot', content: null },
+        x,
+        groundY: surfaceAt(tileX, seed),
+        phase: random(4) * Math.PI * 2,
+      });
+      placed = true;
+      break;
+    }
+
+    if (!placed) {
+      throw new Error(`Could not find a safe surface for inventory slot ${index + 1}`);
+    }
+  }
+  return items;
 }
 
 function getWorldVolume(world) {
@@ -144,7 +214,14 @@ async function createMediaAsset(media, index) {
 export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
   const engine = useEngine();
   const [notice, setNotice] = useState('');
-  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [inventory, setInventory] = useState(() => ({
+    slots: Array(INVENTORY_CAPACITY).fill(null),
+    cursorItem: null,
+  }));
+  const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0 });
+  const [inventoryOpen, setInventoryOpen] = useState(false);
+  const [selectedHotbarIndex, setSelectedHotbarIndex] = useState(0);
+  const [showActTitle, setShowActTitle] = useState(false);
   const [scanPhase, setScanPhase] = useState('checking');
   const [scanStatus, setScanStatus] = useState('');
   const [scanProgress, setScanProgress] = useState(null);
@@ -154,7 +231,6 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
   const [scanSelection, setScanSelection] = useState(null);
   const [cancelRequested, setCancelRequested] = useState(false);
   const [retryToken, setRetryToken] = useState(0);
-  const [sourceLabel, setSourceLabel] = useState('СИНТЕТИЧЕСКИЕ ДАННЫЕ');
   const roomRef = useRef(null);
   const terrainDirtyRef = useRef(false);
   const scanReadyRef = useRef(false);
@@ -162,12 +238,112 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
   const imageAssetsRef = useRef([]);
   const imageCycleRef = useRef([]);
   const videoAssetsRef = useRef([]);
+  const brokenSlotImageRef = useRef(null);
   const keys = useRef(new Set());
   const jumpRequested = useRef(false);
   const noticeTimer = useRef(null);
   const activeScanIdRef = useRef(null);
   const onExitRef = useRef(onExit);
+  const inventoryRef = useRef(inventory);
+  const inventoryOpenRef = useRef(false);
+  const playerRef = useRef(null);
+  const cameraPositionRef = useRef({ x: 0, y: 0 });
+  const dropCursorItemRef = useRef(null);
+  const gameSeedRef = useRef(null);
+  const groundItemsRef = useRef({ seed: null, items: [] });
+  const droppedItemSequenceRef = useRef(0);
+  const pointerPositionRef = useRef({ x: 0, y: 0 });
   onExitRef.current = onExit;
+
+  const publishInventory = () => {
+    const current = inventoryRef.current;
+    setInventory({ slots: [...current.slots], cursorItem: current.cursorItem });
+  };
+
+  const interactWithInventorySlot = (index, targetIsContents = false) => {
+    const current = inventoryRef.current;
+    const slotItem = current.slots[index];
+    if (!slotItem) {
+      if (!current.cursorItem) return;
+      current.slots[index] = current.cursorItem;
+      current.cursorItem = null;
+      inventoryRef.current = current;
+      publishInventory();
+      return;
+    }
+
+    const contents = slotItem.type === 'broken-slot' ? slotItem.content : null;
+    if (targetIsContents && contents) {
+      slotItem.content = current.cursorItem;
+      current.cursorItem = contents;
+      inventoryRef.current = current;
+      publishInventory();
+      return;
+    }
+
+    if (current.cursorItem) {
+      if (slotItem.type === 'broken-slot') {
+        slotItem.content = current.cursorItem;
+      } else {
+        current.slots[index] = current.cursorItem;
+      }
+      current.cursorItem = contents;
+    } else {
+      current.slots[index] = null;
+      current.cursorItem = slotItem;
+    }
+    inventoryRef.current = current;
+    publishInventory();
+  };
+
+  const dropCursorItem = (event) => {
+    const current = inventoryRef.current;
+    if (!current.cursorItem || !playerRef.current || gameSeedRef.current === null) return;
+    const item = current.cursorItem;
+    const player = playerRef.current;
+    const canvas = engine.pixiGrid?.canvas;
+    const canvasBounds = canvas?.getBoundingClientRect();
+    const pointerWorldX = event && canvasBounds
+      ? cameraPositionRef.current.x + (event.clientX - canvasBounds.left) / cellWidth
+      : player.x + 1;
+    const pointerWorldY = event && canvasBounds
+      ? cameraPositionRef.current.y + (event.clientY - canvasBounds.top) / cellHeight
+      : player.y;
+    let directionX = pointerWorldX - player.x;
+    let directionY = pointerWorldY - player.y;
+    const directionLength = Math.hypot(directionX, directionY);
+    if (directionLength < 0.001) {
+      directionX = 1;
+      directionY = 0;
+    } else {
+      directionX /= directionLength;
+      directionY /= directionLength;
+    }
+    const x = player.x + directionX * 0.65;
+    const y = player.y + directionY * 0.65;
+    groundItemsRef.current.items.push({
+      id: `dropped-slot-${droppedItemSequenceRef.current++}-${item.id}`,
+      item,
+      x,
+      y,
+      groundY: surfaceAt(Math.floor(x), gameSeedRef.current),
+      vx: directionX * THROWN_ITEM_SPEED,
+      vy: directionY * THROWN_ITEM_SPEED,
+      airborne: true,
+      pickupDelay: 1,
+      phase: Math.random() * Math.PI * 2,
+    });
+    current.cursorItem = null;
+    inventoryRef.current = current;
+    publishInventory();
+  };
+  dropCursorItemRef.current = dropCursorItem;
+
+  const setInventoryVisibility = (open) => {
+    inventoryOpenRef.current = open;
+    setInventoryOpen(open);
+    if (open) keys.current.clear();
+  };
 
   const beginScan = () => {
     setScanSelection({
@@ -206,7 +382,67 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
   }, []);
 
   useEffect(() => {
-    const seed = world?.seed ?? Math.floor(Math.random() * 0x100000000);
+    const trackPointer = (event) => {
+      pointerPositionRef.current = { x: event.clientX, y: event.clientY };
+    };
+    window.addEventListener('pointermove', trackPointer);
+    return () => window.removeEventListener('pointermove', trackPointer);
+  }, []);
+
+  useEffect(() => {
+    if (!inventory.cursorItem) return undefined;
+    const trackHeldItem = (event) => {
+      setCursorPosition({ x: event.clientX, y: event.clientY });
+    };
+    setCursorPosition(pointerPositionRef.current);
+    window.addEventListener('pointermove', trackHeldItem);
+    return () => window.removeEventListener('pointermove', trackHeldItem);
+  }, [inventory.cursorItem]);
+
+  useEffect(() => {
+    if (scanPhase !== 'ready') return undefined;
+    setShowActTitle(true);
+    const timer = setTimeout(() => setShowActTitle(false), 5000);
+    return () => clearTimeout(timer);
+  }, [scanPhase]);
+
+  useEffect(() => {
+    const seed = world?.seed
+      ?? gameSeedRef.current
+      ?? Math.floor(Math.random() * 0x100000000);
+    const worldKey = `${world?.name ?? 'world'}:${seed}`;
+    gameSeedRef.current = seed;
+    if (groundItemsRef.current.worldKey !== worldKey) {
+      groundItemsRef.current = { seed, worldKey, items: createGroundInventorySlots(seed) };
+      const nextInventory = {
+        slots: Array(INVENTORY_CAPACITY).fill(null),
+        cursorItem: null,
+      };
+      inventoryRef.current = nextInventory;
+      setInventory(nextInventory);
+      setInventoryVisibility(false);
+      setSelectedHotbarIndex(0);
+    }
+    if (!brokenSlotImageRef.current) {
+      const image = new Image();
+      image.onload = () => {
+        const textureCanvas = document.createElement('canvas');
+        textureCanvas.width = image.naturalWidth;
+        textureCanvas.height = image.naturalHeight;
+        const context = textureCanvas.getContext('2d');
+        if (!context) {
+          console.error('[VoidGame] Could not create a canvas for the broken slot texture.');
+          return;
+        }
+        context.drawImage(image, 0, 0);
+        brokenSlotImageRef.current = textureCanvas;
+        terrainDirtyRef.current = true;
+      };
+      image.onerror = () => {
+        console.error('[VoidGame] Failed to load broken inventory slot texture.');
+      };
+      image.src = brokenSlotTextureUrl;
+    }
     const glyphs = Array.from(engine.pixiGrid?.textures?.keys() ?? [])
       .filter((char) => Array.from(char).length === 1 && !/[\p{C}\p{M}\p{Z}]/u.test(char));
     const playerGlyphs = PLAYER_GLYPHS.filter((char) => engine.pixiGrid?.textures?.has(char));
@@ -228,12 +464,10 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
       jumpHoldActive: false,
       jumpStartY: 0,
     };
+    playerRef.current = player;
     const emit = (event) => {
-      if (event.type !== 'notice' && event.type !== 'fragment-found') return;
-      const text = event.type === 'fragment-found'
-        ? `ФРАГМЕНТ: ${event.title}`
-        : event.text;
-      setNotice(text);
+      if (event.type !== 'notice') return;
+      setNotice(event.text);
       clearTimeout(noticeTimer.current);
       noticeTimer.current = setTimeout(() => setNotice(''), 3500);
     };
@@ -282,6 +516,7 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
     let lastCameraY = Number.NaN;
     let activePlayerOverlays = new Set();
     let activeMediaOverlays = new Set();
+    let activeGroundSlotOverlays = new Set();
     let activeVoidParticleOverlays = new Set();
     let activeDifficulty = difficultyAt(player.x, player.y);
     let dead = false;
@@ -324,7 +559,7 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
     };
 
     const unsubscribeTick = engine.onTick((deltaMs) => {
-      if (!scanReadyRef.current || dead) return;
+      if (!scanReadyRef.current || dead || inventoryOpenRef.current) return;
       const dt = Math.min(deltaMs / 1000, 0.04);
 
       const left = keys.current.has('ArrowLeft') || keys.current.has('KeyA');
@@ -396,12 +631,71 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
         emit({ type: 'notice', text: 'Срыв! Участок паркура начинается заново.' });
       }
 
+      const groundItems = groundItemsRef.current.items;
+      const inventoryState = inventoryRef.current;
+      const hasPlacedSlots = inventoryState.slots.some(Boolean);
+      const emptyContainerIndex = inventoryState.slots.findIndex(
+        (slot) => slot?.type === 'broken-slot' && !slot.content,
+      );
+      const emptySlotIndex = inventoryState.slots.findIndex((slot) => !slot);
+      const playerFootY = player.y + PLAYER_HALF_HEIGHT;
+      const thrownItemHalfHeight = Math.min(cellWidth, cellHeight) * 1.15
+        / (2 * cellHeight);
+      for (const groundItem of groundItems) {
+        if (groundItem.pickupDelay > 0) {
+          groundItem.pickupDelay = Math.max(0, groundItem.pickupDelay - dt);
+        }
+        if (!groundItem.airborne) continue;
+
+        groundItem.vy += THROWN_ITEM_GRAVITY * dt;
+        groundItem.x += groundItem.vx * dt;
+        groundItem.y += groundItem.vy * dt;
+        const worldEdge = VOID_SHIELD_LAYOUT.worldRadius - 1;
+        if (Math.abs(groundItem.x) > worldEdge) {
+          groundItem.x = Math.sign(groundItem.x) * worldEdge;
+          groundItem.vx = 0;
+        }
+        groundItem.groundY = surfaceAt(Math.floor(groundItem.x), seed);
+        if (groundItem.y >= groundItem.groundY - thrownItemHalfHeight - 0.02) {
+          groundItem.airborne = false;
+          groundItem.y = undefined;
+          groundItem.vx = 0;
+          groundItem.vy = 0;
+        }
+      }
+
+      for (let index = 0; index < groundItems.length; index++) {
+        const groundItem = groundItems[index];
+        if (groundItem.pickupDelay > 0) continue;
+        const itemCenterY = groundItem.airborne
+          ? groundItem.y
+          : groundItem.groundY - thrownItemHalfHeight - 0.02;
+        if (Math.hypot(
+          player.x - groundItem.x,
+          playerFootY - itemCenterY,
+        ) > 1.15) continue;
+
+        if (!hasPlacedSlots && !inventoryState.cursorItem) {
+          inventoryState.cursorItem = groundItem.item;
+        } else if (emptyContainerIndex >= 0) {
+          inventoryState.slots[emptyContainerIndex].content = groundItem.item;
+        } else if (hasPlacedSlots && emptySlotIndex >= 0) {
+          inventoryState.slots[emptySlotIndex] = groundItem.item;
+        } else if (emptySlotIndex >= 0) {
+          inventoryState.slots[emptySlotIndex] = groundItem.item;
+        } else if (!inventoryState.cursorItem) {
+          inventoryState.cursorItem = groundItem.item;
+        } else {
+          continue;
+        }
+
+        groundItems.splice(index, 1);
+        inventoryRef.current = inventoryState;
+        publishInventory();
+        break;
+      }
+
       room.update({ player, delta: dt, emit });
-      setPosition((previous) => (
-        Math.abs(previous.x - player.x) > 0.4 || Math.abs(previous.y - player.y) > 0.4
-          ? { x: player.x, y: player.y }
-          : previous
-      ));
     });
 
     const unsubscribeRender = engine.onRender((deltaMs, grid) => {
@@ -411,6 +705,7 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
       const cameraFloatY = renderedY - visibleRows / 2;
       cameraX = Math.floor(cameraFloatX);
       cameraY = Math.floor(cameraFloatY);
+      cameraPositionRef.current = { x: cameraX, y: cameraY };
       const fractionX = cameraFloatX - cameraX;
       const fractionY = cameraFloatY - cameraY;
 
@@ -517,6 +812,36 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
         if (!nextVoidParticleOverlays.has(id)) grid.removeOverlay(id);
       }
       activeVoidParticleOverlays = nextVoidParticleOverlays;
+
+      const nextGroundSlotOverlays = new Set();
+      const brokenSlotImage = brokenSlotImageRef.current;
+      if (scanReadyRef.current && brokenSlotImage) {
+        const animationTime = performance.now() / 1000;
+        for (const groundItem of groundItemsRef.current.items) {
+          const bob = groundItem.airborne
+            ? 0
+            : Math.sin(animationTime * 1.8 + groundItem.phase) * 0.14;
+          const pulse = 0.94 + Math.sin(animationTime * 1.2 + groundItem.phase) * 0.06;
+          const width = Math.min(cellWidth, cellHeight) * 1.15 * pulse;
+          const height = width;
+          const centerY = groundItem.airborne
+            ? groundItem.y
+            : groundItem.groundY - height / (2 * cellHeight) - 0.02;
+          grid.setMediaOverlay(groundItem.id, {
+            source: brokenSlotImage,
+            x: (groundItem.x - cameraX) * cellWidth - width / 2,
+            y: (centerY + bob - cameraY) * cellHeight - height / 2,
+            width,
+            height,
+            alpha: 0.96,
+          });
+          nextGroundSlotOverlays.add(groundItem.id);
+        }
+      }
+      for (const id of activeGroundSlotOverlays) {
+        if (!nextGroundSlotOverlays.has(id)) grid.removeOverlay(id);
+      }
+      activeGroundSlotOverlays = nextGroundSlotOverlays;
 
       const left = renderedX - PLAYER_HALF_WIDTH;
       const right = renderedX + PLAYER_HALF_WIDTH;
@@ -657,11 +982,13 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
       for (const id of activePlayerOverlays) engine.pixiGrid?.removeOverlay(id);
       for (const id of activeMediaOverlays) engine.pixiGrid?.removeOverlay(id);
       for (const id of activeVoidParticleOverlays) engine.pixiGrid?.removeOverlay(id);
+      for (const id of activeGroundSlotOverlays) engine.pixiGrid?.removeOverlay(id);
       engine.pixiGrid?.clearVoidShieldView();
       engine.pixiGrid?.setCameraOffset(0, 0);
       engine.pixiGrid?.setVoidEffects(false);
       room.dispose();
       roomRef.current = null;
+      playerRef.current = null;
       engine.batch(() => {
         for (let y = 0; y < engine.height; y++) {
           for (let x = 0; x < engine.width; x++) {
@@ -670,7 +997,7 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
         }
       });
     };
-  }, [cellHeight, cellWidth, engine, world?.seed]);
+  }, [cellHeight, cellWidth, engine, world?.name, world?.seed]);
 
   useEffect(() => {
     let cancelled = false;
@@ -775,6 +1102,12 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
       imageAssetsRef.current = mediaAssets.filter((asset) => asset.mimeType.startsWith('image/'));
       imageCycleRef.current = createImageCycle(imageAssetsRef.current, room.seed);
       videoAssetsRef.current = mediaAssets.filter((asset) => asset.mimeType.startsWith('video/'));
+      if (undecodableMedia > 0) {
+        console.warn('[VoidGame] Some recovered media could not be decoded:', {
+          total: undecodableMedia,
+          videos: undecodableVideo,
+        });
+      }
       room.setData({
         recoveredFragments,
         recoveredDataCount: recoveredFragments.length + mediaAssets.length,
@@ -782,23 +1115,7 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
       });
       terrainDirtyRef.current = true;
       scanReadyRef.current = true;
-      setSourceLabel(
-        `${report.volumeId} // ${recoveredFragments.length} ФРАГ. / ${mediaAssets.length} МЕДИА`,
-      );
-      setScanStatus(
-        `${world.name} сохранён${report.scanCompleted === false ? ' (частичное сканирование)' : ''}; `
-        + `прочитано ${formatBytes(report.bytesScanned)} свободного места; `
-        + `текст: ${recoveredFragments.length}, картинки: ${imageAssetsRef.current.length}, `
-        + `видео: ${videoAssetsRef.current.length}`
-        + (undecodableVideo ? `, видео не декодировано: ${undecodableVideo}` : '')
-        + (undecodableMedia > undecodableVideo
-          ? `, прочее медиа не декодировано: ${undecodableMedia - undecodableVideo}`
-          : '')
-        + (videoAssetsRef.current.length === 0 && undecodableVideo === 0
-          ? '; в просмотренном диапазоне целые видеоконтейнеры не найдены'
-          : '')
-        + '.',
-      );
+      setScanStatus('');
       setScanPhase('ready');
     };
 
@@ -818,7 +1135,17 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
     const onKeyDown = (event) => {
       if (event.code === 'Escape') {
         event.preventDefault();
-        if (scanPhase === 'ready' || scanPhase === 'error') onExit();
+        if (scanPhase === 'ready') {
+          setInventoryVisibility(!inventoryOpenRef.current);
+        } else if (scanPhase === 'error') {
+          onExit();
+        }
+        return;
+      }
+      if (inventoryOpenRef.current) return;
+      if (/^Digit[0-9]$/.test(event.code)) {
+        const digit = Number(event.code.slice(-1));
+        setSelectedHotbarIndex(digit === 0 ? HOTBAR_SIZE - 1 : digit - 1);
         return;
       }
       if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'Space'].includes(event.code)) {
@@ -831,37 +1158,171 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
     };
     const onKeyUp = (event) => keys.current.delete(event.code);
     const clearKeys = () => keys.current.clear();
+    const onWheel = (event) => {
+      if (scanPhase !== 'ready' || inventoryOpenRef.current) return;
+      event.preventDefault();
+      if (event.deltaY === 0) return;
+      const direction = event.deltaY > 0 ? 1 : -1;
+      setSelectedHotbarIndex((current) => (
+        (current + direction + HOTBAR_SIZE) % HOTBAR_SIZE
+      ));
+    };
 
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('wheel', onWheel, { passive: false });
     window.addEventListener('blur', clearKeys);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('wheel', onWheel);
       window.removeEventListener('blur', clearKeys);
     };
   }, [onExit, scanPhase]);
 
+  useEffect(() => {
+    const handleContextMenu = (event) => {
+      event.preventDefault();
+      const target = event.target;
+      const clickedButton = target instanceof Element && target.closest('button');
+      if (scanReadyRef.current && !inventoryOpenRef.current
+        && inventoryRef.current.cursorItem && !clickedButton) {
+        dropCursorItemRef.current(event);
+      }
+    };
+    document.addEventListener('contextmenu', handleContextMenu);
+    return () => document.removeEventListener('contextmenu', handleContextMenu);
+  }, []);
+
   return (
-    <section className="void-game" aria-label="Локация Пустота">
-      <div className="void-game__status">
-        <span>ПУСТОТА</span>
-        <span>{world?.name}</span>
-        <span>ЧАНК 32×32</span>
-        <span>{difficultyAt(position.x, position.y) === 0
-          ? 'БЕЗОПАСНАЯ ЗОНА'
-          : `УРОВЕНЬ СЛОЖНОСТИ ${difficultyAt(position.x, position.y)}`}</span>
-        <span>{sourceLabel}</span>
-        <span>{Math.floor(position.x)} : {Math.floor(position.y)}</span>
-      </div>
-      {notice && <div className="void-game__notice" role="status">{notice}</div>}
-      {scanPhase === 'ready' && scanStatus && (
-        <div className="void-game__scan-status" role="status">{scanStatus}</div>
+    <section
+      className="void-game"
+      aria-label="Локация Пустота"
+      onContextMenu={(event) => {
+        if (!inventory.cursorItem || inventoryOpenRef.current
+          || event.target.closest('button')) return;
+        dropCursorItem(event);
+      }}
+    >
+      {showActTitle && scanPhase === 'ready' && (
+        <div className="void-game__act-title" role="status" aria-live="polite">
+          <span>АКТ 1:</span>
+          <span>ВЫЖИВАНИЕ</span>
+        </div>
       )}
+      {notice && <div className="void-game__notice" role="status">{notice}</div>}
+      {scanPhase === 'ready'
+        && (inventory.cursorItem || inventory.slots.some(Boolean))
+        && (
+          <div className="void-game__hotbar" aria-label="Панель быстрого доступа">
+            {inventory.slots.slice(0, HOTBAR_SIZE).map((slotItem, index) => (
+              <button
+                type="button"
+                key={index}
+                className={`void-game__inventory-cell${selectedHotbarIndex === index ? ' is-selected' : ''}`}
+                aria-label={`Ячейка быстрого доступа ${index + 1}${slotItem ? ', сломанный слот' : ', пусто'}`}
+                onClick={(event) => {
+                  setSelectedHotbarIndex(index);
+                  interactWithInventorySlot(
+                    index,
+                    Boolean(event.target.closest('[data-slot-content="true"]')),
+                  );
+                }}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  if (!slotItem && inventoryRef.current.cursorItem) {
+                    dropCursorItem(event);
+                  }
+                }}
+              >
+                <InventoryItemVisual item={slotItem} />
+                <span>{index === HOTBAR_SIZE - 1 ? '0' : index + 1}</span>
+              </button>
+            ))}
+          </div>
+        )}
       {scanPhase === 'ready' && (
         <div className="void-game__controls">
-          A / D или ← / → — идти&nbsp; · &nbsp;Space / W / ↑ — прыгать (удерживай для прыжка до 6 блоков)
-          <button type="button" onClick={onExit}>В меню (Esc)</button>
+          A / D или ← / → — движение&nbsp; · &nbsp;Space / W / ↑ — прыжок
+          <button type="button" onClick={() => setInventoryVisibility(true)}>
+            Инвентарь (Esc)
+          </button>
+        </div>
+      )}
+      {inventoryOpen && scanPhase === 'ready' && (
+        <div
+          className="void-game__inventory"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="void-inventory-title"
+          onContextMenu={(event) => {
+            const target = event.target;
+            const clickedCell = target.closest('.void-game__inventory-cell');
+            const clickedButton = target.closest('button');
+            if (!clickedCell && !clickedButton && inventoryRef.current.cursorItem) {
+              dropCursorItem(event);
+            }
+          }}
+        >
+          <div className="void-game__inventory-panel">
+            <div className="void-game__inventory-heading">
+              <h2 id="void-inventory-title">ИНВЕНТАРЬ</h2>
+              <button type="button" onClick={() => setInventoryVisibility(false)}>
+                Закрыть (Esc)
+              </button>
+            </div>
+            <p className="void-game__inventory-help">
+              ЛКМ — использовать предмет или переложить его. ПКМ по пустому месту — выбросить предмет.
+            </p>
+            <div className="void-game__inventory-grid" aria-label="Инвентарь: 50 ячеек">
+              {inventory.slots.map((slotItem, index) => (
+                <button
+                  type="button"
+                  key={index}
+                  className={`void-game__inventory-cell${index < HOTBAR_SIZE ? ' is-hotbar' : ''}${selectedHotbarIndex === index ? ' is-selected' : ''}`}
+                  aria-label={`Ячейка инвентаря ${index + 1}${slotItem ? ', сломанный слот' : ', пусто'}`}
+                  onClick={(event) => interactWithInventorySlot(
+                    index,
+                    Boolean(event.target.closest('[data-slot-content="true"]')),
+                  )}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    if (!slotItem && inventoryRef.current.cursorItem) {
+                      dropCursorItem(event);
+                    }
+                  }}
+                >
+                  <InventoryItemVisual item={slotItem} />
+                  {index < HOTBAR_SIZE && (
+                    <span>{index === HOTBAR_SIZE - 1 ? '0' : index + 1}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+            <p className="void-game__inventory-warning">
+              Несохраненные данные будут утеряны.
+            </p>
+            <button
+              type="button"
+              className="void-game__inventory-exit"
+              onClick={() => {
+                if (window.confirm('Несохраненные данные будут утеряны. Выйти в меню?')) {
+                  onExit();
+                }
+              }}
+            >
+              В меню
+            </button>
+          </div>
+        </div>
+      )}
+      {inventory.cursorItem && (
+        <div
+          className="void-game__cursor-item"
+          aria-hidden="true"
+          style={{ left: cursorPosition.x + 12, top: cursorPosition.y + 12 }}
+        >
+          <InventoryItemVisual item={inventory.cursorItem} />
         </div>
       )}
       {scanPhase !== 'ready' && (
