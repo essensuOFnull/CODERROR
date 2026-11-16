@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "CODERROR",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "identifier": "com.seon.coderror",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -14,7 +14,8 @@
       {
         "title": "CODERROR",
         "width": 800,
-        "height": 600
+        "height": 600,
+        "devtools": true
       }
     ],
     "security": {

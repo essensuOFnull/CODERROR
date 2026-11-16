@@ -7,21 +7,13 @@ const COLORS = {
 
 const SAFE_RADIUS = 50;
 const BARRIER_SPACING = 256;
-const WORLD_RADIUS = SAFE_RADIUS + BARRIER_SPACING * 7;
+const ZONE_COUNT = 7;
+const WORLD_RADIUS = SAFE_RADIUS + BARRIER_SPACING * (ZONE_COUNT - 1);
 export const VOID_SHIELD_LAYOUT = {
   safeRadius: SAFE_RADIUS,
   barrierSpacing: BARRIER_SPACING,
   worldRadius: WORLD_RADIUS,
 };
-const BIOME_TINTS = [
-  0xd4d8df,
-  0xffd95e,
-  0xff67e8,
-  0xff6964,
-  0x5beaff,
-  0x70ed70,
-  0x6487ff,
-];
 const COURSE_LENGTHS = [0, 0, 0, 15, 18, 16, 14];
 const COURSE_GAP_WIDTHS = [0, 0, 0, 3, 5, 4, 4];
 
@@ -161,10 +153,10 @@ function createRecoveredOre(regionX, regionDepth, cellSize, seed, recovered, gly
   return tiles;
 }
 
-export function difficultyAt(x) {
-  const radius = Math.abs(x);
+export function difficultyAt(x, y = 0) {
+  const radius = Math.hypot(x, y);
   if (radius < SAFE_RADIUS) return 0;
-  return Math.min(6, Math.floor((radius - SAFE_RADIUS) / BARRIER_SPACING) + 1);
+  return Math.min(ZONE_COUNT - 1, Math.floor((radius - SAFE_RADIUS) / BARRIER_SPACING) + 1);
 }
 
 function baselineAt(seed) {
@@ -199,9 +191,9 @@ function courseAt(radius, difficulty, seed, baseline) {
 }
 
 function terrainProfile(x, seed) {
-  const radius = Math.abs(x);
   const baseline = baselineAt(seed);
-  const difficulty = difficultyAt(x);
+  const radius = Math.hypot(x, baseline);
+  const difficulty = difficultyAt(x, baseline);
   let surface = baseline;
   let course = null;
 
@@ -237,7 +229,8 @@ export function fallRecoveryAt(x, y, seed) {
 
   const zoneStart = SAFE_RADIUS + (profile.difficulty - 1) * BARRIER_SPACING;
   const retryRadius = zoneStart + course.segment * course.length + 1;
-  const retryX = Math.sign(x || 1) * retryRadius;
+  const baseline = baselineAt(seed);
+  const retryX = Math.sign(x || 1) * Math.sqrt(Math.max(0, retryRadius ** 2 - baseline ** 2));
   return { x: retryX, y: surfaceAt(retryX, seed) };
 }
 
@@ -258,13 +251,6 @@ function spikeAt(profile, x, seed) {
   }
   return profile.difficulty === 6
     && hash(x, course.segment, seed + 53) > 0.94;
-}
-
-function blendColors(first, second, amount) {
-  const red = Math.round(((first >> 16) & 0xff) * (1 - amount) + ((second >> 16) & 0xff) * amount);
-  const green = Math.round(((first >> 8) & 0xff) * (1 - amount) + ((second >> 8) & 0xff) * amount);
-  const blue = Math.round((first & 0xff) * (1 - amount) + (second & 0xff) * amount);
-  return (red << 16) | (green << 8) | blue;
 }
 
 function hash(x, y, salt = 0) {
@@ -329,7 +315,7 @@ const voidRoom = {
       zIndex: 2,
       collision: true,
       generateTile({ x, y, seed, random, glyphs, data }) {
-        if (Math.abs(x) >= WORLD_RADIUS) {
+        if (Math.hypot(x, y) >= WORLD_RADIUS) {
           return {
             char: '█',
             fg: 0x262626,
@@ -342,7 +328,7 @@ const voidRoom = {
         if (isMazeWall(profile, y, seed)) {
           return {
             char: '▓',
-            fg: BIOME_TINTS[profile.difficulty],
+            fg: 0x626e83,
             bg: COLORS.deepRock,
             bgAlpha: 1,
           };
@@ -376,11 +362,7 @@ const voidRoom = {
         const strataColor = strataColors[Math.floor(random('strata-color') * strataColors.length)];
         return {
           char: unicodeGlyph ?? (surface ? '▓' : depth < 3 ? '▒' : '░'),
-          fg: blendColors(
-            seam ? COLORS.seam : surface ? COLORS.deepRock : depth < 3 ? 0x626e83 : strataColor,
-            BIOME_TINTS[profile.difficulty],
-            0.28,
-          ),
+          fg: seam ? COLORS.seam : surface ? COLORS.deepRock : depth < 3 ? 0x626e83 : strataColor,
           bg: COLORS.deepRock,
           bgAlpha: 1,
         };

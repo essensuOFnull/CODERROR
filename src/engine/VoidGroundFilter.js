@@ -31,7 +31,14 @@ out vec4 finalColor;
 
 uniform sampler2D uTexture;
 uniform float uTime;
-uniform float uDifficulty;
+uniform float uCameraX;
+uniform float uCameraY;
+uniform float uViewportWidth;
+uniform float uViewportHeight;
+uniform float uCenterY;
+uniform float uCellAspect;
+uniform float uSafeRadius;
+uniform float uBarrierSpacing;
 
 float hash(vec2 p) {
   return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -71,6 +78,18 @@ void main(void) {
 
   vec4 base = texture(uTexture, distortedUv);
   vec3 color = vec3(base.r, base.g, original.b);
+  vec2 worldPosition = vec2(
+    uCameraX + uv.x * uViewportWidth,
+    uCameraY + uv.y * uViewportHeight
+  );
+  vec2 worldOffset = vec2(
+    worldPosition.x,
+    (worldPosition.y - uCenterY) * uCellAspect
+  );
+  float distanceFromCenter = length(worldOffset);
+  float difficulty = distanceFromCenter < uSafeRadius
+    ? 0.0
+    : min(6.0, floor((distanceFromCenter - uSafeRadius) / uBarrierSpacing) + 1.0);
 
   float cell = hash(floor(uv * vec2(112.0, 70.0))
     + vec2(floor(uTime * 1.1), floor(uTime * 0.7)));
@@ -82,7 +101,7 @@ void main(void) {
   float scanline = step(0.992, hash(vec2(row, floor(uTime * 13.0)))) * terrain;
   float dissolve = max(rot * 0.9, scanline * 0.45);
   color *= 1.0 - dissolve * 0.15;
-  color = mix(color, color * biomeTint(uDifficulty), 0.2 * terrain);
+  color = mix(color, color * biomeTint(difficulty), 0.42 * terrain);
   float alpha = base.a;
 
   finalColor = vec4(color * alpha, alpha);
@@ -92,14 +111,21 @@ void main(void) {
 export function createVoidGroundFilter() {
   const uniforms = new UniformGroup({
     uTime: { value: 0, type: 'f32' },
-    uDifficulty: { value: 0, type: 'f32' },
+    uCameraX: { value: 0, type: 'f32' },
+    uCameraY: { value: 0, type: 'f32' },
+    uViewportWidth: { value: 1, type: 'f32' },
+    uViewportHeight: { value: 1, type: 'f32' },
+    uCenterY: { value: 0, type: 'f32' },
+    uCellAspect: { value: 1, type: 'f32' },
+    uSafeRadius: { value: 50, type: 'f32' },
+    uBarrierSpacing: { value: 256, type: 'f32' },
   });
   const filter = new Filter({
     glProgram: GlProgram.from({ vertex: VERTEX, fragment: FRAGMENT }),
     resources: { uniforms },
   });
 
-  filter.padding = 8;
+  filter.padding = 0;
   return { filter, uniforms };
 }
 

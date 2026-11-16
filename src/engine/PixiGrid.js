@@ -186,12 +186,6 @@ export class PixiGrid {
     }
   }
 
-  setVoidDifficulty(difficulty) {
-    if (this._voidUniforms) {
-      this._voidUniforms.uniforms.uDifficulty = Math.max(0, Math.min(6, difficulty));
-    }
-  }
-
   setVoidShieldView({
     cameraX,
     cameraY,
@@ -219,6 +213,13 @@ export class PixiGrid {
     this._voidShieldSprite.width = this.width * this.cellWidth;
     this._voidShieldSprite.height = this.height * this.cellHeight;
     this._voidShieldSprite.alpha = 1;
+    const filterWidth = this.width * this.cellWidth;
+    const filterHeight = this.height * this.cellHeight;
+    if (!this._voidShieldSprite.filterArea
+      || this._voidShieldSprite.filterArea.width !== filterWidth
+      || this._voidShieldSprite.filterArea.height !== filterHeight) {
+      this._voidShieldSprite.filterArea = new PIXI.Rectangle(0, 0, filterWidth, filterHeight);
+    }
 
     const uniforms = this._voidShieldUniforms.uniforms;
     uniforms.uCameraX = cameraX;
@@ -230,6 +231,18 @@ export class PixiGrid {
     uniforms.uSafeRadius = safeRadius;
     uniforms.uBarrierSpacing = barrierSpacing;
     uniforms.uWorldRadius = worldRadius;
+
+    if (this._voidUniforms) {
+      const groundUniforms = this._voidUniforms.uniforms;
+      groundUniforms.uCameraX = cameraX;
+      groundUniforms.uCameraY = cameraY;
+      groundUniforms.uViewportWidth = this.width;
+      groundUniforms.uViewportHeight = this.height;
+      groundUniforms.uCenterY = centerY;
+      groundUniforms.uCellAspect = cellAspect;
+      groundUniforms.uSafeRadius = safeRadius;
+      groundUniforms.uBarrierSpacing = barrierSpacing;
+    }
   }
 
   clearVoidShieldView() {

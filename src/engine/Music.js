@@ -142,9 +142,9 @@ export class Music {
     ) {
       const code = this._desiredCode;
       const outgoing = this._activePattern;
-      const incoming = await this.repl.evaluate(code, false, false);
+      const evaluatedIncoming = await this.repl.evaluate(code, false, false);
       await this.repl.setPattern(outgoing, false);
-      if (!incoming?._Pattern) {
+      if (!evaluatedIncoming?._Pattern) {
         throw new Error('Strudel did not produce a pattern for the requested track.');
       }
       if (code !== this._desiredCode) {
@@ -154,6 +154,7 @@ export class Music {
       const duration = this._desiredDuration;
       const startCycle = this.repl.scheduler.now();
       const durationCycles = duration * this.repl.scheduler.cps;
+      const incoming = evaluatedIncoming.late(startCycle);
       const mixed = stack(
         fadePattern(outgoing, startCycle, durationCycles, 'out'),
         fadePattern(incoming, startCycle, durationCycles, 'in'),

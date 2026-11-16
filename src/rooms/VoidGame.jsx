@@ -283,7 +283,7 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
     let activePlayerOverlays = new Set();
     let activeMediaOverlays = new Set();
     let activeVoidParticleOverlays = new Set();
-    let activeDifficulty = difficultyAt(player.x);
+    let activeDifficulty = difficultyAt(player.x, player.y);
     let dead = false;
     const voidParticles = [];
     let voidParticleSequence = 0;
@@ -301,7 +301,6 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
       return true;
     };
     engine.pixiGrid?.setVoidEffects(voidRoom.effects?.ground === 'corruption');
-    engine.pixiGrid?.setVoidDifficulty(activeDifficulty);
     engine.music.transitionTo(VOID_ZONE_MUSIC[activeDifficulty]).catch((error) => {
       console.error('[VoidGame] Failed to transition zone music:', error);
     });
@@ -369,10 +368,9 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
         player.jumpHoldActive = false;
       }
 
-      const difficulty = difficultyAt(player.x);
+      const difficulty = difficultyAt(player.x, player.y);
       if (difficulty !== activeDifficulty) {
         activeDifficulty = difficulty;
-        engine.pixiGrid?.setVoidDifficulty(difficulty);
         engine.music.transitionTo(VOID_ZONE_MUSIC[difficulty]).catch((error) => {
           console.error('[VoidGame] Failed to transition zone music:', error);
         });
@@ -850,9 +848,9 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
         <span>ПУСТОТА</span>
         <span>{world?.name}</span>
         <span>ЧАНК 32×32</span>
-        <span>{difficultyAt(position.x) === 0
+        <span>{difficultyAt(position.x, position.y) === 0
           ? 'БЕЗОПАСНАЯ ЗОНА'
-          : `УРОВЕНЬ СЛОЖНОСТИ ${difficultyAt(position.x)}`}</span>
+          : `УРОВЕНЬ СЛОЖНОСТИ ${difficultyAt(position.x, position.y)}`}</span>
         <span>{sourceLabel}</span>
         <span>{Math.floor(position.x)} : {Math.floor(position.y)}</span>
       </div>
