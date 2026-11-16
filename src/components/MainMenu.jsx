@@ -44,11 +44,11 @@ export default function MainMenu({
     setActiveWorld(null);
   }, []);
 
-  const beginWorldEntry = (world) => {
+  const beginWorldEntry = useCallback((world) => {
     setActiveWorld(world);
     setWorldMenuOpen(false);
     setEnteringWorld(true);
-  };
+  }, []);
 
   const completeWorldEntry = useCallback(() => {
     setEnteringWorld(false);
@@ -76,11 +76,27 @@ export default function MainMenu({
       setWorldMenuError('Введите название мира.');
       return;
     }
-    beginWorldEntry({
-      name,
-      seed: Math.floor(Math.random() * 0x100000000),
-    });
+    const seed = Math.floor(Math.random() * 0x100000000);
+    setWorldMenuError('');
+    invoke('request_world_generation_elevation', { worldName: name, seed })
+      .then((canContinue) => {
+        if (canContinue) beginWorldEntry({ name, seed });
+      })
+      .catch((error) => {
+        setWorldMenuError(`Не удалось запросить права администратора: ${String(error)}`);
+      });
   };
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    invoke('take_startup_world_creation')
+      .then((world) => {
+        if (world) beginWorldEntry(world);
+      })
+      .catch((error) => {
+        setWorldMenuError(`Не удалось продолжить создание мира: ${String(error)}`);
+      });
+  }, [beginWorldEntry]);
 
   const openSavedWorld = async (id) => {
     setLoadingWorldId(id);

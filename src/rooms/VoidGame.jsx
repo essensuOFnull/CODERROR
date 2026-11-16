@@ -268,8 +268,13 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
       }
     };
 
-    const visibleCols = Math.max(1, engine.width - 2);
-    const visibleRows = Math.max(1, engine.height - 2);
+    let visibleCols = Math.max(1, engine.width - 2);
+    let visibleRows = Math.max(1, engine.height - 2);
+    const unsubscribeResize = engine.on('resize', ({ width, height }) => {
+      visibleCols = Math.max(1, width - 2);
+      visibleRows = Math.max(1, height - 2);
+      terrainDirtyRef.current = true;
+    });
     let cameraX = Math.floor(player.x - visibleCols / 2);
     let cameraY = Math.floor(player.y - visibleRows / 2);
     let lastCameraX = Number.NaN;
@@ -638,6 +643,7 @@ export default function VoidGame({ cellWidth, cellHeight, world, onExit }) {
     return () => {
       unsubscribeTick();
       unsubscribeRender();
+      unsubscribeResize();
       clearTimeout(noticeTimer.current);
       keys.current.clear();
       for (const id of activePlayerOverlays) engine.pixiGrid?.removeOverlay(id);

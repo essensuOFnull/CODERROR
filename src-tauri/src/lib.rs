@@ -1,13 +1,22 @@
 mod disk_recovery;
 
-use tauri::{
-    LogicalPosition, LogicalSize, Manager, WebviewUrl, WebviewWindowBuilder,
-};
+use std::sync::Mutex;
+use tauri::{LogicalPosition, LogicalSize, Manager, WebviewUrl, WebviewWindowBuilder};
 
 #[cfg(windows)]
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    SetWindowPos, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+    SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SetWindowPos,
 };
+
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WorldCreationRequest {
+    name: String,
+    seed: u32,
+}
+
+#[derive(Default)]
+struct StartupWorldCreation(Mutex<Option<WorldCreationRequest>>);
 
 const OVERLAY_LABEL: &str = "glitch-frame";
 /// Отступ рамки в логических пикселях.
@@ -16,6 +25,135 @@ const PADDING: f64 = 64.0;
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
+}
+
+#[tauri::command]
+fn request_world_generation_elevation(
+    app: tauri::AppHandle,
+    world_name: String,
+    seed: u32,
+) -> Result<bool, String> {
+    let name = disk_recovery::validate_world_name(&world_name)?.to_owned();
+
+    #[cfg(windows)]
+    {
+        if windows::is_elevated() {
+            return Ok(true);
+        }
+        windows::relaunch_elevated(&name, seed)?;
+        app.exit(0);
+        Ok(false)
+    }
+
+    #[cfg(not(windows))]
+    {
+        let _ = (app, name, seed);
+        Err("Создание мира с чтением NTFS поддерживается только в Windows.".into())
+    }
+}
+
+#[tauri::command]
+fn take_startup_world_creation(
+    request: tauri::State<'_, StartupWorldCreation>,
+) -> Result<Option<WorldCreationRequest>, String> {
+    request
+        .0
+        .lock()
+        .map_err(|error| format!("Не удалось получить параметры создания мира: {error}"))
+        .map(|mut request| request.take())
+}
+
+fn startup_world_creation() -> Option<WorldCreationRequest> {
+    let mut args = std::env::args_os().skip(1);
+    while let Some(argument) = args.next() {
+        if argument == "--coderror-create-world" {
+            let name = args.next()?.into_string().ok()?;
+            let seed = args.next()?.into_string().ok()?.parse().ok()?;
+            return Some(WorldCreationRequest { name, seed });
+        }
+    }
+    None
+}
+
+#[cfg(windows)]
+mod windows {
+    use std::{ffi::OsStr, os::windows::ffi::OsStrExt, ptr::null_mut};
+    use windows_sys::Win32::UI::Shell::{IsUserAnAdmin, ShellExecuteW};
+    use windows_sys::Win32::{
+        Foundation::{ERROR_CANCELLED, GetLastError},
+        UI::WindowsAndMessaging::SW_SHOWNORMAL,
+    };
+
+    fn wide(value: &OsStr) -> Vec<u16> {
+        value.encode_wide().chain(Some(0)).collect()
+    }
+
+    fn quote_argument(argument: &str) -> String {
+        let mut quoted = String::from("\"");
+        let mut backslashes = 0;
+        for character in argument.chars() {
+            match character {
+                '\\' => backslashes += 1,
+                '"' => {
+                    quoted.push_str(&"\\".repeat(backslashes * 2 + 1));
+                    quoted.push('"');
+                    backslashes = 0;
+                }
+                _ => {
+                    quoted.push_str(&"\\".repeat(backslashes));
+                    quoted.push(character);
+                    backslashes = 0;
+                }
+            }
+        }
+        quoted.push_str(&"\\".repeat(backslashes * 2));
+        quoted.push('"');
+        quoted
+    }
+
+    pub fn is_elevated() -> bool {
+        unsafe { IsUserAnAdmin() != 0 }
+    }
+
+    pub fn relaunch_elevated(name: &str, seed: u32) -> Result<(), String> {
+        let executable = std::env::current_exe()
+            .map_err(|error| format!("Не удалось определить путь к приложению: {error}"))?;
+        let working_directory = std::env::current_dir()
+            .map_err(|error| format!("Не удалось определить рабочую папку: {error}"))?;
+        let parameters = format!("--coderror-create-world {} {}", quote_argument(name), seed);
+        let operation = wide(OsStr::new("runas"));
+        let executable_wide = wide(executable.as_os_str());
+        let parameters_wide = wide(OsStr::new(&parameters));
+        let working_directory_wide = wide(working_directory.as_os_str());
+
+        unsafe { windows_sys::Win32::Foundation::SetLastError(0) };
+        let result = unsafe {
+            ShellExecuteW(
+                null_mut(),
+                operation.as_ptr(),
+                executable_wide.as_ptr(),
+                parameters_wide.as_ptr(),
+                working_directory_wide.as_ptr(),
+                SW_SHOWNORMAL,
+            )
+        };
+        let error = unsafe { GetLastError() };
+        if error == ERROR_CANCELLED || result as usize == ERROR_CANCELLED as usize {
+            return Err("Запрос прав администратора отменён.".into());
+        }
+        if result as usize > 32 {
+            return Ok(());
+        }
+
+        let error = if error == 0 {
+            result as usize
+        } else {
+            error as usize
+        };
+        Err(format!(
+            "Не удалось перезапустить приложение с правами администратора (код ошибки {error})."
+        ))
+    }
 }
 
 #[cfg(windows)]
@@ -72,9 +210,12 @@ fn get_overlay_geometry(
 pub fn run() {
     tauri::Builder::default()
         .manage(disk_recovery::ScanRegistry::default())
+        .manage(StartupWorldCreation(Mutex::new(startup_world_creation())))
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             greet,
+            request_world_generation_elevation,
+            take_startup_world_creation,
             disk_recovery::get_install_ntfs_volume,
             disk_recovery::scan_ntfs_free_space,
             disk_recovery::cancel_disk_scan,

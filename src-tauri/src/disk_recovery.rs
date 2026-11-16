@@ -345,7 +345,7 @@ fn persist_world(
     Ok(saved_world_parts(&id, name, report, file_size_bytes))
 }
 
-fn validate_world_name(name: &str) -> Result<&str, String> {
+pub(super) fn validate_world_name(name: &str) -> Result<&str, String> {
     let name = name.trim();
     if name.is_empty() || name.chars().count() > 64 || name.chars().any(char::is_control) {
         return Err("Название мира должно содержать от 1 до 64 печатных символов.".into());

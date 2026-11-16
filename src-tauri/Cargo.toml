@@ -1,8 +1,8 @@
 [package]
-name = "coderror"
-version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+name = "CODERROR"
+version = "0.2.1"
+description = "Ⓢ═Ⓔ═Ⓞ═ⓃのGame"
+authors = ["Ⓢ═Ⓔ═Ⓞ═Ⓝ"]
 edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -30,6 +30,7 @@ windows-sys = { version = "0.61", features = [
   "Win32_Storage_FileSystem",
   "Win32_System_IO",
   "Win32_System_Ioctl",
+  "Win32_UI_Shell",
   "Win32_UI_WindowsAndMessaging"
 ] }
 
