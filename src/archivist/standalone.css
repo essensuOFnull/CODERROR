@@ -1,0 +1,52 @@
+html,
+body,
+#root {
+  width: 100%;
+  min-width: 320px;
+  height: 100%;
+  min-height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  min-height: 100vh;
+}
+
+.standalone-reader {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #000;
+}
+
+.standalone-reader .archivist-book-export-html {
+  display: none;
+}
+
+.standalone-reader-closed {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #000;
+}
+
+.standalone-reader-closed button {
+  padding: 12px 20px;
+  color: #c8b89a;
+  background: transparent;
+  border: 1px solid rgba(200, 184, 154, 0.3);
+  border-radius: 4px;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: lowercase;
+  cursor: pointer;
+}
+
+.standalone-reader-closed button:hover,
+.standalone-reader-closed button:focus-visible {
+  background: rgba(200, 184, 154, 0.08);
+  outline: 1px dotted rgba(200, 184, 154, 0.7);
+  outline-offset: 2px;
+}

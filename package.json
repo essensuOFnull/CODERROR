@@ -4,8 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "npm run build:archivist && vite",
+    "build": "vite build && npm run build:archivist",
+    "build:archivist": "vite build --config vite.archivist.config.js",
     "preview": "vite preview",
     "tauri": "tauri"
   },
